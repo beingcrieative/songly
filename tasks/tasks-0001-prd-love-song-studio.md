@@ -40,15 +40,15 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - [x] 2.8 Link new lyric version to conversation and song entities using Admin SDK
 - [x] 2.9 Add comprehensive error handling for LLM calls and JSON parsing
 
-### 3.0 Build Version-Aware Lyrics Panel with Polling
-- [ ] 3.1 Create `useLyricVersions` custom hook that polls InstantDB every 3-5 seconds using `db.useQuery()`
-- [ ] 3.2 Implement hash-based deduplication in hook to prevent unnecessary re-renders
-- [ ] 3.3 Create `<LyricsPanel>` component that displays latest lyric version with highlighted styling
-- [ ] 3.4 Add version history list showing previous versions with timestamps
-- [ ] 3.5 Implement expandable/collapsible previous versions for comparison view
-- [ ] 3.6 Add loading spinner/toast during polling updates
-- [ ] 3.7 Display "No lyrics yet" state when no versions exist
-- [ ] 3.8 Add visual indicator showing which version is currently displayed (latest vs historical)
+### 3.0 Build Version-Aware Lyrics Panel with Polling ✅
+- [x] 3.1 Create `useLyricVersions` custom hook that polls InstantDB every 4 seconds using `db.useQuery()`
+- [x] 3.2 Implement hash-based deduplication in hook to prevent unnecessary re-renders
+- [x] 3.3 Create `<LyricsPanel>` component that displays latest lyric version with highlighted styling
+- [x] 3.4 Add version history list showing previous versions with timestamps
+- [x] 3.5 Implement expandable/collapsible previous versions for comparison view
+- [x] 3.6 Add loading spinner with animated icon and "Lyrics laden..." message
+- [x] 3.7 Display "No lyrics yet" state with emoji and helpful message
+- [x] 3.8 Add visual indicators: "Nieuw bijgewerkt" badge, current version dot, version count
 
 ### 4.0 Create Context-Aware Composer Controls UI
 - [ ] 4.1 Create `<ComposerControls>` component that reads `composerContext` from latest message
@@ -76,3 +76,5 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - `src/app/page.tsx` - Added `LyricVersion` TypeScript type definition
 - `src/app/api/chat/route.ts` - Added `generateComposerContext()` function and integrated composer context into responses
 - `src/app/api/lyric-versions/route.ts` - New endpoint for generating and storing lyric versions with hash-based deduplication
+- `src/hooks/useLyricVersions.ts` - Custom hook for polling lyric versions with hash-based change detection
+- `src/components/LyricsPanel.tsx` - Full-featured lyrics display component with version history and comparison
