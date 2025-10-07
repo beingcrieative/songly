@@ -22,23 +22,23 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 
 ## Tasks
 
-### 1.0 Extend InstantDB Schema for Lyric Versioning and Composer Context
+### 1.0 Extend InstantDB Schema for Lyric Versioning and Composer Context ✅
 - [x] 1.1 Add `lyric_versions` entity to `instant.schema.ts` with fields: `content` (string), `label` (string), `createdAt` (number, indexed), `hash` (string, indexed), `version` (number)
 - [x] 1.2 Add `composerContext` field (string, optional) to `messages` entity for storing LLM-generated composer suggestions
 - [x] 1.3 Add links: `lyric_versions` → `conversations` (one), `lyric_versions` → `songs` (one)
 - [x] 1.4 Run `npx instant-cli push` to sync schema changes to InstantDB (requires user to login)
 - [x] 1.5 Update TypeScript types by creating `LyricVersion` type using `InstaQLEntity<AppSchema, "lyric_versions">`
 
-### 2.0 Implement Two-Step LLM Workflow with Composer Context
-- [ ] 2.1 Refactor `/api/chat/route.ts` to extract composer context generation into separate function `generateComposerContext()`
-- [ ] 2.2 Modify POST handler to call `generateComposerContext()` after generating AI reply
-- [ ] 2.3 Store composer context in `composerContext` field when creating message entity
-- [ ] 2.4 Create new function `generateLyricVersion()` that triggers after AI reply completes
-- [ ] 2.5 Implement `generateLyricVersion()` to send conversation delta + previous lyrics to LLM
-- [ ] 2.6 Parse LLM response and create new `lyric_versions` entity with auto-generated label (e.g., "Verse Update – 14:32")
-- [ ] 2.7 Calculate content hash for deduplication and store in `hash` field
-- [ ] 2.8 Link new lyric version to conversation and song entities
-- [ ] 2.9 Add error handling and retry logic for LLM calls
+### 2.0 Implement Two-Step LLM Workflow with Composer Context ✅
+- [x] 2.1 Refactor `/api/chat/route.ts` to extract composer context generation into separate function `generateComposerContext()`
+- [x] 2.2 Modify POST handler to call `generateComposerContext()` after generating AI reply
+- [x] 2.3 Store composer context in `composerContext` field when creating message entity (returned in API response)
+- [x] 2.4 Create new API endpoint `/api/lyric-versions` for lyric version generation
+- [x] 2.5 Implement conversation delta + previous lyrics handling in lyric version endpoint
+- [x] 2.6 Parse LLM response and create new `lyric_versions` entity with auto-generated label (e.g., "Versie 1 – 14:32")
+- [x] 2.7 Calculate content hash for deduplication using SHA-256 and store in `hash` field
+- [x] 2.8 Link new lyric version to conversation and song entities using Admin SDK
+- [x] 2.9 Add comprehensive error handling for LLM calls and JSON parsing
 
 ### 3.0 Build Version-Aware Lyrics Panel with Polling
 - [ ] 3.1 Create `useLyricVersions` custom hook that polls InstantDB every 3-5 seconds using `db.useQuery()`
@@ -74,3 +74,5 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 
 - `src/instant.schema.ts` - Extended with `lyric_versions` entity and `composerContext` field on messages
 - `src/app/page.tsx` - Added `LyricVersion` TypeScript type definition
+- `src/app/api/chat/route.ts` - Added `generateComposerContext()` function and integrated composer context into responses
+- `src/app/api/lyric-versions/route.ts` - New endpoint for generating and storing lyric versions with hash-based deduplication
