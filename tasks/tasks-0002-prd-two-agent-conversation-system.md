@@ -41,16 +41,16 @@ Based on PRD-0002: Two-Agent Conversation System
   - [x] 1.7 Run `npx instant-cli push` to sync schema changes to InstantDB (NOTE: Requires manual `npx instant-cli login` first if not already logged in)
   - [x] 1.8 Verify schema changes in InstantDB dashboard (User action required)
 
-- [ ] 2.0 Create Conversation Agent System
-  - [ ] 2.1 Create `src/lib/prompts/conversationAgent.ts` with detailed system prompt (based on PRD requirements: empathetic interviewer, asks 1-2 questions, builds on answers, minimum 6 rounds, never generates lyrics)
-  - [ ] 2.2 Create `src/lib/utils/contextExtraction.ts` with function to extract structured context from conversation history (memories, emotions, characteristics, musicStyle)
-  - [ ] 2.3 Create `src/lib/utils/readinessScore.ts` with function to calculate readiness score (0-1) based on: number of memories, emotional depth, specificity, music style clarity
-  - [ ] 2.4 Create API route `src/app/api/chat/conversation/route.ts` that accepts POST with conversation history
-  - [ ] 2.5 In conversation route, call OpenRouter with conversation agent system prompt and full message history
-  - [ ] 2.6 After receiving AI response, call contextExtraction to update extracted context
-  - [ ] 2.7 Calculate readinessScore using readinessScore utility
-  - [ ] 2.8 Return JSON response: `{ type: 'conversation', message, roundNumber, readinessScore, extractedContext }`
-  - [ ] 2.9 Add error handling for OpenRouter API failures with user-friendly Dutch error messages
+- [x] 2.0 Create Conversation Agent System
+  - [x] 2.1 Create `src/lib/prompts/conversationAgent.ts` with detailed system prompt (based on PRD requirements: empathetic interviewer, asks 1-2 questions, builds on answers, minimum 6 rounds, never generates lyrics)
+  - [x] 2.2 Create `src/lib/utils/contextExtraction.ts` with function to extract structured context from conversation history (memories, emotions, characteristics, musicStyle)
+  - [x] 2.3 Create `src/lib/utils/readinessScore.ts` with function to calculate readiness score (0-1) based on: number of memories, emotional depth, specificity, music style clarity
+  - [x] 2.4 Create API route `src/app/api/chat/conversation/route.ts` that accepts POST with conversation history
+  - [x] 2.5 In conversation route, call OpenRouter with conversation agent system prompt and full message history
+  - [x] 2.6 After receiving AI response, call contextExtraction to update extracted context
+  - [x] 2.7 Calculate readinessScore using readinessScore utility
+  - [x] 2.8 Return JSON response: `{ type: 'conversation', message, roundNumber, readinessScore, extractedContext }`
+  - [x] 2.9 Add error handling for OpenRouter API failures with user-friendly Dutch error messages
 
 - [ ] 3.0 Create Lyrics Generation Agent System
   - [ ] 3.1 Create `src/lib/prompts/lyricsAgent.ts` with detailed system prompt (based on PRD: professional songwriter, Suno-optimized structure, incorporates specific details, natural Dutch phrasing)
