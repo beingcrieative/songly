@@ -62,6 +62,11 @@ BELANGRIJK: Retourneer ALLEEN het JSON object, geen andere tekst.`;
     });
 
     if (!response.ok) {
+      // On rate limit, return empty context instead of throwing
+      if (response.status === 429) {
+        console.warn('Context extraction rate limited, using empty context');
+        return createEmptyContext();
+      }
       throw new Error(`OpenRouter API error: ${response.status}`);
     }
 

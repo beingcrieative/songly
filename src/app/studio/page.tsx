@@ -198,6 +198,17 @@ export default function StudioPage() {
 
     const data = await response.json();
 
+    // Handle rate limiting with retry suggestion
+    if (response.status === 429 && data.rateLimited) {
+      const retryMessage = {
+        role: "assistant" as const,
+        content: data.error || 'Even geduld, we hebben te veel aanvragen ontvangen. Probeer het over een paar seconden opnieuw.',
+        isRateLimited: true,
+      };
+      setMessages((prev) => [...prev, retryMessage]);
+      return;
+    }
+
     if (data.error) {
       throw new Error(data.error);
     }

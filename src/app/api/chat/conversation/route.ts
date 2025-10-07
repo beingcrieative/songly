@@ -55,6 +55,18 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+
+      // Handle rate limiting gracefully
+      if (response.status === 429) {
+        return NextResponse.json(
+          {
+            error: 'Even geduld, we hebben te veel aanvragen ontvangen. Probeer het over een paar seconden opnieuw.',
+            rateLimited: true
+          },
+          { status: 429 }
+        );
+      }
+
       throw new Error(errorData.error?.message || 'OpenRouter API error');
     }
 
