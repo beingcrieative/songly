@@ -86,17 +86,17 @@ Based on PRD-0002: Two-Agent Conversation System
   - [x] 5.9 Add loading indicator "Lyrics worden gegenereerd..." when transitioning to 'generating' phase
   - [x] 5.10 Update LyricsPanel to display generated lyrics with sections clearly marked ([Couplet], [Refrein], [Bridge])
 
-- [ ] 6.0 Add Lyrics Refinement Capability
-  - [ ] 6.1 Create API route `src/app/api/chat/refine-lyrics/route.ts` that accepts POST with previous lyrics and user feedback
-  - [ ] 6.2 Build refinement prompt that includes previous lyrics + user feedback + conversation context
-  - [ ] 6.3 Call OpenRouter with lyrics agent system prompt and refinement request
-  - [ ] 6.4 Parse and validate refined lyrics response
-  - [ ] 6.5 Create new lyric_version entity in InstantDB with incremented version number
-  - [ ] 6.6 Link lyric_version to conversation and update hash for deduplication
-  - [ ] 6.7 Update `src/components/LyricsPanel.tsx` to show "Verfijn lyrics" button after lyrics are generated
-  - [ ] 6.8 Add refinement input UI in LyricsPanel for users to describe desired changes
-  - [ ] 6.9 Display version history in LyricsPanel showing all previous lyric versions
-  - [ ] 6.10 Allow users to switch between lyric versions and select preferred version
+- [x] 6.0 Add Lyrics Refinement Capability
+  - [x] 6.1 Create API route `src/app/api/chat/refine-lyrics/route.ts` that accepts POST with previous lyrics and user feedback
+  - [x] 6.2 Build refinement prompt that includes previous lyrics + user feedback + conversation context
+  - [x] 6.3 Call OpenRouter with lyrics agent system prompt and refinement request
+  - [x] 6.4 Parse and validate refined lyrics response
+  - [x] 6.5 Create new lyric_version entity in InstantDB with incremented version number
+  - [x] 6.6 Link lyric_version to conversation and update hash for deduplication
+  - [x] 6.7 Update `src/components/LyricsPanel.tsx` to show "Verfijn lyrics" button after lyrics are generated
+  - [x] 6.8 Add refinement input UI in LyricsPanel for users to describe desired changes
+  - [x] 6.9 Display version history in LyricsPanel showing all previous lyric versions
+  - [x] 6.10 Allow users to switch between lyric versions and select preferred version
 
 - [ ] 7.0 Testing and Optimization
   - [ ] 7.1 Test conversation flow with minimal input (1-2 word responses) - should ask follow-up questions

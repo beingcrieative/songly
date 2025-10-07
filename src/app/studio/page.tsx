@@ -404,6 +404,81 @@ export default function StudioPage() {
     }
   };
 
+  /**
+   * Handle lyrics refinement based on user feedback
+   */
+  const handleRefineLyrics = async (feedback: string) => {
+    if (!feedback.trim()) return;
+
+    setIsLoading(true);
+    setConversationPhase('generating');
+
+    try {
+      // Get latest lyrics from messages
+      const latestLyricsMessage = messages.slice().reverse().find((m) => m.lyrics);
+      if (!latestLyricsMessage) {
+        throw new Error('No lyrics to refine');
+      }
+
+      // Build conversation transcript
+      const transcript = messages
+        .map((m) => `${m.role}: ${m.content}`)
+        .join('\n');
+
+      // Call refinement API
+      const response = await fetch("/api/chat/refine-lyrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previousLyrics: latestLyricsMessage.lyrics,
+          feedback: feedback,
+          conversationTranscript: transcript,
+          extractedContext: extractedContext,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Add refined lyrics message
+      const refinedMessage = {
+        role: "assistant" as const,
+        content: `🎵 **${data.title}** (verfijnd)\n\n${data.lyrics}\n\n*${data.style}*${data.reasoning ? `\n\n_${data.reasoning}_` : ''}`,
+        lyrics: data,
+      };
+
+      setMessages((prev) => [...prev, refinedMessage]);
+      setConversationPhase('refining');
+
+      // Update conversation phase in DB
+      if (!DEV_MODE && conversationId) {
+        await db.transact([
+          db.tx.conversations[conversationId].update({
+            conversationPhase: 'refining',
+          }),
+        ]);
+      }
+
+      // Create new lyric version
+      await generateLyricVersion(data);
+    } catch (error: any) {
+      console.error("Lyrics refinement error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry, er ging iets mis bij het verfijnen van de lyrics: ${error.message}\n\nProbeer het opnieuw met andere feedback.`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setConversationPhase('complete');
+    }
+  };
+
   if (!DEV_MODE && user.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -553,6 +628,8 @@ export default function StudioPage() {
       roundNumber={roundNumber}
       readinessScore={readinessScore}
       latestLyrics={latestLyrics}
+      onRefineLyrics={handleRefineLyrics}
+      isRefining={isLoading && conversationPhase === 'generating'}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">

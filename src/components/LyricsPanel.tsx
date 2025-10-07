@@ -25,6 +25,9 @@ interface LyricsPanelProps {
   readinessScore?: number;
   extractedContext?: ExtractedContext;
   latestLyrics?: GeneratedLyrics | null;
+  // Refinement props
+  onRefineLyrics?: (feedback: string) => void;
+  isRefining?: boolean;
 }
 
 export function LyricsPanel({
@@ -36,10 +39,14 @@ export function LyricsPanel({
   readinessScore = 0,
   extractedContext,
   latestLyrics,
+  onRefineLyrics,
+  isRefining = false,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showExtractedContext, setShowExtractedContext] = useState(true);
+  const [showRefinementInput, setShowRefinementInput] = useState(false);
+  const [refinementFeedback, setRefinementFeedback] = useState("");
 
   const { versions, latestVersion, isLoading, hasNewVersion } = useLyricVersionsWithNotification({
     conversationId,
@@ -322,6 +329,61 @@ export function LyricsPanel({
             <div className="mt-6 rounded-lg border-l-4 border-blue-400 bg-blue-50 p-4">
               <p className="text-sm font-medium text-blue-900">Toelichting:</p>
               <p className="mt-1 text-sm text-blue-700">{displayLyrics.reasoning}</p>
+            </div>
+          )}
+
+          {/* Refinement UI */}
+          {onRefineLyrics && !showRefinementInput && (
+            <div className="mt-6">
+              <button
+                onClick={() => setShowRefinementInput(true)}
+                className="w-full rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50"
+                disabled={isRefining}
+              >
+                ✨ Verfijn lyrics
+              </button>
+            </div>
+          )}
+
+          {/* Refinement Input */}
+          {showRefinementInput && onRefineLyrics && (
+            <div className="mt-6 rounded-lg border-2 border-purple-200 bg-purple-50 p-4">
+              <h4 className="mb-2 text-sm font-semibold text-purple-900">
+                Wat wil je aanpassen?
+              </h4>
+              <textarea
+                value={refinementFeedback}
+                onChange={(e) => setRefinementFeedback(e.target.value)}
+                placeholder="bijv. 'Maak het refrein pakkender' of 'Gebruik meer beelden uit de trein'"
+                className="w-full rounded-lg border border-purple-300 p-3 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                rows={3}
+                disabled={isRefining}
+              />
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => {
+                    if (refinementFeedback.trim()) {
+                      onRefineLyrics(refinementFeedback);
+                      setRefinementFeedback("");
+                      setShowRefinementInput(false);
+                    }
+                  }}
+                  disabled={!refinementFeedback.trim() || isRefining}
+                  className="flex-1 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {isRefining ? "Verfijnen..." : "Verfijn lyrics"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRefinementInput(false);
+                    setRefinementFeedback("");
+                  }}
+                  disabled={isRefining}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Annuleren
+                </button>
+              </div>
             </div>
           )}
         </div>

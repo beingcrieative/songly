@@ -217,9 +217,9 @@ function parseGenerationParams(song: Song): StoredGenerationParams {
 function buildGenerationRequestFromSong(song: Song): SunoGenerationRequest {
   const stored = parseGenerationParams(song);
   return {
-    title: stored.title ?? song.title,
-    lyrics: stored.prompt ?? song.lyrics,
-    musicStyle: stored.tags ?? song.musicStyle,
+    title: stored.title ?? song.title ?? 'Untitled Song',
+    lyrics: stored.prompt ?? song.lyrics ?? '',
+    musicStyle: stored.tags ?? song.musicStyle ?? '',
     model: (stored.model ?? song.generationModel ?? DEFAULT_SUNO_MODEL).toUpperCase(),
     makeInstrumental: Boolean(stored.makeInstrumental ?? song.instrumental ?? false),
   };
@@ -377,16 +377,16 @@ function AppExperience({ openAuthModal }: { openAuthModal: () => void }) {
     : {
         conversations: {
           $: {
-            order: { createdAt: "desc" },
+            order: { createdAt: "desc" as const },
             limit: 1,
           },
           messages: {
-            $: { order: { createdAt: "asc" } },
+            $: { order: { createdAt: "asc" as const } },
           },
           songs: {
-            $: { order: { createdAt: "desc" } },
+            $: { order: { createdAt: "desc" as const } },
             variants: {
-              $: { order: { order: 'asc' } },
+              $: { order: { order: 'asc' as const } },
             },
           },
           user: {},

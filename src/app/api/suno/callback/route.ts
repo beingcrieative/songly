@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (!targetSongId && taskId) {
       const { songs } = await adminDb.query({
         songs: {
-          $: { where: { sunoTaskId: taskId }, limit: 1 },
+          $: { where: { sunoTaskId: taskId } },
         },
       });
       targetSongId = songs?.[0]?.id ?? null;
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     const shouldProcessAudio =
       callbackType === 'complete' ||
       callbackType === 'first' ||
-      normalizedTracks.some((track) => track.streamAudioUrl || track.audioUrl);
+      normalizedTracks.some((track: any) => track.streamAudioUrl || track.audioUrl);
 
     if (!shouldProcessAudio) {
       return NextResponse.json({ ok: true, info: "no audio payload yet" });
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, info: "no tracks" });
     }
 
-    const variantTx = normalizedTracks.map((track) =>
+    const variantTx = normalizedTracks.map((track: any) =>
       adminDb.tx.sunoVariants[track.trackId]
         .update({
           songId: targetSongId,

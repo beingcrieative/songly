@@ -82,19 +82,16 @@ async function fetchSongs(limit = 2000): Promise<SongRecord[]> {
   const adminDb = getAdminDb();
   if (!adminDb) return [];
 
-  const { songs } = await adminDb.query({
+  const { songs: allSongs } = await adminDb.query({
     songs: {
-      $: {
-        limit,
-        order: { createdAt: "desc" },
-      },
-      variants: {
-        $: {
-          order: { order: "asc" },
-        },
-      },
+      variants: {},
     },
   });
+
+  // Sort and limit results after query
+  const songs = (allSongs || [])
+    .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, limit);
 
   return (songs || []) as SongRecord[];
 }

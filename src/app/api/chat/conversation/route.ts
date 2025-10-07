@@ -7,7 +7,7 @@ import {
   stringifyExtractedContext,
 } from '@/lib/utils/contextExtraction';
 import { calculateReadinessScore } from '@/lib/utils/readinessScore';
-import { ConversationAgentResponse } from '@/types/conversation';
+import { ConversationAgentResponse, ExtractedContext } from '@/types/conversation';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       { role: 'assistant', content: aiMessage },
     ];
 
-    let extractedContext;
+    let extractedContext: ExtractedContext = { memories: [], emotions: [], partnerTraits: [] };
     try {
       const newContext = await extractContextFromConversation(
         fullConversation,
@@ -86,9 +86,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error('Context extraction failed:', error);
       // Use existing context if extraction fails
-      extractedContext = existingContext
-        ? parseExtractedContext(existingContext)
-        : { memories: [], emotions: [], partnerTraits: [] };
+      extractedContext = (existingContext ? parseExtractedContext(existingContext) : null) ?? { memories: [], emotions: [], partnerTraits: [] };
     }
 
     // Calculate readiness score
