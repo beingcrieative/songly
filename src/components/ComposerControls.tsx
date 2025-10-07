@@ -13,15 +13,30 @@ interface ComposerControlsProps {
   composerContext?: string | null;
   onSuggestionClick?: (suggestion: string) => void;
   className?: string;
+  // Two-agent system props
+  roundNumber?: number;
+  readinessScore?: number;
+  onGenerateNow?: () => void;
 }
 
 export function ComposerControls({
   composerContext,
   onSuggestionClick,
   className = "",
+  roundNumber = 0,
+  readinessScore = 0,
+  onGenerateNow,
 }: ComposerControlsProps) {
   const [context, setContext] = useState<ComposerContext | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Show "Genereer nu" button after round 4 when readiness > 0.5
+  const MIN_ROUNDS_FOR_EARLY_TRIGGER = 4;
+  const MIN_READINESS_FOR_EARLY_TRIGGER = 0.5;
+  const showGenerateButton =
+    roundNumber >= MIN_ROUNDS_FOR_EARLY_TRIGGER &&
+    readinessScore >= MIN_READINESS_FOR_EARLY_TRIGGER &&
+    onGenerateNow;
 
   // Parse composer context JSON
   useEffect(() => {
@@ -65,6 +80,16 @@ export function ComposerControls({
   if (!context) {
     return (
       <div className={`rounded-lg border border-gray-200 bg-gray-50 p-4 ${className}`}>
+        {/* Generate Now button */}
+        {showGenerateButton && (
+          <button
+            onClick={onGenerateNow}
+            className="mb-4 w-full rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg hover:from-pink-600 hover:to-purple-600"
+          >
+            ✨ Genereer nu het liedje
+          </button>
+        )}
+
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
@@ -128,6 +153,16 @@ export function ComposerControls({
           )}
         </div>
       </div>
+
+      {/* Generate Now button */}
+      {showGenerateButton && (
+        <button
+          onClick={onGenerateNow}
+          className="mb-4 w-full rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-3 text-sm font-bold text-white shadow-md transition-all hover:shadow-lg hover:from-pink-600 hover:to-purple-600"
+        >
+          ✨ Genereer nu het liedje
+        </button>
+      )}
 
       {/* Mood suggestions */}
       {context.mood && context.mood.length > 0 && (

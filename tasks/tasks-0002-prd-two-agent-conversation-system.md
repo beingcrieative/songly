@@ -74,17 +74,17 @@ Based on PRD-0002: Two-Agent Conversation System
   - [x] 4.9 Update conversation entity in InstantDB with phase, roundNumber, extractedContext, readinessScore after each message
   - [x] 4.10 Add feature flag check: if `ENABLE_TWO_AGENT_SYSTEM !== 'true'`, fall back to existing `/api/chat` route
 
-- [ ] 5.0 Update UI Components for Two-Phase Flow
-  - [ ] 5.1 Update `src/app/studio/page.tsx` handleSendMessage to call `/api/chat/conversation` instead of `/api/chat` when in 'gathering' phase
-  - [ ] 5.2 Update message handling to store extractedContext and readinessScore from conversation agent response
-  - [ ] 5.3 Update `src/components/LyricsPanel.tsx` to show "Gathering inspiration..." message during 'gathering' phase
-  - [ ] 5.4 Add progress indicator in LyricsPanel showing "Round X/6" during gathering phase
-  - [ ] 5.5 Display extracted context themes in LyricsPanel as conversation progresses (optional transparency feature)
-  - [ ] 5.6 Update `src/components/ComposerControls.tsx` to show "Genereer nu" button after round 4 when readinessScore > 0.5
-  - [ ] 5.7 Add onClick handler for "Genereer nu" button that triggers transition to lyrics generation
-  - [ ] 5.8 Update chat display in studio page to properly format and display generated lyrics (NOT raw JSON) in a card component
-  - [ ] 5.9 Add loading indicator "Lyrics worden gegenereerd..." when transitioning to 'generating' phase
-  - [ ] 5.10 Update LyricsPanel to display generated lyrics with sections clearly marked ([Couplet], [Refrein], [Bridge])
+- [x] 5.0 Update UI Components for Two-Phase Flow
+  - [x] 5.1 Update `src/app/studio/page.tsx` handleSendMessage to call `/api/chat/conversation` instead of `/api/chat` when in 'gathering' phase
+  - [x] 5.2 Update message handling to store extractedContext and readinessScore from conversation agent response
+  - [x] 5.3 Update `src/components/LyricsPanel.tsx` to show "Gathering inspiration..." message during 'gathering' phase
+  - [x] 5.4 Add progress indicator in LyricsPanel showing "Round X/6" during gathering phase
+  - [x] 5.5 Display extracted context themes in LyricsPanel as conversation progresses (optional transparency feature)
+  - [x] 5.6 Update `src/components/ComposerControls.tsx` to show "Genereer nu" button after round 4 when readinessScore > 0.5
+  - [x] 5.7 Add onClick handler for "Genereer nu" button that triggers transition to lyrics generation
+  - [x] 5.8 Update chat display in studio page to properly format and display generated lyrics (NOT raw JSON) in a card component
+  - [x] 5.9 Add loading indicator "Lyrics worden gegenereerd..." when transitioning to 'generating' phase
+  - [x] 5.10 Update LyricsPanel to display generated lyrics with sections clearly marked ([Couplet], [Refrein], [Bridge])
 
 - [ ] 6.0 Add Lyrics Refinement Capability
   - [ ] 6.1 Create API route `src/app/api/chat/refine-lyrics/route.ts` that accepts POST with previous lyrics and user feedback

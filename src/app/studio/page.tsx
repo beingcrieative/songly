@@ -498,12 +498,17 @@ export default function StudioPage() {
       <div className="border-t border-gray-200 bg-white p-4">
         <div className="mx-auto max-w-3xl space-y-3">
           {/* Composer Controls */}
-          {!ENABLE_TWO_AGENT_SYSTEM && (
-            <ComposerControls
-              composerContext={latestComposerContext}
-              onSuggestionClick={handleSuggestionClick}
-            />
-          )}
+          <ComposerControls
+            composerContext={latestComposerContext}
+            onSuggestionClick={handleSuggestionClick}
+            roundNumber={roundNumber}
+            readinessScore={readinessScore}
+            onGenerateNow={
+              ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering'
+                ? transitionToLyricsGeneration
+                : undefined
+            }
+          />
 
           {/* Input Area */}
           <div className="flex gap-2">
@@ -533,6 +538,11 @@ export default function StudioPage() {
     </div>
   );
 
+  // Find latest generated lyrics from messages
+  const latestLyrics = messages.length > 0
+    ? messages.slice().reverse().find((m) => m.lyrics)?.lyrics
+    : null;
+
   // Lyrics Pane Component
   const lyricsPane = conversationId ? (
     <LyricsPanel
@@ -541,6 +551,8 @@ export default function StudioPage() {
       conversationPhase={conversationPhase}
       extractedContext={extractedContext}
       roundNumber={roundNumber}
+      readinessScore={readinessScore}
+      latestLyrics={latestLyrics}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">
