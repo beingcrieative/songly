@@ -1,169 +1,2664 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { InstaQLEntity, id } from "@instantdb/react";
 import { db } from "@/lib/db";
 import { type AppSchema } from "@/instant.schema";
-import { id, InstaQLEntity } from "@instantdb/react";
 
-type Todo = InstaQLEntity<AppSchema, "todos">;
+type Conversation = InstaQLEntity<AppSchema, "conversations">;
+type Message = InstaQLEntity<AppSchema, "messages">;
+type Song = InstaQLEntity<AppSchema, "songs">;
+type LyricVersion = InstaQLEntity<AppSchema, "lyric_versions">;
 
-const room = db.room("todos");
+type StepConfig = {
+  id: number;
+  title: string;
+  description: string;
+  helper?: string;
+};
 
-function App() {
-  // Read Data
-  const { isLoading, error, data } = db.useQuery({ todos: {} });
-  const { peers } = db.rooms.usePresence(room);
-  const numUsers = 1 + Object.keys(peers).length;
-  if (isLoading) {
-    return;
+type PromptConfig = {
+  title: string;
+  suggestions: string[];
+};
+
+const FLOW_STEPS: StepConfig[] = [
+  { id: 0, title: "Welkom", description: "We leren jullie liefdesverhaal kennen." },
+  {
+    id: 1,
+    title: "Jullie verhaal",
+    description: "Wat is het moment dat jullie nooit vergeten?",
+    helper: "Vertel het in je eigen woorden, 1-2 zinnen is genoeg.",
+  },
+  {
+    id: 2,
+    title: "Persoonlijke details",
+    description: "Laat kleine inside jokes of lievelingsdingen terugkomen.",
+  },
+  {
+    id: 3,
+    title: "Muziekstijl",
+    description: "Welke sfeer past bij jullie?",
+  },
+  { id: 4, title: "Finale", description: "Check & luister voor je deelt." },
+];
+
+const PROMPT_LIBRARY: Record<number, PromptConfig> = {
+  0: {
+    title: "Snel starten",
+    suggestions: [
+      "We ontmoetten elkaar tijdens een zomerfestival",
+      "Onze relatie voelt als een rustig kampvuur",
+      "Ik wil een modern popnummer met zachte piano",
+    ],
+  },
+  1: {
+    title: "Wat maakt jullie uniek?",
+    suggestions: [
+      "Hij maakte een grap over mijn rode sneakers",
+      "Onze eerste date was een chaotische kookavond",
+      "We leerden elkaar kennen tijdens een start-up hackathon",
+    ],
+  },
+  2: {
+    title: "Persoonlijke details",
+    suggestions: [
+      "Ze noemt me altijd haar favoriete avonturier",
+      "Elke zondag wandelen we met onze hond Nova",
+      "Ons nummer draait om vertrouwen en groei",
+    ],
+  },
+  3: {
+    title: "Kies een stijl",
+    suggestions: [
+      "R&B met warme synths",
+      "Akoestische indie vibes",
+      "Een uptempo house remix versie",
+    ],
+  },
+};
+
+const HOW_IT_WORKS = [
+  {
+    title: "Vertel jullie verhaal",
+    description: "Beantwoord vier gerichte vragen; klaar in minder dan twee minuten.",
+  },
+  {
+    title: "AI componeert",
+    description: "Onze AI schrijft lyrics en componeert muziek met de Suno-engine.",
+  },
+  {
+    title: "Deel je liedje",
+    description: "Luister direct, download als MP3 of deel via een persoonlijke link.",
+  },
+];
+
+const FEATURE_ROWS = [
+  {
+    title: "Lyrics met gevoel",
+    description: "De AI begrijpt context en gebruikt jullie details voor authentieke teksten.",
+    meta: "Nederlandstalig & Engelstalig",
+  },
+  {
+    title: "Meer dan één take",
+    description: "Genereer varianten en kies de versie die het beste bij jullie past.",
+    meta: "Tot 3 versies per verhaal",
+  },
+  {
+    title: "Direct delen",
+    description: "Download het MP3-bestand of deel het nummer met één klik.",
+    meta: "Inclusief shareable link",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    quote:
+      "Ik had binnen enkele minuten een lied dat voelde alsof het speciaal voor ons geschreven was.",
+    name: "Sanne & Joris",
+    role: "Verloofd koppel",
+  },
+  {
+    quote: "Onze bruilofts-gasten vroegen direct wie de producer was. Zo professioneel!",
+    name: "Ayesha",
+    role: "Bruiloft in 2024",
+  },
+  {
+    quote: "De conversatie voelt als een creatieve coach. Geen lange formulieren, gewoon praten.",
+    name: "Melissa",
+    role: "Relatiecoach",
+  },
+];
+
+const PRICING_PLANS = [
+  {
+    title: "Proefversie",
+    price: "Gratis",
+    tag: "Start nu",
+    description: "Ontvang een korte demo-lyric en instrumentaal fragment.",
+    features: ["1 mini-versie", "Snelle onboarding", "E-mail download"],
+    cta: "Probeer gratis",
+  },
+  {
+    title: "Premium",
+    price: "€19",
+    tag: "Meest gekozen",
+    description: "Volledige track met lyrics, arrangement en deelbare link.",
+    features: [
+      "Volledige song (3+ minuten)",
+      "3 stijlvarianten",
+      "Onbeperkt downloaden",
+      "Persoonlijke licentie",
+    ],
+    cta: "Maak mijn liedje",
+    highlighted: true,
+  },
+  {
+    title: "Duo",
+    price: "€29",
+    description: "Twee versies: romantisch en feest. Ideaal voor jubileum of bruiloft.",
+    features: ["Alles uit Premium", "Extra remixversie", "Live instrument bonus"],
+    cta: "Upgrade naar Duo",
+  },
+];
+
+const FAQS = [
+  {
+    question: "Hoe lang duurt het voordat ik mijn liedje ontvang?",
+    answer:
+      "De meeste nummers zijn binnen 3-5 minuten klaar. Je ziet live statusupdates tijdens het genereren.",
+  },
+  {
+    question: "Kan ik het liedje in een andere taal maken?",
+    answer:
+      "Ja, we ondersteunen Nederlands, Engels en gecombineerd. Geef de voorkeur aan in het gesprek.",
+  },
+  {
+    question: "Wat gebeurt er met mijn antwoorden?",
+    answer:
+      "We bewaren je input alleen voor jouw song en verwijderen ze na 30 dagen, tenzij je expliciet bewaart.",
+  },
+  {
+    question: "Mag ik het publiekelijk delen?",
+    answer:
+      "Ja, elke Premium- en Duo-licentie bevat het recht om het nummer te delen op socials of tijdens events.",
+  },
+];
+
+const DEFAULT_SUNO_MODEL = 'V5';
+
+type StoredGenerationParams = {
+  title?: string;
+  prompt?: string;
+  tags?: string;
+  model?: string;
+  makeInstrumental?: boolean;
+};
+
+type SunoGenerationRequest = {
+  title: string;
+  lyrics: string;
+  musicStyle: string;
+  model: string;
+  makeInstrumental: boolean;
+};
+
+function parseGenerationParams(song: Song): StoredGenerationParams {
+  if (!song.generationParams) return {};
+  try {
+    return JSON.parse(song.generationParams) as StoredGenerationParams;
+  } catch (error) {
+    console.warn('Kon generationParams niet parsen voor song', song.id, error);
+    return {};
   }
-  if (error) {
-    return <div className="text-red-500 p-4">Error: {error.message}</div>;
+}
+
+function buildGenerationRequestFromSong(song: Song): SunoGenerationRequest {
+  const stored = parseGenerationParams(song);
+  return {
+    title: stored.title ?? song.title,
+    lyrics: stored.prompt ?? song.lyrics,
+    musicStyle: stored.tags ?? song.musicStyle,
+    model: (stored.model ?? song.generationModel ?? DEFAULT_SUNO_MODEL).toUpperCase(),
+    makeInstrumental: Boolean(stored.makeInstrumental ?? song.instrumental ?? false),
+  };
+}
+
+type SunoCallbackTrack = {
+  trackId?: string;
+  audioUrl?: string | null;
+  streamAudioUrl?: string | null;
+  sourceAudioUrl?: string | null;
+  sourceStreamAudioUrl?: string | null;
+  imageUrl?: string | null;
+  durationSeconds?: number | null;
+  modelName?: string | null;
+  prompt?: string | null;
+  tags?: string | null;
+  title?: string | null;
+};
+
+function parseCallbackTracks(song: Song): SunoCallbackTrack[] {
+  if (!song.callbackData) return [];
+  try {
+    const parsed = JSON.parse(song.callbackData);
+    const rawArray = Array.isArray(parsed)
+      ? parsed
+      : parsed && Array.isArray(parsed.data)
+      ? parsed.data
+      : [];
+
+    if (!Array.isArray(rawArray)) return [];
+
+    return rawArray.map((track: any) => ({
+      trackId: track.trackId || track.track_id || null,
+      audioUrl: track.audioUrl || track.audio_url || null,
+      streamAudioUrl: track.streamAudioUrl || track.stream_audio_url || null,
+      sourceAudioUrl: track.sourceAudioUrl || track.source_audio_url || null,
+      sourceStreamAudioUrl:
+        track.sourceStreamAudioUrl || track.source_stream_audio_url || null,
+      imageUrl: track.imageUrl || track.image_url || null,
+      durationSeconds:
+        typeof track.durationSeconds === 'number'
+          ? track.durationSeconds
+          : typeof track.duration === 'number'
+          ? track.duration
+          : null,
+      modelName: track.modelName || track.model_name || null,
+      prompt: track.prompt || null,
+      tags: track.tags || null,
+      title: track.title || null,
+    }));
+  } catch (error) {
+    console.warn('Kon callbackData niet parsen voor song', song.id, error);
+    return [];
   }
-  const { todos } = data;
+}
+
+function guessAudioMimeType(url?: string | null) {
+  if (!url) return "audio/mpeg";
+
+  const base = url.split("?")[0]?.toLowerCase() ?? "";
+
+  if (base.endsWith(".m3u8") || base.endsWith(".m3u")) {
+    return "application/vnd.apple.mpegurl";
+  }
+  if (base.endsWith(".aac")) {
+    return "audio/aac";
+  }
+  if (base.endsWith(".wav")) {
+    return "audio/wav";
+  }
+  if (base.endsWith(".ogg") || base.endsWith(".oga")) {
+    return "audio/ogg";
+  }
+  if (base.endsWith(".webm")) {
+    return "audio/webm";
+  }
+  if (base.endsWith(".mp4") || base.endsWith(".m4a")) {
+    return "audio/mp4";
+  }
+
+  return "audio/mpeg";
+}
+
+export default function Page() {
+  const [authOpen, setAuthOpen] = useState(false);
+
   return (
-    <div className="font-mono min-h-screen flex justify-center items-center flex-col space-y-4">
-      <div className="text-xs text-gray-500">
-        Number of users online: {numUsers}
-      </div>
-      <h2 className="tracking-wide text-5xl text-gray-300">todos</h2>
-      <div className="border border-gray-300 max-w-xs w-full">
-        <TodoForm todos={todos} />
-        <TodoList todos={todos} />
-        <ActionBar todos={todos} />
-      </div>
-      <div className="text-xs text-center">
-        Open another tab to see todos update in realtime!
-      </div>
+    <div className="min-h-screen">
+      <db.SignedIn>
+        <AppExperience openAuthModal={() => setAuthOpen(true)} />
+      </db.SignedIn>
+      <db.SignedOut>
+        <LandingPage onStart={() => setAuthOpen(true)} />
+      </db.SignedOut>
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
 
-// Write Data
-// ---------
-function addTodo(text: string) {
-  db.transact(
-    db.tx.todos[id()].update({
-      text,
-      done: false,
-      createdAt: Date.now(),
-    }),
-  );
-}
-
-function deleteTodo(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].delete());
-}
-
-function toggleDone(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].update({ done: !todo.done }));
-}
-
-function deleteCompleted(todos: Todo[]) {
-  const completed = todos.filter((todo) => todo.done);
-  const txs = completed.map((todo) => db.tx.todos[todo.id].delete());
-  db.transact(txs);
-}
-
-function toggleAll(todos: Todo[]) {
-  const newVal = !todos.every((todo) => todo.done);
-  db.transact(
-    todos.map((todo) => db.tx.todos[todo.id].update({ done: newVal })),
-  );
-}
-
-// Components
-// ----------
-function ChevronDownIcon() {
+function ConceptLyricsPanel({ draft, onGenerate, isGenerating }: { draft?: Song; onGenerate: () => void; isGenerating: boolean }) {
   return (
-    <svg viewBox="0 0 20 20">
-      <path
-        d="M5 8 L10 13 L15 8"
-        stroke="currentColor"
-        fill="none"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function TodoForm({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="flex items-center h-10 border-b border-gray-300">
-      <button
-        className="h-full px-2 border-r border-gray-300 flex items-center justify-center"
-        onClick={() => toggleAll(todos)}
-      >
-        <div className="w-5 h-5">
-          <ChevronDownIcon />
+    <div className="rounded-2xl border border-white/60 bg-white/85 p-4">
+      <div className="heading-subtle">Concept lyrics</div>
+      {draft?.title ? (
+        <>
+          <h3 className="mt-2 text-xl font-semibold">{draft.title}</h3>
+          <p className="text-xs text-[rgba(31,27,45,0.55)]">{draft.musicStyle} {typeof draft.version === 'number' ? `• v${draft.version}` : ''}</p>
+          <div className="mt-3 rounded-xl border border-white/50 bg-white/70 p-3 text-sm">
+            <div className="lyrics-scroll max-h-[460px] overflow-y-auto whitespace-pre-wrap leading-relaxed text-[rgba(31,27,45,0.85)]">{draft.lyrics}</div>
+          </div>
+          <div className="mt-4 flex items-center justify-end">
+            <button onClick={onGenerate} disabled={isGenerating} className="btn btn-primary">{isGenerating ? 'Bezig…' : 'Maak muziek van deze lyrics'}</button>
+          </div>
+        </>
+      ) : (
+        <div className="mt-2 rounded-xl border border-dashed border-[#7f5af0]/35 bg-[#7f5af0]/5 px-4 py-6 text-sm text-[rgba(31,27,45,0.6)]">
+          Nog geen concept. Geef feedback of details in de chat; ik bouw rechts het concept mee.
         </div>
-      </button>
-      <form
-        className="flex-1 h-full"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const input = e.currentTarget.input as HTMLInputElement;
-          addTodo(input.value);
-          input.value = "";
-        }}
-      >
-        <input
-          className="w-full h-full px-2 outline-none bg-transparent"
-          autoFocus
-          placeholder="What needs to be done?"
-          type="text"
-          name="input"
-        />
-      </form>
+      )}
     </div>
   );
 }
 
-function TodoList({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="divide-y divide-gray-300">
-      {todos.map((todo) => (
-        <div key={todo.id} className="flex items-center h-10">
-          <div className="h-full px-2 flex items-center justify-center">
-            <div className="w-5 h-5 flex items-center justify-center">
-              <input
-                type="checkbox"
-                className="cursor-pointer"
-                checked={todo.done}
-                onChange={() => toggleDone(todo)}
-              />
+function AppExperience({ openAuthModal }: { openAuthModal: () => void }) {
+  const user = db.useUser();
+  const [currentConversation, setCurrentConversation] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeView, setActiveView] = useState<'studio' | 'library'>('studio');
+  // Studio modes: composer or chat
+  const [studioMode, setStudioMode] = useState<'composer' | 'chat'>('chat');
+  const [nowPlaying, setNowPlaying] = useState<{ title?: string; url?: string; imageUrl?: string } | null>(null);
+  const [isMiniPlaying, setIsMiniPlaying] = useState(false);
+  const miniAudioRef = useRef<HTMLAudioElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const queryShape = currentConversation
+    ? {
+        conversations: {
+          $: {
+            where: { id: currentConversation },
+          },
+          messages: {
+            $: { order: { createdAt: "asc" } },
+          },
+          songs: {
+            $: { order: { createdAt: "desc" } },
+            variants: {
+              $: { order: { order: 'asc' } },
+            },
+          },
+          user: {},
+        },
+      }
+    : {
+        conversations: {
+          $: {
+            order: { createdAt: "desc" },
+            limit: 1,
+          },
+          messages: {
+            $: { order: { createdAt: "asc" } },
+          },
+          songs: {
+            $: { order: { createdAt: "desc" } },
+            variants: {
+              $: { order: { order: 'asc' } },
+            },
+          },
+          user: {},
+        },
+      };
+
+  const { data, isLoading, error } = db.useQuery(queryShape);
+  const {
+    data: libraryData,
+    isLoading: libraryLoading,
+    error: libraryError,
+  } = db.useQuery(
+    user
+      ? {
+          songs: {
+            $: {
+              where: { user: user.id },
+              order: { createdAt: 'desc' },
+            },
+            variants: {
+              $: { order: { order: 'asc' } },
+            },
+          },
+        }
+      : null,
+  );
+
+  const conversation: Conversation | undefined = data?.conversations?.[0];
+  const messages = conversation?.messages ?? [];
+  const songs = conversation?.songs ?? [];
+  const librarySongs = libraryData?.songs ?? [];
+  const readyLibrarySongs = useMemo(
+    () => librarySongs.filter((song) => song.status === 'ready'),
+    [librarySongs],
+  );
+  const libraryPreviewSongs = useMemo(() => {
+    if (!readyLibrarySongs.length) return [] as Song[];
+    const conversationIds = new Set((songs ?? []).map((song) => song.id));
+    return readyLibrarySongs.filter((song) => !conversationIds.has(song.id));
+  }, [readyLibrarySongs, songs]);
+  const activeConversationId = currentConversation ?? conversation?.id ?? null;
+  const latestSong = songs[0];
+  const draftSong = useMemo(() => (songs || []).find((s) => s.status === 'draft') as Song | undefined, [songs]);
+
+  const handleSetNowPlaying = (meta: { title?: string; url?: string | null; imageUrl?: string | null }) => {
+    const url = meta.url || undefined;
+    setNowPlaying({ title: meta.title ?? undefined, url, imageUrl: meta.imageUrl ?? undefined });
+    setIsMiniPlaying(false);
+    // Defer play until user hits play in mini-player to avoid auto-play policies
+  };
+
+  const toggleMiniPlayback = () => {
+    const el = miniAudioRef.current;
+    if (!el) return;
+    if (el.paused) {
+      el.play().catch(() => {});
+      setIsMiniPlaying(true);
+    } else {
+      el.pause();
+      setIsMiniPlaying(false);
+    };
+  };
+
+  const stopMiniPlayback = () => {
+    const el = miniAudioRef.current;
+    if (!el) return;
+    el.pause();
+    el.currentTime = 0;
+    setIsMiniPlaying(false);
+  };
+
+  useEffect(() => {
+    if (!currentConversation && data?.conversations?.[0]?.id) {
+      setCurrentConversation(data.conversations[0].id);
+    }
+  }, [currentConversation, data?.conversations]);
+
+  const currentStep = conversation?.currentStep ?? 0;
+  const activeStepConfig = useMemo(() => {
+    const step = FLOW_STEPS.find((item) => item.id === currentStep);
+    return step ?? FLOW_STEPS[0];
+  }, [currentStep]);
+
+  const promptConfig = PROMPT_LIBRARY[currentStep] ?? PROMPT_LIBRARY[0];
+
+  const startNewConversation = async () => {
+    const conversationId = id();
+
+    await db.transact([
+      db.tx.conversations[conversationId]
+        .update({
+          createdAt: Date.now(),
+          status: "active",
+          currentStep: 0,
+        })
+        .link({ user: user?.id }),
+    ]);
+
+    setCurrentConversation(conversationId);
+
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [], conversationRound: 0 }),
+    });
+
+    const payload = await response.json();
+
+    if (payload.type === "message" || payload.type === "question") {
+      await db.transact([
+        db.tx.messages[id()]
+          .update({
+            role: "assistant",
+            content: payload.content,
+            createdAt: Date.now(),
+          })
+          .link({ conversation: conversationId }),
+      ]);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!userInput.trim() || !activeConversationId || isGenerating) return;
+
+    const conversationRound = conversation?.currentStep ?? 0;
+    const content = userInput.trim();
+
+    setUserInput("");
+    setIsGenerating(true);
+
+    await db.transact([
+      db.tx.messages[id()]
+        .update({
+          role: "user",
+          content,
+          createdAt: Date.now(),
+        })
+        .link({ conversation: activeConversationId }),
+    ]);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...messages, { role: "user", content }],
+          conversationRound: conversationRound + 1,
+          currentTitle: draftSong?.title || '',
+          currentLyrics: draftSong?.lyrics || '',
+          currentStyle: draftSong?.musicStyle || '',
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (payload.type === "message" || payload.type === "question") {
+        await db.transact([
+          db.tx.messages[id()]
+            .update({
+              role: "assistant",
+              content: payload.content,
+              createdAt: Date.now(),
+            })
+            .link({ conversation: activeConversationId }),
+          db.tx.conversations[activeConversationId].update({
+            currentStep: payload.round ?? conversationRound + 1,
+          }),
+        ]);
+      } else if (payload.type === 'message_lyrics') {
+        // 1) toon assistentbericht (zichtbaar deel)
+        if (payload.content && typeof payload.content === 'string') {
+          await db.transact([
+            db.tx.messages[id()]
+              .update({ role: 'assistant', content: payload.content, createdAt: Date.now() })
+              .link({ conversation: activeConversationId }),
+          ]);
+        }
+        // 2) concept lyrics bewaren als draft
+        const lyr = payload.lyrics || {};
+        const existingDraftId = draftSong?.id;
+        const targetSongId = existingDraftId || id();
+        // merge eventuele history in generationParams
+        const prevParams = draftSong ? parseGenerationParams(draftSong) : {};
+        const mergedParams = { ...prevParams, lyricsHistory: Array.isArray(lyr.history) ? lyr.history : prevParams.lyricsHistory };
+        await db.transact([
+          db.tx.songs[targetSongId]
+            .update({
+              title: lyr.title || draftSong?.title || 'Liefdesliedje',
+              lyrics: lyr.lyrics || draftSong?.lyrics || '',
+              musicStyle: lyr.style || draftSong?.musicStyle || '',
+              status: 'draft',
+              version: typeof lyr.version === 'number' ? lyr.version : (draftSong?.version ?? 1),
+              createdAt: existingDraftId ? draftSong?.createdAt ?? Date.now() : Date.now(),
+              generationParams: JSON.stringify(mergedParams),
+            })
+            .link({ conversation: activeConversationId, user: conversation?.user?.id }),
+          db.tx.conversations[activeConversationId].update({ currentStep: payload.round ?? conversationRound + 1, status: 'draft_ready' }),
+        ]);
+      } else if (payload.type === "lyrics") {
+        // Bewaar of update een concept-song (geen muziek genereren)
+        const existingDraftId = draftSong?.id;
+        const targetSongId = existingDraftId || id();
+        const nextVersion = (songs?.length ?? 0) + (existingDraftId ? 0 : 1);
+
+        await db.transact([
+          db.tx.songs[targetSongId]
+            .update({
+              title: payload.title,
+              lyrics: payload.lyrics,
+              musicStyle: payload.style,
+              status: "draft",
+              version: existingDraftId ? draftSong?.version ?? nextVersion : nextVersion,
+              createdAt: existingDraftId ? draftSong?.createdAt ?? Date.now() : Date.now(),
+            })
+            .link({ conversation: activeConversationId, user: conversation?.user?.id }),
+          db.tx.conversations[activeConversationId].update({
+            status: "draft_ready",
+            currentStep: payload.round ?? conversationRound + 1,
+          }),
+          db.tx.messages[id()]
+            .update({
+              role: "assistant",
+              content: "Ik heb een concept-lyric opgesteld rechts in beeld. Laat me weten wat je wilt aanpassen!",
+              createdAt: Date.now(),
+            })
+            .link({ conversation: activeConversationId }),
+        ]);
+      }
+    } catch (err) {
+      await db.transact([
+        db.tx.messages[id()]
+          .update({
+            role: "assistant",
+            content: "Er ging iets mis. Wil je het nog eens proberen?",
+            createdAt: Date.now(),
+          })
+          .link({ conversation: activeConversationId }),
+      ]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  async function generateFromDraft() {
+    if (!activeConversationId || !draftSong || isGenerating) return;
+    setIsGenerating(true);
+    const songId = draftSong.id;
+    const requestPayload: SunoGenerationRequest = {
+      title: draftSong.title || 'Liefdesliedje',
+      lyrics: draftSong.lyrics || '',
+      musicStyle: draftSong.musicStyle || '',
+      model: DEFAULT_SUNO_MODEL,
+      makeInstrumental: Boolean(draftSong.instrumental || false),
+    };
+    try {
+      await db.transact([
+        db.tx.songs[songId].update({ status: 'generating', errorMessage: null }),
+        db.tx.conversations[activeConversationId].update({ status: 'generating_music' }),
+      ]);
+      const result = await submitSunoGeneration({ songId, requestPayload, conversationId: activeConversationId });
+      const messageContent = result.ok
+        ? `Top! Ik ga muziek genereren voor "${requestPayload.title}". Ik laat het weten zodra er varianten zijn.`
+        : `Muziek genereren mislukt: ${result.error}. Probeer het zo nog eens.`;
+      await db.transact([
+        db.tx.messages[id()] 
+          .update({ role: 'assistant', content: messageContent, createdAt: Date.now() })
+          .link({ conversation: activeConversationId }),
+      ]);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  const pollMusicStatus = async (conversationId: string, songId: string, taskId: string) => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch(`/api/suno?taskId=${taskId}`);
+        const data = await response.json();
+
+        if (data.error) {
+          await db.transact([
+            db.tx.songs[songId].update({
+              status: "failed",
+              errorMessage: data.error,
+            }),
+          ]);
+          return;
+        }
+
+        const trackList = Array.isArray(data.tracks) ? data.tracks : [];
+
+        if (trackList.length) {
+          const variantWrites = trackList.map((track: any, index: number) => {
+            const variantId = String(
+              track.trackId || track.track_id || track.id || id(),
+            );
+            return db.tx.sunoVariants[variantId]
+              .update({
+                songId,
+                trackId: track.trackId || track.track_id || track.id || variantId,
+                title: track.title || null,
+                audioUrl: track.audioUrl || track.audio_url || null,
+                streamAudioUrl: track.streamAudioUrl || track.stream_audio_url || null,
+                sourceAudioUrl: track.sourceAudioUrl || track.source_audio_url || null,
+                sourceStreamAudioUrl:
+                  track.sourceStreamAudioUrl || track.source_stream_audio_url || null,
+                imageUrl: track.imageUrl || track.image_url || null,
+                durationSeconds:
+                  typeof track.durationSeconds === 'number'
+                    ? track.durationSeconds
+                    : typeof track.duration === 'number'
+                    ? track.duration
+                    : null,
+                modelName: track.modelName || track.model_name || null,
+                prompt: track.prompt || null,
+                tags: track.tags || null,
+                createdAt: track.createTime || Date.now(),
+                order: index,
+              })
+              .link({ song: songId });
+          });
+
+          if (variantWrites.length) {
+            await db.transact(variantWrites);
+          }
+        }
+
+        const primaryTrack = trackList[0] || {};
+        const bestAudioUrl =
+          data.audioUrl ||
+          data.streamAudioUrl ||
+          primaryTrack.audioUrl ||
+          primaryTrack.audio_url ||
+          primaryTrack.streamAudioUrl ||
+          primaryTrack.stream_audio_url ||
+          primaryTrack.sourceStreamAudioUrl ||
+          primaryTrack.source_stream_audio_url ||
+          primaryTrack.sourceAudioUrl ||
+          primaryTrack.source_audio_url ||
+          null;
+
+        const bestImageUrl =
+          data.imageUrl ||
+          primaryTrack.imageUrl ||
+          primaryTrack.image_url ||
+          null;
+
+        const bestVideoUrl =
+          data.videoUrl ||
+          primaryTrack.videoUrl ||
+          primaryTrack.video_url ||
+          null;
+
+        if (bestAudioUrl) {
+          await db.transact([
+            db.tx.songs[songId].update({
+              status:
+                data.status === "ready" || primaryTrack.state === "complete"
+                  ? "ready"
+                  : data.status === "failed" || primaryTrack.state === "failed"
+                  ? "failed"
+                  : "generating",
+              audioUrl: data.audioUrl || primaryTrack.audioUrl || primaryTrack.audio_url || null,
+              videoUrl: bestVideoUrl,
+              imageUrl: bestImageUrl,
+              streamAudioUrl:
+                data.streamAudioUrl ||
+                primaryTrack.streamAudioUrl ||
+                primaryTrack.stream_audio_url ||
+                null,
+              sourceAudioUrl:
+                data.sourceAudioUrl ||
+                primaryTrack.sourceAudioUrl ||
+                primaryTrack.source_audio_url ||
+                null,
+              sourceStreamAudioUrl:
+                data.sourceStreamAudioUrl ||
+                primaryTrack.sourceStreamAudioUrl ||
+                primaryTrack.source_stream_audio_url ||
+                null,
+              durationSeconds:
+                data.durationSeconds ??
+                (typeof primaryTrack.duration === "number" ? primaryTrack.duration : null),
+              modelName: data.modelName ?? primaryTrack.modelName ?? primaryTrack.model_name ?? null,
+              prompt: data.prompt ?? primaryTrack.prompt ?? null,
+              sunoTrackId: data.tracks?.[0]?.trackId ?? data.tracks?.[0]?.id ?? null,
+              callbackData: data.tracks ? JSON.stringify(data.tracks) : null,
+              errorMessage: null,
+            }),
+          ]);
+        }
+
+        if (data.status === "ready") {
+          await db.transact([
+            db.tx.conversations[conversationId].update({
+              status: "completed",
+            }),
+          ]);
+        } else if (data.status === "generating") {
+          setTimeout(checkStatus, 4000);
+        } else if (data.status === "failed") {
+          await db.transact([
+            db.tx.songs[songId].update({
+              status: "failed",
+              errorMessage: "Muziekgeneratie mislukt",
+            }),
+          ]);
+        }
+      } catch (err: any) {
+        await db.transact([
+          db.tx.songs[songId].update({
+            status: "failed",
+            errorMessage: err.message ?? "Fout bij status",
+          }),
+        ]);
+      }
+    };
+
+    checkStatus();
+  };
+
+  const submitSunoGeneration = async ({
+    songId,
+    requestPayload,
+    conversationId,
+  }: {
+    songId: string;
+    requestPayload: SunoGenerationRequest;
+    conversationId: string;
+  }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const musicResponse = await fetch("/api/suno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          songId,
+          title: requestPayload.title,
+          lyrics: requestPayload.lyrics,
+          musicStyle: requestPayload.musicStyle,
+          model: requestPayload.model,
+          makeInstrumental: requestPayload.makeInstrumental,
+        }),
+      });
+
+      const musicData = await musicResponse.json();
+      const taskId = musicData.taskId;
+      const resolvedModel = (musicData.model ?? requestPayload.model).toString();
+
+      const requestFailed = !musicResponse.ok || musicData.error || !taskId;
+
+      if (requestFailed) {
+        const errorMessage = musicData.error || musicData.msg || 'Muziekgeneratie mislukt';
+        await db.transact([
+          db.tx.songs[songId].update({
+            status: 'failed',
+            errorMessage,
+          }),
+        ]);
+        return { ok: false, error: errorMessage };
+      }
+
+      await db.transact([
+        db.tx.songs[songId].update({
+          sunoTaskId: taskId,
+          generationModel: resolvedModel,
+          instrumental: musicData.instrumental ?? requestPayload.makeInstrumental,
+        }),
+      ]);
+
+      pollMusicStatus(conversationId, songId, taskId);
+
+      return { ok: true };
+    } catch (err: any) {
+      const errorMessage = err?.message ?? 'Muziekgeneratie mislukt';
+      await db.transact([
+        db.tx.songs[songId].update({
+          status: 'failed',
+          errorMessage,
+        }),
+      ]);
+      return { ok: false, error: errorMessage };
+    }
+  };
+
+  const regenerateFromSong = async (baseSong: Song) => {
+    if (!activeConversationId) return;
+    setIsGenerating(true);
+
+    const baseParams = buildGenerationRequestFromSong(baseSong);
+    const storedParams = {
+      title: baseParams.title,
+      prompt: baseParams.lyrics,
+      tags: baseParams.musicStyle,
+      model: baseParams.model,
+      makeInstrumental: baseParams.makeInstrumental,
+    } satisfies StoredGenerationParams;
+
+    try {
+      const nextVersion = (songs?.length ?? 0) + 1;
+      const songId = id();
+
+      await db.transact([
+        db.tx.conversations[activeConversationId].update({ status: 'generating_music' }),
+        db.tx.songs[songId]
+          .update({
+            title: baseParams.title,
+            lyrics: baseParams.lyrics,
+            musicStyle: baseParams.musicStyle,
+            status: 'generating',
+            version: nextVersion,
+            createdAt: Date.now(),
+            generationModel: baseParams.model,
+            generationParams: JSON.stringify(storedParams),
+            instrumental: baseParams.makeInstrumental,
+          })
+          .link({ conversation: activeConversationId, user: conversation?.user?.id }),
+      ]);
+
+      const result = await submitSunoGeneration({
+        songId,
+        requestPayload: baseParams,
+        conversationId: activeConversationId,
+      });
+
+      const messageContent = result.ok
+        ? `Nieuwe versie voor "${baseParams.title}" is in de maak. Ik laat het weten zodra hij klaar is.`
+        : `Het opnieuw genereren van "${baseParams.title}" mislukte: ${result.error}. Wil je het nog eens proberen?`;
+
+      await db.transact([
+        db.tx.messages[id()]
+          .update({
+            role: 'assistant',
+            content: messageContent,
+            createdAt: Date.now(),
+          })
+          .link({ conversation: activeConversationId }),
+      ]);
+    } catch (err: any) {
+      await db.transact([
+        db.tx.messages[id()]
+          .update({
+            role: 'assistant',
+            content: `Er ging iets mis bij het opnieuw genereren: ${err?.message ?? err}.`,
+            createdAt: Date.now(),
+          })
+          .link({ conversation: activeConversationId }),
+      ]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const focusInput = (preset: string) => {
+    setUserInput(preset);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
+
+  const loadingContent = (
+    <main className="flex-1 flex items-center justify-center">
+      <div className="surface-card px-8 py-6 text-base font-medium text-center">
+        We laden je studio...
+      </div>
+    </main>
+  );
+
+  const errorContent = (
+    <main className="flex-1 flex items-center justify-center">
+      <div className="surface-card px-8 py-6 text-base text-red-600">
+        Er ging iets mis: {error?.message}
+      </div>
+    </main>
+  );
+
+  const studioContent = (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pb-28 pt-10 lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)]">
+      <section className="surface-card flex flex-col overflow-hidden">
+        <div className="border-b border-white/30 bg-gradient-to-br from-white/60 to-white/20 px-8 py-6 backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm uppercase tracking-[0.32em] text-[rgba(31,27,45,0.55)]">Studio</p>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight">Maak je liedje</h1>
+              <p className="mt-2 max-w-xl text-sm text-[rgba(31,27,45,0.68)]">Kies tussen Composer of Chat. Chat helpt iteratief de lyrics te verfijnen.</p>
+            </div>
+            <div className="rounded-full border border-white/60 bg-white/80 p-1 text-xs">
+              <button onClick={() => setStudioMode('composer')} className={`rounded-full px-3 py-1 font-semibold ${studioMode === 'composer' ? 'bg-[#7f5af0] text-white' : 'text-[#7f5af0]'}`}>Composer</button>
+              <button onClick={() => setStudioMode('chat')} className={`rounded-full px-3 py-1 font-semibold ${studioMode === 'chat' ? 'bg-[#7f5af0] text-white' : 'text-[#7f5af0]'}`}>Chat</button>
             </div>
           </div>
-          <div className="flex-1 px-2 overflow-hidden flex items-center">
-            {todo.done ? (
-              <span className="line-through">{todo.text}</span>
-            ) : (
-              <span>{todo.text}</span>
-            )}
-          </div>
-          <button
-            className="h-full px-2 flex items-center justify-center text-gray-300 hover:text-gray-500"
-            onClick={() => deleteTodo(todo)}
-          >
-            X
-          </button>
         </div>
-      ))}
+
+        {conversation ? (
+          <div className="flex flex-1 flex-col">
+            <ProgressStepper currentStep={currentStep} />
+            <div className="flex-1 overflow-hidden">
+              {studioMode === 'composer' ? (
+                <ComposerWizard
+                  onGenerate={async (payload) => {
+                    if (!activeConversationId) return;
+                    setIsGenerating(true);
+                    try {
+                      const nextVersion = (songs?.length ?? 0) + 1;
+                      const songId = id();
+
+                      const storedParams: StoredGenerationParams = {
+                        title: payload.title,
+                        prompt: payload.lyrics,
+                        tags: payload.musicStyle,
+                        model: payload.model,
+                        makeInstrumental: payload.makeInstrumental,
+                      };
+
+                      await db.transact([
+                        db.tx.conversations[activeConversationId].update({ status: 'generating_music' }),
+                        db.tx.songs[songId]
+                          .update({
+                            title: payload.title,
+                            lyrics: payload.lyrics,
+                            musicStyle: payload.musicStyle,
+                            status: 'generating',
+                            version: nextVersion,
+                            createdAt: Date.now(),
+                            generationModel: payload.model,
+                            generationParams: JSON.stringify(storedParams),
+                            instrumental: payload.makeInstrumental,
+                          })
+                          .link({ conversation: activeConversationId, user: conversation?.user?.id }),
+                      ]);
+
+                      const result = await submitSunoGeneration({
+                        songId,
+                        requestPayload: payload,
+                        conversationId: activeConversationId,
+                      });
+
+                      const msg = result.ok
+                        ? `Ik maak twee varianten voor "${payload.title}". Ik laat het weten zodra ze klaar zijn.`
+                        : `Het genereren van "${payload.title}" mislukte: ${result.error}. Probeer eventueel een andere stijl.`;
+                      await db.transact([
+                        db.tx.messages[id()]
+                          .update({ role: 'assistant', content: msg, createdAt: Date.now() })
+                          .link({ conversation: activeConversationId }),
+                      ]);
+                    } finally {
+                      setIsGenerating(false);
+                    }
+                  }}
+                  isGenerating={isGenerating}
+                />
+              ) : (
+                <div className="grid h-full grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+                  <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/85">
+                    <ChatMessages messages={messages} isGenerating={isGenerating} />
+                    <div className="border-t border-white/40 bg-white/80 p-4">
+                      <PromptChips title={promptConfig.title} prompts={promptConfig.suggestions} onChoose={focusInput} />
+                      <div className="mt-3 rounded-2xl border border-white/60 bg-white/90 p-3">
+                        <textarea
+                          ref={inputRef}
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                          placeholder={activeStepConfig.helper ?? 'Typ feedback of details...'}
+                          className="min-h-[92px] w-full resize-none bg-transparent text-base leading-relaxed text-[rgba(31,27,45,0.85)] focus:outline-none"
+                          disabled={isGenerating}
+                        />
+                        <div className="mt-3 flex items-center justify-end">
+                          <button onClick={sendMessage} disabled={isGenerating || !userInput.trim()} className="btn btn-primary">{isGenerating ? 'Bezig…' : 'Verstuur'}</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <ConceptLyricsPanel draft={draftSong} onGenerate={generateFromDraft} isGenerating={isGenerating} />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <ConversationEmptyState onStart={startNewConversation} />
+        )}
+      </section>
+
+      <aside className="flex flex-col gap-6">
+        <InsightsPanel step={activeStepConfig} latestSong={latestSong} conversation={conversation} />
+        <SongSidebar songs={songs} onGenerate={regenerateFromSong} isGenerating={isGenerating} onNowPlaying={handleSetNowPlaying} />
+        <LibraryPreview
+          songs={libraryPreviewSongs}
+          totalCount={readyLibrarySongs.length}
+          onGenerate={regenerateFromSong}
+          isGenerating={isGenerating}
+          onOpenLibrary={() => setActiveView('library')}
+          onNowPlaying={handleSetNowPlaying}
+        />
+      </aside>
+
+      {/* Sticky Mini Player */}
+      {nowPlaying?.url && (
+        <div className="fixed bottom-3 left-0 right-0 z-50 flex w-full justify-center px-4">
+          <div className="surface-glass flex w-full max-w-3xl items-center gap-3 p-3">
+            {nowPlaying.imageUrl && (
+              <img src={nowPlaying.imageUrl} alt="cover" className="h-12 w-12 rounded-lg object-cover" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-[rgba(31,27,45,0.85)]">{nowPlaying.title || 'Now Playing'}</div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(31,27,45,0.08)]">
+                {/* Progress bar handled by native element; visual only */}
+                {/* Could be enhanced with onTimeUpdate in the future */}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={toggleMiniPlayback} className="btn btn-primary">{isMiniPlaying ? 'Pauze' : 'Speel'}</button>
+              <button onClick={stopMiniPlayback} className="btn btn-ghost text-[#7f5af0]">Stop</button>
+            </div>
+            <audio
+              ref={miniAudioRef}
+              src={nowPlaying.url}
+              preload="metadata"
+              onEnded={() => setIsMiniPlaying(false)}
+              className="hidden"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const libraryContent = (
+    <LibraryView
+      songs={librarySongs as unknown as Song[]}
+      isLoading={libraryLoading}
+      error={libraryError}
+      onGenerate={regenerateFromSong}
+      isGenerating={isGenerating}
+    />
+  );
+
+  const showStudioLoading = isLoading && activeView === 'studio';
+  const showStudioError = error && activeView === 'studio';
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <AppHeader
+        onNewSong={startNewConversation}
+        onOpenProfile={openAuthModal}
+        activeView={activeView}
+        onNavigate={setActiveView}
+      />
+      {showStudioLoading
+        ? loadingContent
+        : showStudioError
+        ? errorContent
+        : activeView === 'studio'
+        ? studioContent
+        : libraryContent}
     </div>
   );
 }
 
-function ActionBar({ todos }: { todos: Todo[] }) {
+function ComposerWizard({
+  onGenerate,
+  isGenerating,
+}: {
+  onGenerate: (payload: SunoGenerationRequest) => Promise<void>;
+  isGenerating: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [story, setStory] = useState("");
+  const [details, setDetails] = useState("");
+  const [musicStyle, setMusicStyle] = useState("R&B met warme synths");
+  const [model, setModel] = useState(DEFAULT_SUNO_MODEL);
+  const [makeInstrumental, setMakeInstrumental] = useState(false);
+
+  const lyrics = useMemo(() => {
+    const parts = [story.trim(), details.trim()].filter(Boolean);
+    return parts.join("\n\n");
+  }, [story, details]);
+
+  const canGenerate = title.trim().length > 0 && lyrics.trim().length > 0 && musicStyle.trim().length > 0;
+
   return (
-    <div className="flex justify-between items-center h-10 px-2 text-xs border-t border-gray-300">
-      <div>Remaining todos: {todos.filter((todo) => !todo.done).length}</div>
-      <button
-        className=" text-gray-300 hover:text-gray-500"
-        onClick={() => deleteCompleted(todos)}
+    <div className="grid gap-6 p-6 md:grid-cols-2">
+      <div className="rounded-2xl border border-white/60 bg-white/85 p-4">
+        <div className="text-xs uppercase tracking-[0.32em] text-[rgba(31,27,45,0.5)]">Composer</div>
+        <div className="mt-3 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-[rgba(31,27,45,0.65)]">Titel</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Bijv. Ons Zomerlicht"
+              className="mt-1 w-full rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[rgba(31,27,45,0.65)]">Verhaal (korte schets)</label>
+            <textarea
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              placeholder="Hoe ontmoetten jullie elkaar? Wat was het moment dat bleef hangen?"
+              className="mt-1 min-h-[96px] w-full rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[rgba(31,27,45,0.65)]">Details (inside jokes, gewoontes)</label>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Kleine details maken het persoonlijk."
+              className="mt-1 min-h-[96px] w-full rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-[rgba(31,27,45,0.65)]">Stijl</label>
+            <input
+              value={musicStyle}
+              onChange={(e) => setMusicStyle(e.target.value)}
+              placeholder="Bijv. R&B met warme synths"
+              className="mt-1 w-full rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm outline-none"
+            />
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {["Akoestische indie", "Moderne pop", "Elektronisch feest", "Soulful ballad"].map((s) => (
+                <button key={s} onClick={() => setMusicStyle(s)} className="rounded-full border border-[#7f5af0]/30 px-3 py-1 text-[#7f5af0] hover:bg-[#7f5af0]/10">{s}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={makeInstrumental} onChange={(e) => setMakeInstrumental(e.target.checked)} />
+              Alleen instrumentaal
+            </label>
+            <label className="flex items-center gap-2">
+              Model
+              <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded-md border border-white/60 bg-white/90 px-2 py-1">
+                {['V5', 'V4', 'CHIRP'].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={() => onGenerate({ title: title.trim(), lyrics: lyrics.trim(), musicStyle: musicStyle.trim(), model: model.trim(), makeInstrumental })}
+              disabled={!canGenerate || isGenerating}
+              className="w-full rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/30 disabled:opacity-50"
+            >
+              {isGenerating ? 'Bezig met genereren…' : 'Genereer liedje'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-white/60 bg-white/85 p-4">
+        <div className="text-xs uppercase tracking-[0.32em] text-[rgba(31,27,45,0.5)]">Live preview</div>
+        <h3 className="mt-3 text-xl font-semibold">{title || 'Titel komt hier'}</h3>
+        <p className="text-xs text-[rgba(31,27,45,0.5)]">{musicStyle || 'Stijl'}</p>
+        <div className="mt-3 rounded-xl border border-white/50 bg-white/70 p-3 text-sm">
+          <div className="lyrics-scroll max-h-[360px] overflow-y-auto whitespace-pre-wrap leading-relaxed text-[rgba(31,27,45,0.85)]">
+            {lyrics || 'Begin met je verhaal en details — je ziet hier direct de tekst vorm krijgen.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatMessages({ messages, isGenerating }: { messages: Message[]; isGenerating: boolean }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages.length, isGenerating]);
+
+  if (!messages.length) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center text-[rgba(31,27,45,0.55)]">
+        <span className="rounded-full bg-white/80 px-4 py-1 text-xs font-semibold uppercase tracking-[0.36em]">
+          Klaar om te starten
+        </span>
+        <p className="max-w-md text-lg font-medium text-[rgba(31,27,45,0.75)]">
+          Ik stel maximaal vier vragen. Houd je antwoorden kort en persoonlijk, dan klinkt het lied als jullie verhaal.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="h-full overflow-y-auto px-6 py-6">
+      <div className="space-y-5">
+        {messages.map((message) => (
+          <ChatBubble key={message.id} message={message} />
+        ))}
+        {isGenerating && (
+          <div className="flex items-start gap-3">
+            <div className="mt-2 h-8 w-8 rounded-full bg-gradient-to-br from-[#7f5af0] to-[#ff6aa2] opacity-70" />
+            <div className="rounded-2xl bg-white/85 px-4 py-3 shadow-sm">
+              <div className="typing-indicator"><span /><span /><span /></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({ message }: { message: Message }) {
+  const isUser = message.role === "user";
+  const parsedContent = useMemo(() => formatMessage(message.content), [message.content]);
+
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-xl rounded-3xl px-5 py-4 text-sm leading-relaxed shadow-sm ${
+          isUser
+            ? "bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] text-white"
+            : "bg-white/85 text-[rgba(31,27,45,0.86)]"
+        }`}
       >
-        Delete Completed
+        {parsedContent.map((segment, index) => (
+          <p key={index} className={index > 0 ? "mt-2" : undefined}>
+            {segment}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatMessage(content: string): string[] {
+  if (!content) return [""];
+  const sentences = content.split(/\n+/).map((part) => part.trim()).filter(Boolean);
+  if (sentences.length > 3) {
+    return sentences.slice(0, 3);
+  }
+  return sentences.length ? sentences : [content];
+}
+
+function ProgressStepper({ currentStep }: { currentStep: number }) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-white/30 bg-white/60 px-6 py-4">
+      <div className="flex items-center justify-between text-xs uppercase tracking-[0.36em] text-[rgba(31,27,45,0.45)]">
+        <span>Gesprek</span>
+        <span>{Math.min(currentStep, FLOW_STEPS.length - 1) + 1} / {FLOW_STEPS.length}</span>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {FLOW_STEPS.map((step) => {
+          const isActive = currentStep === step.id;
+          const isCompleted = currentStep > step.id;
+          return (
+            <div
+              key={step.id}
+              className={`rounded-2xl border px-3 py-2 text-xs font-medium transition-all ${
+                isActive
+                  ? "border-[#7f5af0]/60 bg-white text-[#7f5af0] shadow-sm"
+                  : isCompleted
+                  ? "border-[#7f5af0]/20 bg-white/80 text-[#7f5af0]/70"
+                  : "border-white/60 bg-white/50 text-[rgba(31,27,45,0.45)]"
+              }`}
+            >
+              <div>{step.title}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PromptChips({
+  title,
+  prompts,
+  onChoose,
+}: {
+  title: string;
+  prompts: string[];
+  onChoose: (value: string) => void;
+}) {
+  if (!prompts.length) return null;
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[rgba(31,27,45,0.45)]">
+        {title}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {prompts.map((prompt) => (
+          <button
+            key={prompt}
+            onClick={() => onChoose(prompt)}
+            className="rounded-full border border-white/70 bg-white/70 px-3.5 py-2 text-xs font-medium text-[rgba(31,27,45,0.7)] transition hover:border-[#7f5af0]/30 hover:bg-[#7f5af0]/10 hover:text-[#7f5af0]"
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InsightsPanel({
+  step,
+  latestSong,
+  conversation,
+}: {
+  step: StepConfig;
+  latestSong?: Song;
+  conversation?: Conversation;
+}) {
+  return (
+    <div className="surface-card p-6">
+      <div className="rounded-2xl border border-white/45 bg-white/80 p-5">
+        <p className="text-xs uppercase tracking-[0.36em] text-[rgba(31,27,45,0.45)]">Progressie</p>
+        <h2 className="mt-3 text-2xl font-semibold leading-tight">{step.title}</h2>
+        <p className="mt-2 text-sm text-[rgba(31,27,45,0.65)]">{step.description}</p>
+        {step.helper && (
+          <div className="mt-3 rounded-2xl border border-dashed border-[#7f5af0]/35 bg-[#7f5af0]/5 px-4 py-3 text-xs text-[#7f5af0]">
+            {step.helper}
+          </div>
+        )}
+      </div>
+
+      {latestSong && (
+        <div className="mt-6 rounded-2xl border border-white/45 bg-white/90 p-5">
+          <div className="flex items-center justify-between text-xs uppercase tracking-[0.36em] text-[rgba(31,27,45,0.45)]">
+            <span>Laatste versie</span>
+            <span>v{latestSong.version}</span>
+          </div>
+          <h3 className="mt-3 text-xl font-semibold">{latestSong.title}</h3>
+          <p className="mt-1 text-xs text-[rgba(31,27,45,0.5)]">{latestSong.musicStyle}</p>
+          <div className="mt-4 space-y-3 text-sm text-[rgba(31,27,45,0.75)]">
+            <div className="rounded-xl bg-[#7f5af0]/5 px-4 py-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.28em] text-[#7f5af0]">Songtekst</span>
+              <div className="lyrics-scroll mt-2 max-h-[360px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-relaxed">
+                {latestSong.lyrics}
+              </div>
+            </div>
+            {latestSong.audioUrl && (
+              <audio controls className="w-full">
+                <source src={latestSong.audioUrl} type="audio/mpeg" />
+                Je browser ondersteunt geen audio.
+              </audio>
+            )}
+          </div>
+        </div>
+      )}
+
+      {conversation?.status === "generating_music" && (
+        <div className="mt-6 rounded-2xl border border-[#7f5af0]/20 bg-[#7f5af0]/8 px-4 py-3 text-sm text-[#7f5af0]">
+          We genereren nu de muziek. Dit duurt meestal minder dan vijf minuten.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SongSidebar({ songs, onGenerate, isGenerating, onNowPlaying }: { songs: Song[]; onGenerate?: (song: Song) => void; isGenerating?: boolean; onNowPlaying?: (meta: { title?: string; url?: string | null; imageUrl?: string | null }) => void }) {
+  if (!songs.length) {
+    return (
+      <div className="surface-card p-6">
+        <div className="rounded-2xl border border-white/45 bg-white/85 p-5 text-sm text-[rgba(31,27,45,0.6)]">
+          <p className="text-base font-semibold text-[rgba(31,27,45,0.82)]">Je song verschijnt hier</p>
+          <p className="mt-2">
+            Zodra de muziek klaar is zie je de versies hier met download- en deelknoppen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="surface-card p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Liedjes</h2>
+        <span className="rounded-full bg-[#7f5af0]/10 px-3 py-1 text-xs font-medium text-[#7f5af0]">
+          {songs.length} {songs.length === 1 ? "track" : "tracks"}
+        </span>
+      </div>
+      <div className="mt-4 space-y-4">
+        {songs.map((song) => (
+          <SongCard
+            key={song.id}
+            song={song}
+            onGenerate={onGenerate}
+            isGenerating={Boolean(isGenerating)}
+            onNowPlaying={onNowPlaying}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LibraryPreview({
+  songs,
+  totalCount,
+  onOpenLibrary,
+  onGenerate,
+  isGenerating,
+  onNowPlaying,
+}: {
+  songs: Song[];
+  totalCount: number;
+  onOpenLibrary: () => void;
+  onGenerate: (song: Song) => void;
+  isGenerating: boolean;
+  onNowPlaying?: (meta: { title?: string; url?: string | null; imageUrl?: string | null }) => void;
+}) {
+  const previewSongs = songs.slice(0, 2);
+
+  if (!previewSongs.length) {
+    return null;
+  }
+
+  const remainingCount = Math.max(totalCount - previewSongs.length, 0);
+
+  return (
+    <div className="surface-card p-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Eerdere liedjes</h2>
+          <p className="text-xs text-[rgba(31,27,45,0.58)]">
+            Luister tracks terug die je eerder hebt gemaakt.
+          </p>
+        </div>
+        <button
+          onClick={onOpenLibrary}
+          className="inline-flex items-center justify-center rounded-full border border-[#7f5af0]/30 px-4 py-1.5 text-xs font-semibold text-[#7f5af0] transition hover:bg-[#7f5af0]/10"
+        >
+          Open bibliotheek
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-4">
+        {previewSongs.map((song) => (
+          <SongCard
+            key={`library-preview-${song.id}`}
+            song={song}
+            onGenerate={onGenerate}
+            isGenerating={isGenerating}
+            onNowPlaying={onNowPlaying}
+          />
+        ))}
+      </div>
+
+      {remainingCount > 0 && (
+        <button
+          onClick={onOpenLibrary}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#f2efff] px-4 py-2 text-sm font-semibold text-[#5d3cf6] transition hover:bg-[#e6ddff]"
+        >
+          Bekijk alle {totalCount} tracks
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SongCard({ song, onGenerate, isGenerating = false, onNowPlaying }: { song: Song; onGenerate?: (song: Song) => void; isGenerating?: boolean; onNowPlaying?: (meta: { title?: string; url?: string | null; imageUrl?: string | null }) => void }) {
+  const statusConfig = {
+    generating: {
+      label: "Bezig",
+      className: "bg-[#7f5af0]/10 text-[#7f5af0]",
+    },
+    ready: {
+      label: "Klaar",
+      className: "bg-emerald-500/15 text-emerald-600",
+    },
+    failed: {
+      label: "Mislukt",
+      className: "bg-rose-500/15 text-rose-600",
+    },
+  } as const;
+
+  const status = statusConfig[song.status as keyof typeof statusConfig] ?? statusConfig.generating;
+  const requestDetails = useMemo(() => buildGenerationRequestFromSong(song), [song]);
+  const callbackTracks = useMemo(() => parseCallbackTracks(song), [song.callbackData]);
+  const relationVariants = useMemo(() => {
+    const relational = Array.isArray((song as any).variants)
+      ? ((song as any).variants as Array<any>)
+      : [];
+    return relational.map((variant, index) => ({
+      key: variant.id || `${song.id}-rel-${index}`,
+      trackId: variant.trackId || variant.id || `${song.id}-rel-${index}`,
+      title: variant.title || `${song.title} – versie ${index + 1}`,
+      playbackUrl:
+        variant.streamAudioUrl ||
+        variant.audioUrl ||
+        variant.sourceStreamAudioUrl ||
+        variant.sourceAudioUrl ||
+        null,
+      imageUrl: variant.imageUrl || song.imageUrl,
+      duration: variant.durationSeconds ?? song.durationSeconds ?? null,
+      model: variant.modelName || song.modelName || requestDetails.model,
+      sourceAudioUrl: variant.sourceAudioUrl || null,
+      audioUrl: variant.audioUrl || null,
+      order: variant.order ?? index,
+    }));
+  }, [song, requestDetails.model]);
+
+  const basePlaybackUrl =
+    song.streamAudioUrl ||
+    song.audioUrl ||
+    song.sourceStreamAudioUrl ||
+    song.sourceAudioUrl ||
+    null;
+
+  const durationMinutes = song.durationSeconds
+    ? `${Math.floor(song.durationSeconds / 60)}:${String(Math.round(song.durationSeconds % 60)).padStart(2, "0")}`
+    : null;
+
+  const variantMap = new Map<string, ReturnType<typeof buildVariant>>();
+
+  function buildVariant(variant: {
+    key: string;
+    trackId?: string | null;
+    title?: string | null;
+    playbackUrl?: string | null;
+    audioUrl?: string | null;
+    imageUrl?: string | null;
+    duration?: number | null;
+    model?: string | null;
+    sourceAudioUrl?: string | null;
+    order?: number;
+  }) {
+    return {
+      key: variant.key,
+      trackId: variant.trackId || variant.key,
+      title: variant.title || song.title,
+      playbackUrl: variant.playbackUrl || null,
+      audioUrl: variant.audioUrl || song.audioUrl || null,
+      imageUrl: variant.imageUrl || song.imageUrl || null,
+      duration: variant.duration ?? null,
+      model: variant.model || song.modelName || requestDetails.model,
+      sourceAudioUrl: variant.sourceAudioUrl || song.sourceAudioUrl || null,
+      order: typeof variant.order === 'number' ? variant.order : 0,
+    };
+  }
+
+  relationVariants.forEach((variant) => {
+    const normalized = buildVariant({
+      ...variant,
+      trackId: variant.trackId,
+      order: variant.order,
+    });
+    variantMap.set(normalized.trackId ?? normalized.key, normalized);
+  });
+
+  callbackTracks.forEach((track, index) => {
+    const key = track.trackId || `${song.id}-cb-${index}`;
+    const existing =
+      variantMap.get(key) ||
+      buildVariant({ key, trackId: key, order: index });
+
+    variantMap.set(key, {
+      ...existing,
+      title: track.title || existing.title,
+      playbackUrl:
+        track.streamAudioUrl ||
+        track.audioUrl ||
+        track.sourceStreamAudioUrl ||
+        track.sourceAudioUrl ||
+        existing.playbackUrl ||
+        basePlaybackUrl,
+      audioUrl: track.audioUrl || existing.audioUrl,
+      imageUrl: track.imageUrl || existing.imageUrl,
+      duration:
+        track.durationSeconds ?? existing.duration ?? song.durationSeconds ?? null,
+      model: track.modelName || existing.model,
+      sourceAudioUrl:
+        track.sourceAudioUrl ||
+        track.sourceStreamAudioUrl ||
+        existing.sourceAudioUrl ||
+        existing.audioUrl,
+      order: existing.order,
+    });
+  });
+
+  if (!variantMap.size) {
+    const baseKey = song.sunoTrackId || song.id;
+    variantMap.set(
+      baseKey,
+      buildVariant({
+        key: baseKey,
+        trackId: baseKey,
+        playbackUrl: basePlaybackUrl,
+        audioUrl: song.audioUrl,
+        sourceAudioUrl: song.sourceAudioUrl || song.audioUrl || null,
+        imageUrl: song.imageUrl,
+        duration: song.durationSeconds,
+      }),
+    );
+  }
+
+  const variants = Array.from(variantMap.values()).sort((a, b) => a.order - b.order);
+  const playableVariants = variants.filter((v) => Boolean(v.playbackUrl || v.audioUrl || v.sourceAudioUrl));
+  const hasPlayableVariant = playableVariants.length > 0;
+  const showABCompare = playableVariants.length === 2;
+
+  return (
+    <div className="rounded-2xl border border-white/40 bg-white/85 p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
+            {status.label}
+          </p>
+          <h3 className="mt-2 text-lg font-semibold leading-tight">{song.title}</h3>
+          <p className="text-xs text-[rgba(31,27,45,0.5)]">{song.musicStyle}</p>
+        </div>
+        <span className="text-xs text-[rgba(31,27,45,0.45)]">v{song.version}</span>
+      </div>
+
+      <div className="mt-3 grid gap-1 text-xs text-[rgba(31,27,45,0.55)]">
+        <div>
+          <strong className="font-semibold text-[rgba(31,27,45,0.7)]">Model:</strong> {song.modelName || requestDetails.model}
+        </div>
+        <div>
+          <strong className="font-semibold text-[rgba(31,27,45,0.7)]">Tags:</strong> {requestDetails.musicStyle}
+        </div>
+        {durationMinutes && (
+          <div>
+            <strong className="font-semibold text-[rgba(31,27,45,0.7)]">Duur:</strong> {durationMinutes}
+          </div>
+        )}
+        <div>
+          <strong className="font-semibold text-[rgba(31,27,45,0.7)]">Instrumentaal:</strong> {requestDetails.makeInstrumental ? 'Ja' : 'Nee'}
+        </div>
+      </div>
+
+      {song.status === "failed" && song.errorMessage && onGenerate && (
+        <div className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+          {song.errorMessage}
+          <button
+            onClick={() => onGenerate(song)}
+            disabled={isGenerating}
+            className="mt-2 inline-flex items-center gap-1 rounded-full bg-rose-500/90 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-60"
+          >
+            {isGenerating ? "Bezig..." : "Opnieuw genereren"}
+          </button>
+        </div>
+      )}
+
+      {(onGenerate || true) && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-2">
+            {onGenerate && (
+              <button
+                onClick={() => onGenerate(song)}
+                disabled={isGenerating}
+                className="inline-flex items-center gap-2 rounded-full border border-[#7f5af0]/30 px-3.5 py-1.5 text-xs font-semibold text-[#7f5af0] transition hover:bg-[#7f5af0]/10 disabled:opacity-50"
+              >
+                {isGenerating ? "Bezig..." : "Nieuwe take"}
+              </button>
+            )}
+            <Link
+              href={`/song/${song.id}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[#7f5af0]/10 px-3.5 py-1.5 text-xs font-semibold text-[#7f5af0] hover:bg-[#7f5af0]/15"
+            >
+              Bekijk details
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {song.prompt && (
+        <div className="mt-3 rounded-xl border border-white/50 bg-white/70 px-3 py-2 text-xs text-[rgba(31,27,45,0.55)]">
+          <strong className="font-semibold text-[rgba(31,27,45,0.7)]">Prompt:</strong>
+          <div className="mt-1 whitespace-pre-wrap text-[rgba(31,27,45,0.65)]">{song.prompt}</div>
+        </div>
+      )}
+
+      {showABCompare && (
+        <ABCompare song={song} variants={playableVariants.slice(0, 2)} onNowPlaying={onNowPlaying} />
+      )}
+
+      {!showABCompare && hasPlayableVariant && (
+        <div className="mt-3 space-y-4">
+          {playableVariants.map((variant, index) => {
+            const playbackUrl =
+              variant.playbackUrl ||
+              variant.audioUrl ||
+              variant.sourceAudioUrl ||
+              song.streamAudioUrl ||
+              song.audioUrl ||
+              null;
+            const playbackType = guessAudioMimeType(
+              playbackUrl || variant.audioUrl || variant.sourceAudioUrl,
+            );
+            const downloadUrl =
+              variant.audioUrl ||
+              variant.sourceAudioUrl ||
+              song.audioUrl ||
+              song.sourceAudioUrl ||
+              null;
+            const shareUrl =
+              playbackUrl || downloadUrl || song.streamAudioUrl || song.audioUrl || undefined;
+            const canDownload = Boolean(downloadUrl);
+
+            return (
+              <div key={variant.key} className="space-y-3 rounded-2xl border border-white/40 bg-white/80 p-3">
+                <div className="flex items-center justify-between text-xs text-[rgba(31,27,45,0.55)]">
+                  <span className="font-semibold text-[rgba(31,27,45,0.75)]">{variant.title}</span>
+                  {variant.duration && (
+                    <span>{`${Math.floor(variant.duration / 60)}:${String(Math.round(variant.duration % 60)).padStart(2, "0")}`}</span>
+                  )}
+                </div>
+                {variant.imageUrl && (
+                  <img
+                    src={variant.imageUrl}
+                    alt={`Cover art voor ${variant.title}`}
+                    className="w-full rounded-xl object-cover"
+                  />
+                )}
+                {playbackUrl ? (
+                  <audio
+                    controls
+                    preload="metadata"
+                    className="w-full rounded-xl"
+                    onPlay={() => onNowPlaying?.({ title: variant.title || song.title, url: playbackUrl, imageUrl: variant.imageUrl || song.imageUrl })}
+                  >
+                    <source src={playbackUrl} type={playbackType} />
+                    Je browser ondersteunt geen audio.
+                  </audio>
+                ) : (
+                  <div className="rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-xs text-[rgba(31,27,45,0.45)]">
+                    Audio nog niet beschikbaar, probeer over een moment opnieuw.
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 text-sm sm:flex-row">
+                  <a
+                    href={canDownload ? downloadUrl ?? undefined : undefined}
+                    download={canDownload ? '' : undefined}
+                    onClick={(event) => {
+                      if (!canDownload) {
+                        event.preventDefault();
+                      }
+                    }}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 font-semibold transition ${
+                      canDownload
+                        ? 'bg-[#7f5af0]/15 text-[#7f5af0] hover:bg-[#7f5af0]/20'
+                        : 'cursor-not-allowed bg-white/60 text-[rgba(31,27,45,0.45)]'
+                    }`}
+                  >
+                    {canDownload ? 'Download audio' : 'Geen download beschikbaar'}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!shareUrl) return;
+                      if (typeof navigator !== 'undefined' && navigator.share) {
+                        navigator.share({
+                          title: variant.title || song.title,
+                          text: 'Luister naar dit liefdesliedje! 💕',
+                          url: shareUrl,
+                        });
+                        return;
+                      }
+                      if (typeof window !== 'undefined') {
+                        window.open(shareUrl, '_blank', 'noopener');
+                      }
+                    }}
+                    disabled={!shareUrl}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 font-semibold transition ${
+                      shareUrl
+                        ? 'bg-[#ff6aa2]/15 text-[#ff3f87] hover:bg-[#ff6aa2]/20'
+                        : 'cursor-not-allowed bg-white/60 text-[rgba(31,27,45,0.45)]'
+                    }`}
+                  >
+                    Deel link
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center justify-between text-xs text-[rgba(31,27,45,0.5)]">
+                  <span>Model: {variant.model}</span>
+                  <span>Variant {index + 1}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {song.lyrics && (
+        <div className="mt-4 rounded-2xl border border-white/50 bg-white/80 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[rgba(31,27,45,0.55)]">Lyrics</div>
+          <div className="lyrics-scroll mt-2 max-h-[280px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-relaxed text-[rgba(31,27,45,0.8)]">{song.lyrics}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ABCompare({
+  song,
+  variants,
+  onNowPlaying,
+}: {
+  song: Song;
+  variants: Array<{
+    key: string;
+    title?: string | null;
+    playbackUrl?: string | null;
+    audioUrl?: string | null;
+    sourceAudioUrl?: string | null;
+    imageUrl?: string | null;
+    duration?: number | null;
+    model?: string | null;
+  }>;
+  onNowPlaying?: (meta: { title?: string; url?: string | null; imageUrl?: string | null }) => void;
+}) {
+  const audioRefs = [useRef<HTMLAudioElement | null>(null), useRef<HTMLAudioElement | null>(null)];
+  const canvasRefs = [useRef<HTMLCanvasElement | null>(null), useRef<HTMLCanvasElement | null>(null)];
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<Array<AnalyserNode | null>>([null, null]);
+  const sourcesRef = useRef<Array<MediaElementAudioSourceNode | null>>([null, null]);
+  const [active, setActive] = useState<0 | 1>(0);
+  const [progress, setProgress] = useState<[number, number]>([0, 0]);
+  const [durations, setDurations] = useState<[number, number]>([0, 0]);
+
+  function formatTime(secs: number) {
+    if (!secs || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  const labels: [string, string] = ['A', 'B'];
+
+  function handlePlay(idx: 0 | 1) {
+    const current = audioRefs[idx].current;
+    const other = audioRefs[idx === 0 ? 1 : 0].current;
+    if (!current) return;
+    if (other && !other.paused) other.pause();
+    setActive(idx);
+    if (current.paused) {
+      current.play().catch(() => {});
+      const v = variants[idx];
+      const playbackUrl = v.playbackUrl || v.audioUrl || v.sourceAudioUrl || null;
+      if (playbackUrl) {
+        onNowPlaying?.({ title: v.title || `${song.title} – ${labels[idx]}`, url: playbackUrl, imageUrl: v.imageUrl || song.imageUrl });
+      }
+    } else {
+      current.pause();
+    }
+  }
+
+  // Setup WebAudio analysers and simple waveform drawing
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!audioCtxRef.current) {
+      try {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch {}
+    }
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+
+    variants.slice(0, 2).forEach((_v, idx) => {
+      const el = audioRefs[idx].current;
+      if (!el) return;
+      if (!sourcesRef.current[idx]) {
+        try {
+          const src = ctx.createMediaElementSource(el);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 2048;
+          src.connect(analyser);
+          // Do NOT connect to destination to avoid double playback
+          sourcesRef.current[idx] = src;
+          analysersRef.current[idx] = analyser;
+        } catch {}
+      }
+    });
+
+    let rafId: number;
+    const draw = () => {
+      variants.slice(0, 2).forEach((_v, idx) => {
+        const cvs = canvasRefs[idx].current;
+        const analyser = analysersRef.current[idx];
+        if (!cvs || !analyser) return;
+        const width = cvs.width;
+        const height = cvs.height;
+        const ctx2 = cvs.getContext('2d');
+        if (!ctx2) return;
+        const bufferLength = analyser.fftSize;
+        const dataArray = new Uint8Array(bufferLength);
+        analyser.getByteTimeDomainData(dataArray);
+        ctx2.clearRect(0, 0, width, height);
+        ctx2.lineWidth = 2;
+        ctx2.strokeStyle = '#7f5af0';
+        ctx2.beginPath();
+        const sliceWidth = (width * 1.0) / bufferLength;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0; // 0..2
+          const y = (v * height) / 2;
+          if (i === 0) ctx2.moveTo(x, y);
+          else ctx2.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx2.lineTo(width, height / 2);
+        ctx2.stroke();
+      });
+      rafId = requestAnimationFrame(draw);
+    };
+    rafId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafId);
+  }, [variants[0]?.key, variants[1]?.key]);
+
+  // Hotkeys: 1 (A), 2 (B), Space (toggle)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea';
+      if (isTyping) return;
+      if (e.key === '1') {
+        e.preventDefault();
+        handlePlay(0);
+      } else if (e.key === '2') {
+        e.preventDefault();
+        handlePlay(1);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        const el = audioRefs[active].current;
+        if (!el) return;
+        if (el.paused) el.play().catch(() => {}); else el.pause();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active]);
+
+  function onTime(idx: 0 | 1) {
+    const a = audioRefs[idx].current;
+    if (!a) return;
+    setProgress((p) => {
+      const next: [number, number] = [...p] as any;
+      next[idx] = a.currentTime || 0;
+      return next;
+    });
+  }
+
+  function onLoaded(idx: 0 | 1) {
+    const a = audioRefs[idx].current;
+    if (!a) return;
+    setDurations((d) => {
+      const next: [number, number] = [...d] as any;
+      next[idx] = a.duration || 0;
+      return next;
+    });
+  }
+
+  return (
+    <div className="mt-3">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="heading-subtle">Vergelijk varianten</div>
+        <div className="chip">Actief: <span className="ml-1 text-[#7f5af0]">{labels[active]}</span></div>
+      </div>
+      <div className="grid gap-5 md:grid-cols-2">
+        {variants.slice(0, 2).map((v, idx) => {
+          const playbackUrl = v.playbackUrl || v.audioUrl || v.sourceAudioUrl || null;
+          const isActive = active === idx;
+          const pct = durations[idx] ? Math.min(100, (progress[idx] / durations[idx]) * 100) : 0;
+          return (
+            <div key={v.key} className={`relative overflow-hidden card p-4 ${isActive ? 'border-[#7f5af0]/40' : ''}`}>
+              <div className="relative">
+                {v.imageUrl && (
+                  <img src={v.imageUrl} alt="cover" className="h-48 w-full rounded-xl object-cover" />
+                )}
+                <div className="absolute left-3 top-3">
+                  <span className={`chip ${isActive ? '!bg-[#7f5af0] !text-white !border-[#7f5af0]' : ''}`}>{labels[idx]}</span>
+                </div>
+                <div className="absolute right-3 top-3 rounded-full bg-white/80 px-2 py-1 text-[11px] font-semibold text-[rgba(31,27,45,0.7)]">
+                  {formatTime(progress[idx])} / {formatTime(durations[idx])}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePlay(idx as 0 | 1)}
+                  className={`absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full px-5 py-2 text-sm font-semibold shadow-md ${
+                    isActive ? 'btn-primary' : 'btn-soft'
+                  }`}
+                >
+                  {audioRefs[idx].current && !audioRefs[idx].current?.paused ? 'Pauze' : 'Speel af'}
+                </button>
+              </div>
+              <div className="mt-3 text-sm font-semibold text-[rgba(31,27,45,0.85)]">{v.title || `${song.title} – ${labels[idx]}`}</div>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[rgba(31,27,45,0.08)]">
+                <div className="h-1.5 rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2]" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-3 h-14 w-full overflow-hidden rounded-lg bg-white/60">
+                <canvas ref={canvasRefs[idx]} width={600} height={56} className="h-14 w-full" />
+              </div>
+              <div className="mt-3 flex gap-2">
+                <a
+                  href={v.audioUrl || v.sourceAudioUrl || undefined}
+                  download={Boolean(v.audioUrl || v.sourceAudioUrl) || undefined}
+                  className={`btn btn-ghost flex-1 ${v.audioUrl || v.sourceAudioUrl ? 'hover:bg-white' : 'cursor-not-allowed opacity-60'}`}
+                  onClick={(e) => { if (!(v.audioUrl || v.sourceAudioUrl)) e.preventDefault(); }}
+                >Download</a>
+              </div>
+              {playbackUrl && (
+                <audio ref={audioRefs[idx]} src={playbackUrl} preload="metadata" onTimeUpdate={() => onTime(idx as 0 | 1)} onLoadedMetadata={() => onLoaded(idx as 0 | 1)} className="hidden" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ConversationEmptyState({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-12 py-16 text-center">
+      <div className="rounded-full bg-[#7f5af0]/15 p-4 text-3xl">🎼</div>
+      <h2 className="mt-6 text-3xl font-semibold">Welkom in je studio</h2>
+      <p className="mt-3 max-w-md text-sm text-[rgba(31,27,45,0.6)]">
+        Vertel kort jullie verhaal en wij maken er een onvergetelijk lied van. Je bent in minder dan twee minuten klaar.
+      </p>
+      <button
+        onClick={onStart}
+        className="mt-8 rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/30 transition hover:scale-[1.03]"
+      >
+        Start een nieuw liedje
       </button>
     </div>
   );
 }
 
-export default App;
+function LibraryView({
+  songs,
+  isLoading,
+  error,
+  onGenerate,
+  isGenerating,
+}: {
+  songs: Song[];
+  isLoading: boolean;
+  error: any;
+  onGenerate: (song: Song) => void;
+  isGenerating: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 px-6 pb-16 pt-12 text-center">
+        <div className="surface-card px-8 py-6 text-sm text-[rgba(31,27,45,0.6)]">
+          Je bibliotheek wordt geladen...
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 px-6 pb-16 pt-12 text-center">
+        <div className="surface-card px-8 py-6 text-sm text-rose-600">
+          Kon je liedjes niet laden: {error.message}
+        </div>
+      </div>
+    );
+  }
+
+  if (!songs.length) {
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-4 px-6 pb-16 pt-12 text-center">
+        <div className="surface-card px-8 py-6 text-sm text-[rgba(31,27,45,0.6)]">
+          <h2 className="text-xl font-semibold text-[rgba(31,27,45,0.82)]">Nog geen liedjes</h2>
+          <p className="mt-2 text-sm">
+            Start een nieuw gesprek in de studio om je eerste track te genereren.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-5xl px-6 pb-16 pt-12">
+      <div className="mb-8">
+        <h1 className="section-heading text-[rgba(31,27,45,0.85)]">Jouw bibliotheek</h1>
+        <p className="mt-2 text-sm text-[rgba(31,27,45,0.58)]">
+          Beluister eerdere generaties, download of start een nieuwe take.
+        </p>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        {songs.map((song) => (
+          <SongCard
+            key={song.id}
+            song={song}
+            onGenerate={onGenerate}
+            isGenerating={isGenerating}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AppHeader({
+  onNewSong,
+  onOpenProfile,
+  activeView,
+  onNavigate,
+}: {
+  onNewSong: () => void;
+  onOpenProfile: () => void;
+  activeView: 'studio' | 'library';
+  onNavigate: (view: 'studio' | 'library') => void;
+}) {
+  return (
+    <header className="sticky top-0 z-30 border-b border-[rgba(31,27,45,0.08)] bg-[rgba(248,246,244,0.85)] backdrop-blur-xl">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+        <BrandMark />
+        <nav className="hidden items-center gap-6 text-sm text-[rgba(31,27,45,0.58)] md:flex">
+          <button
+            onClick={() => onNavigate('studio')}
+            className={`transition ${
+              activeView === 'studio'
+                ? 'text-[#7f5af0] font-semibold'
+                : 'hover:text-[#7f5af0]'
+            }`}
+          >
+            Studio
+          </button>
+          <button
+            onClick={() => onNavigate('library')}
+            className={`transition ${
+              activeView === 'library'
+                ? 'text-[#7f5af0] font-semibold'
+                : 'hover:text-[#7f5af0]'
+            }`}
+          >
+            Bibliotheek
+          </button>
+          <span>Support</span>
+        </nav>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onNewSong}
+            className="hidden rounded-full border border-[#7f5af0]/30 px-4 py-2 text-sm font-medium text-[#7f5af0] transition hover:bg-[#7f5af0]/10 md:inline-flex"
+          >
+            Nieuw liedje
+          </button>
+          <button
+            onClick={onOpenProfile}
+            className="rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-4 py-2 text-sm font-semibold text-white shadow-sm"
+          >
+            Profiel
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#7f5af0] to-[#ff6aa2]" />
+        <svg viewBox="0 0 32 32" className="relative left-[6px] top-[6px] h-20 w-20 text-white" aria-hidden>
+          <path
+            fill="currentColor"
+            d="M15.8 27.4c-.4-.3-1.1-.7-1.9-1.3C8.9 22 4 17.7 4 11.7 4 7.4 7.2 4 11.4 4c2.1 0 4.1.9 5.4 2.5C18.2 4.9 20.2 4 22.4 4 26.6 4 29.8 7.4 29.8 11.7c0 6.1-4.9 10.4-9.9 14.4-.9.7-1.5 1.1-2 1.4-.8.5-1.5.5-2.1-.1z"
+          />
+        </svg>
+      </div>
+      <div>
+        <span className="text-sm uppercase tracking-[0.32em] text-[rgba(31,27,45,0.45)]">Liefdesliedje</span>
+        <p className="text-xl font-semibold leading-tight">Studio</p>
+      </div>
+    </div>
+  );
+}
+
+function LandingPage({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <MarketingHeader onStart={onStart} />
+      <main className="flex-1">
+        <HeroSection onStart={onStart} />
+        <FeatureSection />
+        <HowItWorksSection />
+        <TestimonialSection />
+        <PricingSection onStart={onStart} />
+        <FAQSection />
+        <FinalCTA onStart={onStart} />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function MarketingHeader({ onStart }: { onStart: () => void }) {
+  return (
+    <header className="sticky top-0 z-40 border-b border-[rgba(31,27,45,0.08)] bg-[rgba(248,246,244,0.92)] backdrop-blur-xl">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+        <BrandMark />
+        <nav className="hidden items-center gap-8 text-sm text-[rgba(31,27,45,0.58)] md:flex">
+          <a href="#features">Features</a>
+          <a href="#how">Werkt zo</a>
+          <a href="#pricing">Prijzen</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onStart}
+            className="rounded-full border border-[#7f5af0]/30 px-4 py-2 text-sm font-medium text-[#7f5af0] hover:bg-[#7f5af0]/10"
+          >
+            Inloggen
+          </button>
+          <button
+            onClick={onStart}
+            className="rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-5 py-2 text-sm font-semibold text-white shadow-sm"
+          >
+            Start gratis
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function HeroSection({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(127,90,240,0.16),_transparent_60%)]" />
+      <div className="relative mx-auto flex max-w-6xl flex-col gap-14 px-6 py-24 lg:flex-row lg:items-center">
+        <div className="max-w-xl">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#7f5af0]/30 bg-[#7f5af0]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.32em] text-[#7f5af0]">
+            Nieuw: Liefdesliedje Studio
+          </span>
+          <h1 className="section-heading mt-6">
+            Maak binnen 2 minuten een persoonlijk liefdesliedje dat écht raakt
+          </h1>
+          <p className="mt-4 text-base text-[rgba(31,27,45,0.68)]">
+            Onze AI-conciërge stelt je een paar slimme vragen, schrijft lyrics op maat en componeert direct een professionele track met Suno technologie.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <button
+              onClick={onStart}
+              className="rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/30 transition hover:scale-[1.04]"
+            >
+              Maak mijn liedje
+            </button>
+            <span className="text-sm text-[rgba(31,27,45,0.55)]">
+              <strong className="text-[rgba(31,27,45,0.75)]">Geen creditcard</strong> • klaar in 5 minuten
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-1 justify-end">
+          <div className="surface-card relative w-full max-w-lg overflow-hidden p-6">
+            <div className="absolute right-[-120px] top-[-120px] h-64 w-64 rounded-full bg-[#ff6aa2]/20 blur-3xl" />
+            <div className="relative space-y-5">
+              <div className="rounded-3xl border border-white/40 bg-white/85 p-5 shadow-lg">
+                <div className="flex items-center justify-between text-xs uppercase tracking-[0.32em] text-[rgba(31,27,45,0.45)]">
+                  <span>Gesprek</span>
+                  <span>Stap 2 van 4</span>
+                </div>
+                <p className="mt-4 text-sm text-[rgba(31,27,45,0.7)]">
+                  "Wat was het moment waarop je wist: dit is de liefde? Pak 1 zin."
+                </p>
+                <div className="mt-4 flex flex-col gap-2 text-xs text-[rgba(31,27,45,0.55)]">
+                  <span className="rounded-full border border-white/70 bg-white/80 px-4 py-2">Onze eerste date eindigde met regen en pizza op de vloer.</span>
+                  <span className="rounded-full border border-white/70 bg-white/80 px-4 py-2">Hij neuriede "Laat me niet los" in mijn oor.</span>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/40 bg-white/85 p-5 shadow-lg">
+                <p className="text-xs uppercase tracking-[0.32em] text-[rgba(31,27,45,0.45)]">Voorproefje</p>
+                <h3 className="mt-3 text-xl font-semibold">Onze regenachtige zondag</h3>
+                <p className="mt-3 text-sm text-[rgba(31,27,45,0.68)]">
+                  "Onder een paraplu deelden we stilte en een glimlach, jouw hand in de mijne..."
+                </p>
+                <div className="mt-4 rounded-2xl border border-white/60 bg-white px-4 py-3">
+                  <div className="flex items-center justify-between text-xs text-[rgba(31,27,45,0.5)]">
+                    <span>Audio sample</span>
+                    <span>0:45</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-[#7f5af0]/15">
+                    <div className="h-2 w-2/3 rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeatureSection() {
+  return (
+    <section id="features" className="border-t border-[rgba(31,27,45,0.08)] bg-white/60">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid gap-10 lg:grid-cols-3">
+          {FEATURE_ROWS.map((feature) => (
+            <div key={feature.title} className="rounded-3xl border border-[rgba(31,27,45,0.08)] bg-white/80 p-6 shadow-sm">
+              <h3 className="text-xl font-semibold">{feature.title}</h3>
+              <p className="mt-3 text-sm text-[rgba(31,27,45,0.65)]">{feature.description}</p>
+              <span className="mt-4 inline-flex rounded-full bg-[#7f5af0]/10 px-4 py-1 text-xs font-semibold text-[#7f5af0]">
+                {feature.meta}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HowItWorksSection() {
+  return (
+    <section id="how" className="bg-[rgba(127,90,240,0.08)]">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="section-heading text-center">Zo werkt het</h2>
+        <p className="mt-3 text-center text-base text-[rgba(31,27,45,0.6)]">
+          Geen formulieren. Gewoon een gesprek met een empathische AI die precies weet wat er nodig is.
+        </p>
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {HOW_IT_WORKS.map((item, index) => (
+            <div key={item.title} className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-sm">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#7f5af0]/10 text-sm font-semibold text-[#7f5af0]">
+                {index + 1}
+              </span>
+              <h3 className="mt-4 text-xl font-semibold">{item.title}</h3>
+              <p className="mt-3 text-sm text-[rgba(31,27,45,0.65)]">{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TestimonialSection() {
+  return (
+    <section className="border-t border-[rgba(31,27,45,0.08)] bg-white/70">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="section-heading text-center">Verhalen die blijven hangen</h2>
+        <p className="mt-3 text-center text-base text-[rgba(31,27,45,0.6)]">
+          Makers, geliefden en wedding planners gebruiken Liefdesliedje Studio voor memorabele momenten.
+        </p>
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {TESTIMONIALS.map((item) => (
+            <div key={item.name} className="rounded-3xl border border-[rgba(31,27,45,0.08)] bg-white/85 p-6 shadow-md">
+              <p className="text-sm text-[rgba(31,27,45,0.68)]">“{item.quote}”</p>
+              <div className="mt-5 text-sm font-semibold text-[rgba(31,27,45,0.8)]">{item.name}</div>
+              <div className="text-xs text-[rgba(31,27,45,0.55)]">{item.role}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PricingSection({ onStart }: { onStart: () => void }) {
+  return (
+    <section id="pricing" className="bg-[rgba(127,90,240,0.08)]">
+      <div className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="section-heading text-center">Kies wat bij jullie past</h2>
+        <p className="mt-3 text-center text-base text-[rgba(31,27,45,0.6)]">
+          Betaal alleen wanneer je klaar bent om jullie song te delen of op te nemen.
+        </p>
+        <div className="mt-12 grid gap-8 lg:grid-cols-3">
+          {PRICING_PLANS.map((plan) => (
+            <div
+              key={plan.title}
+              className={`rounded-3xl border p-6 shadow-sm transition ${
+                plan.highlighted
+                  ? "border-[#7f5af0]/40 bg-white text-[rgba(31,27,45,0.82)] shadow-xl"
+                  : "border-[rgba(31,27,45,0.08)] bg-white/80 text-[rgba(31,27,45,0.7)]"
+              }`}
+            >
+              {plan.tag && (
+                <span className="inline-flex rounded-full bg-[#7f5af0]/15 px-4 py-1 text-xs font-semibold text-[#7f5af0]">
+                  {plan.tag}
+                </span>
+              )}
+              <h3 className="mt-4 text-2xl font-semibold text-[rgba(31,27,45,0.85)]">{plan.title}</h3>
+              <p className="mt-2 text-sm text-[rgba(31,27,45,0.55)]">{plan.description}</p>
+              <div className="mt-6 text-3xl font-semibold text-[rgba(31,27,45,0.85)]">{plan.price}</div>
+              <ul className="mt-6 space-y-3 text-sm">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-[#7f5af0]" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={onStart}
+                className={`mt-8 w-full rounded-full px-5 py-3 text-sm font-semibold transition ${
+                  plan.highlighted
+                    ? "bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] text-white shadow-lg shadow-[#7f5af0]/30"
+                    : "border border-[#7f5af0]/30 text-[#7f5af0] hover:bg-[#7f5af0]/10"
+                }`}
+              >
+                {plan.cta}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FAQSection() {
+  return (
+    <section id="faq" className="border-t border-[rgba(31,27,45,0.08)] bg-white/70">
+      <div className="mx-auto max-w-5xl px-6 py-20">
+        <h2 className="section-heading text-center">Veelgestelde vragen</h2>
+        <div className="mt-10 space-y-4">
+          {FAQS.map((item) => (
+            <details key={item.question} className="rounded-3xl border border-[rgba(31,27,45,0.08)] bg-white/85 p-5">
+              <summary className="cursor-pointer text-base font-semibold text-[rgba(31,27,45,0.8)]">
+                {item.question}
+              </summary>
+              <p className="mt-3 text-sm text-[rgba(31,27,45,0.65)]">{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="py-20">
+      <div className="mx-auto max-w-4xl rounded-[36px] border border-[#7f5af0]/30 bg-gradient-to-r from-[#7f5af0]/15 to-[#ff6aa2]/15 px-8 py-16 text-center shadow-xl">
+        <h2 className="section-heading">Ready om jullie geluid vast te leggen?</h2>
+        <p className="mt-4 text-base text-[rgba(31,27,45,0.65)]">
+          Start gratis, beantwoord vier vragen en luister direct naar het resultaat. Upgrade wanneer je blij bent.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <button
+            onClick={onStart}
+            className="rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/30 transition hover:scale-[1.04]"
+          >
+            Start mijn liedje
+          </button>
+          <span className="text-sm text-[rgba(31,27,45,0.55)]">Live demo beschikbaar • Deelbare link inbegrepen</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-[rgba(31,27,45,0.08)] bg-white/80">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6 text-sm text-[rgba(31,27,45,0.55)] md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <BrandMark />
+          <span>© {new Date().getFullYear()} Liefdesliedje Studio. Alle rechten voorbehouden.</span>
+        </div>
+        <div className="flex gap-4">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="mailto:hallo@liefdesliedje.studio">Support</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function AuthDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sentEmail, setSentEmail] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setCode("");
+      setSentEmail(false);
+      setBusy(false);
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const sendCode = async () => {
+    if (!email.trim()) return;
+    setBusy(true);
+    try {
+      await db.auth.sendMagicCode({ email });
+      setSentEmail(true);
+    } catch (err: any) {
+      alert("Fout: " + (err?.message ?? "er ging iets mis"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!code.trim()) return;
+    setBusy(true);
+    try {
+      await db.auth.signInWithMagicCode({ email, code });
+      onClose();
+    } catch (err: any) {
+      alert("Fout: " + (err?.message ?? "er ging iets mis"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="surface-card relative w-full max-w-md p-8">
+        <button
+          onClick={onClose}
+          className="absolute right-6 top-6 rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs text-[rgba(31,27,45,0.6)] hover:bg-white"
+        >
+          Sluiten
+        </button>
+        <div className="mt-4 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#7f5af0]/30 bg-[#7f5af0]/10 px-4 py-1 text-xs font-semibold text-[#7f5af0]">
+            Toegang tot studio
+          </span>
+          <h2 className="mt-4 text-2xl font-semibold">Log in met magic link</h2>
+          <p className="mt-2 text-sm text-[rgba(31,27,45,0.6)]">
+            We sturen je een code. Geen wachtwoord nodig.
+          </p>
+        </div>
+
+        {!sentEmail ? (
+          <div className="mt-8 space-y-4">
+            <label className="block text-xs font-semibold uppercase tracking-[0.32em] text-[rgba(31,27,45,0.45)]">
+              E-mailadres
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="jij@email.com"
+              className="w-full rounded-2xl border border-white/50 bg-white/90 px-4 py-3 text-sm text-[rgba(31,27,45,0.75)] focus:border-[#7f5af0]/40 focus:outline-none"
+            />
+            <button
+              onClick={sendCode}
+              disabled={busy || !email.trim()}
+              className="w-full rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/25 disabled:opacity-50"
+            >
+              {busy ? "Versturen..." : "Stuur code"}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-4">
+            <p className="text-sm text-[rgba(31,27,45,0.6)]">
+              We hebben een 6-cijferige code gestuurd naar <strong>{email}</strong>.
+            </p>
+            <input
+              type="text"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="123456"
+              className="w-full rounded-2xl border border-white/50 bg-white/90 px-4 py-3 text-center text-lg tracking-[0.6em] focus:border-[#7f5af0]/40 focus:outline-none"
+            />
+            <button
+              onClick={verifyCode}
+              disabled={busy || code.trim().length < 4}
+              className="w-full rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7f5af0]/25 disabled:opacity-50"
+            >
+              {busy ? "Verifiëren..." : "Log in"}
+            </button>
+            <button
+              onClick={() => setSentEmail(false)}
+              className="w-full rounded-full border border-white/60 bg-white/80 px-6 py-3 text-sm text-[rgba(31,27,45,0.6)]"
+            >
+              Ander e-mailadres?
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
