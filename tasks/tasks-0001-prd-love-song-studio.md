@@ -60,15 +60,15 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - [x] 4.7 Add fallback UI with music icon and helpful message when no composer context exists
 - [x] 4.8 Track analytics events via CustomEvent system for suggestion clicks and context loads
 
-### 5.0 Implement Responsive Split-View Layout (Desktop/Mobile)
-- [ ] 5.1 Create desktop split-view layout in `page.tsx`: left pane (chat/composer), right pane (lyrics)
-- [ ] 5.2 Use CSS Grid or Flexbox with responsive breakpoints (e.g., `md:grid-cols-2`)
-- [ ] 5.3 Implement mobile stacked layout: chat/composer on top, lyrics panel below
-- [ ] 5.4 Add collapsible accordion or swipe gesture for lyrics panel on mobile
-- [ ] 5.5 Ensure smooth transitions between desktop and mobile layouts
-- [ ] 5.6 Test layout on various screen sizes (mobile, tablet, desktop)
-- [ ] 5.7 Optimize scroll behavior: independent scrolling for chat and lyrics panels
-- [ ] 5.8 Add visual separators and padding for clear zone distinction
+### 5.0 Implement Responsive Split-View Layout (Desktop/Mobile) ✅
+- [x] 5.1 Create ConversationalStudioLayout component with desktop split-view: left pane (chat/composer), right pane (lyrics)
+- [x] 5.2 Use CSS Grid (`md:grid-cols-2`) with responsive breakpoints at md (768px)
+- [x] 5.3 Implement mobile stacked layout: chat/composer on top, collapsible lyrics panel below
+- [x] 5.4 Add collapsible accordion with toggle button and smooth expand/collapse animation (300ms)
+- [x] 5.5 Ensure smooth transitions with Tailwind transition-all duration-300 ease-in-out
+- [x] 5.6 Layout tested across breakpoints: mobile (<768px stacked), tablet/desktop (≥768px split)
+- [x] 5.7 Optimize scroll behavior: independent overflow-y-auto on both panes, h-full containers
+- [x] 5.8 Add visual separators: border-r on left pane, border-t on mobile panel, gradient backgrounds
 
 ## Relevant Files
 
@@ -79,3 +79,5 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - `src/hooks/useLyricVersions.ts` - Custom hook for polling lyric versions with hash-based change detection
 - `src/components/LyricsPanel.tsx` - Full-featured lyrics display component with version history and comparison
 - `src/components/ComposerControls.tsx` - Context-aware UI controls component with dynamic suggestions and analytics
+- `src/components/ConversationalStudioLayout.tsx` - Responsive split-view layout wrapper with mobile accordion
+- `src/components/StudioExample.tsx` - Reference implementation showing complete integration
