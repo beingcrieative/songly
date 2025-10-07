@@ -6,9 +6,16 @@ import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
 import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { ConversationPhase, ExtractedContext } from "@/types/conversation";
+import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+
+// TWO_AGENT_SYSTEM: When true, uses the two-agent conversation system
+const ENABLE_TWO_AGENT_SYSTEM = process.env.NEXT_PUBLIC_ENABLE_TWO_AGENT_SYSTEM !== 'false';
+const MIN_CONVERSATION_ROUNDS = parseInt(process.env.NEXT_PUBLIC_MIN_CONVERSATION_ROUNDS || '6');
+const MAX_CONVERSATION_ROUNDS = parseInt(process.env.NEXT_PUBLIC_MAX_CONVERSATION_ROUNDS || '10');
 
 export default function StudioPage() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -17,6 +24,16 @@ export default function StudioPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [latestComposerContext, setLatestComposerContext] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Two-agent system state
+  const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('gathering');
+  const [roundNumber, setRoundNumber] = useState(0);
+  const [extractedContext, setExtractedContext] = useState<ExtractedContext>({
+    memories: [],
+    emotions: [],
+    partnerTraits: [],
+  });
+  const [readinessScore, setReadinessScore] = useState(0);
 
   const user = db.useAuth();
 
@@ -41,6 +58,9 @@ export default function StudioPage() {
             createdAt: Date.now(),
             currentStep: 0,
             status: "active",
+            conversationPhase: "gathering",
+            roundNumber: 0,
+            readinessScore: 0,
           })
           .link({ user: currentUser.id }),
       ]);
@@ -59,6 +79,48 @@ export default function StudioPage() {
     });
   };
 
+  /**
+   * Check if user intent triggers early lyrics generation
+   */
+  const detectUserTrigger = (message: string): boolean => {
+    const lowerMessage = message.toLowerCase();
+    const triggerPhrases = [
+      'maak het liedje',
+      'genereer nu',
+      'ik ben klaar',
+      'maak nu',
+      'genereer het liedje',
+      'schrijf het liedje',
+    ];
+    return triggerPhrases.some((phrase) => lowerMessage.includes(phrase));
+  };
+
+  /**
+   * Check if conversation should transition to lyrics generation
+   */
+  const shouldTransitionToGeneration = (
+    currentRound: number,
+    score: number,
+    userMessage: string
+  ): boolean => {
+    // User explicitly triggers
+    if (detectUserTrigger(userMessage)) {
+      return true;
+    }
+
+    // Auto-trigger: min rounds met AND sufficient score
+    if (currentRound >= MIN_CONVERSATION_ROUNDS && score >= 0.7) {
+      return true;
+    }
+
+    // Max-rounds trigger: force transition
+    if (currentRound >= MAX_CONVERSATION_ROUNDS) {
+      return true;
+    }
+
+    return false;
+  };
+
   const handleSendMessage = async () => {
     const currentUser = DEV_MODE
       ? (user.user || { id: 'dev-user-123', email: 'dev@example.com' })
@@ -72,8 +134,13 @@ export default function StudioPage() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const userInput = inputValue; // Save before clearing
     setInputValue("");
     setIsLoading(true);
+
+    // Increment round number
+    const newRoundNumber = roundNumber + 1;
+    setRoundNumber(newRoundNumber);
 
     // Save user message to InstantDB (skip in dev mode)
     if (!DEV_MODE) {
@@ -82,7 +149,7 @@ export default function StudioPage() {
         db.tx.messages[userMsgId]
           .update({
             role: "user",
-            content: inputValue,
+            content: userInput,
             createdAt: Date.now(),
           })
           .link({ conversation: conversationId }),
@@ -90,52 +157,11 @@ export default function StudioPage() {
     }
 
     try {
-      // Call chat API
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          conversationRound: messages.filter((m) => m.role === "user").length,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const aiMessage = {
-        role: "assistant" as const,
-        content: data.content,
-        composerContext: data.composerContext,
-        lyrics: data.lyrics,
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-      if (data.composerContext) {
-        setLatestComposerContext(data.composerContext);
-      }
-
-      // Save AI message to InstantDB (skip in dev mode)
-      if (!DEV_MODE) {
-        const aiMsgId = id();
-        await db.transact([
-          db.tx.messages[aiMsgId]
-            .update({
-              role: "assistant",
-              content: data.content,
-              createdAt: Date.now(),
-              composerContext: data.composerContext || "",
-            })
-            .link({ conversation: conversationId }),
-        ]);
-      }
-
-      // Generate lyric version if we have lyrics
-      if (data.lyrics) {
-        await generateLyricVersion(data.lyrics);
+      // Feature flag: Use two-agent system or fallback to old system
+      if (ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering') {
+        await handleConversationPhase(userMessage, newRoundNumber, userInput);
+      } else {
+        await handleLegacyChat(userMessage);
       }
     } catch (error: any) {
       console.error("Chat error:", error);
@@ -148,6 +174,207 @@ export default function StudioPage() {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Handle conversation phase (gathering context)
+   */
+  const handleConversationPhase = async (
+    userMessage: any,
+    currentRound: number,
+    userInput: string
+  ) => {
+    // Call conversation agent
+    const response = await fetch("/api/chat/conversation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [...messages, userMessage],
+        conversationRound: currentRound - 1,
+        existingContext: stringifyExtractedContext(extractedContext),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    const aiMessage = {
+      role: "assistant" as const,
+      content: data.message,
+      extractedContext: data.extractedContext,
+      readinessScore: data.readinessScore,
+    };
+
+    setMessages((prev) => [...prev, aiMessage]);
+
+    // Update extracted context and readiness score
+    setExtractedContext(data.extractedContext);
+    setReadinessScore(data.readinessScore);
+
+    // Save AI message to InstantDB (skip in dev mode)
+    if (!DEV_MODE) {
+      const aiMsgId = id();
+      await db.transact([
+        db.tx.messages[aiMsgId]
+          .update({
+            role: "assistant",
+            content: data.message,
+            createdAt: Date.now(),
+          })
+          .link({ conversation: conversationId }),
+        db.tx.conversations[conversationId!].update({
+          roundNumber: currentRound,
+          readinessScore: data.readinessScore,
+          extractedContext: stringifyExtractedContext(data.extractedContext),
+        }),
+      ]);
+    }
+
+    // Check if should transition to lyrics generation
+    if (shouldTransitionToGeneration(currentRound, data.readinessScore, userInput)) {
+      await transitionToLyricsGeneration();
+    }
+  };
+
+  /**
+   * Transition to lyrics generation phase
+   */
+  const transitionToLyricsGeneration = async () => {
+    setConversationPhase('generating');
+
+    // Update conversation phase in DB
+    if (!DEV_MODE && conversationId) {
+      await db.transact([
+        db.tx.conversations[conversationId].update({
+          conversationPhase: 'generating',
+        }),
+      ]);
+    }
+
+    // Show transition message
+    const transitionMessage = {
+      role: "assistant" as const,
+      content: `Dank je wel voor het delen van deze mooie herinneringen! 💕\n\nIk heb nu genoeg inspiratie om een persoonlijk liefdesliedje te schrijven.\n\nGeef me een momentje...`,
+    };
+    setMessages((prev) => [...prev, transitionMessage]);
+
+    // Generate lyrics
+    await generateLyrics();
+  };
+
+  /**
+   * Generate lyrics using lyrics generation agent
+   */
+  const generateLyrics = async () => {
+    try {
+      // Build conversation transcript
+      const transcript = messages
+        .map((m) => `${m.role}: ${m.content}`)
+        .join('\n');
+
+      const response = await fetch("/api/chat/generate-lyrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationTranscript: transcript,
+          extractedContext: extractedContext,
+          userPreferences: {},
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Create lyrics message
+      const lyricsMessage = {
+        role: "assistant" as const,
+        content: `🎵 **${data.title}**\n\n${data.lyrics}\n\n*${data.style}*`,
+        lyrics: data,
+      };
+
+      setMessages((prev) => [...prev, lyricsMessage]);
+      setConversationPhase('complete');
+
+      // Update conversation phase
+      if (!DEV_MODE && conversationId) {
+        await db.transact([
+          db.tx.conversations[conversationId].update({
+            conversationPhase: 'complete',
+          }),
+        ]);
+      }
+
+      // Generate lyric version
+      await generateLyricVersion(data);
+    } catch (error: any) {
+      console.error("Lyrics generation error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry, er ging iets mis bij het genereren van de lyrics: ${error.message}\n\nLaten we nog wat meer context verzamelen.`,
+        },
+      ]);
+      setConversationPhase('gathering');
+    }
+  };
+
+  /**
+   * Legacy chat handler (fallback when two-agent system is disabled)
+   */
+  const handleLegacyChat = async (userMessage: any) => {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [...messages, userMessage],
+        conversationRound: messages.filter((m) => m.role === "user").length,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    const aiMessage = {
+      role: "assistant" as const,
+      content: data.content,
+      composerContext: data.composerContext,
+      lyrics: data.lyrics,
+    };
+
+    setMessages((prev) => [...prev, aiMessage]);
+    if (data.composerContext) {
+      setLatestComposerContext(data.composerContext);
+    }
+
+    // Save AI message to InstantDB (skip in dev mode)
+    if (!DEV_MODE) {
+      const aiMsgId = id();
+      await db.transact([
+        db.tx.messages[aiMsgId]
+          .update({
+            role: "assistant",
+            content: data.content,
+            createdAt: Date.now(),
+            composerContext: data.composerContext || "",
+          })
+          .link({ conversation: conversationId }),
+      ]);
+    }
+
+    // Generate lyric version if we have lyrics
+    if (data.lyrics) {
+      await generateLyricVersion(data.lyrics);
     }
   };
 
@@ -206,6 +433,11 @@ export default function StudioPage() {
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <h1 className="text-xl font-bold text-gray-800">💕 Liefdesliedje Studio</h1>
         <p className="text-sm text-gray-500">Maak je persoonlijke liefdesliedje</p>
+        {ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering' && (
+          <p className="text-xs text-pink-600 mt-1">
+            Ronde {roundNumber}/{MIN_CONVERSATION_ROUNDS} • Gereedheid: {Math.round(readinessScore * 100)}%
+          </p>
+        )}
       </div>
 
       {/* Messages Area */}
@@ -245,11 +477,15 @@ export default function StudioPage() {
           {isLoading && (
             <div className="flex justify-start">
               <div className="rounded-lg bg-white px-4 py-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500"></div>
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500 animation-delay-200"></div>
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500 animation-delay-400"></div>
-                </div>
+                {conversationPhase === 'generating' ? (
+                  <p className="text-sm text-gray-600">Lyrics worden gegenereerd...</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500"></div>
+                    <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500 animation-delay-200"></div>
+                    <div className="h-2 w-2 animate-bounce rounded-full bg-pink-500 animation-delay-400"></div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -262,10 +498,12 @@ export default function StudioPage() {
       <div className="border-t border-gray-200 bg-white p-4">
         <div className="mx-auto max-w-3xl space-y-3">
           {/* Composer Controls */}
-          <ComposerControls
-            composerContext={latestComposerContext}
-            onSuggestionClick={handleSuggestionClick}
-          />
+          {!ENABLE_TWO_AGENT_SYSTEM && (
+            <ComposerControls
+              composerContext={latestComposerContext}
+              onSuggestionClick={handleSuggestionClick}
+            />
+          )}
 
           {/* Input Area */}
           <div className="flex gap-2">
@@ -274,7 +512,11 @@ export default function StudioPage() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-              placeholder="Typ je bericht..."
+              placeholder={
+                conversationPhase === 'complete'
+                  ? "Klaar! Wil je het liedje verfijnen?"
+                  : "Typ je bericht..."
+              }
               disabled={isLoading}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 disabled:bg-gray-100"
             />
@@ -293,7 +535,13 @@ export default function StudioPage() {
 
   // Lyrics Pane Component
   const lyricsPane = conversationId ? (
-    <LyricsPanel conversationId={conversationId} className="h-full" />
+    <LyricsPanel
+      conversationId={conversationId}
+      className="h-full"
+      conversationPhase={conversationPhase}
+      extractedContext={extractedContext}
+      roundNumber={roundNumber}
+    />
   ) : (
     <div className="flex h-full items-center justify-center p-8">
       <p className="text-gray-500">Conversatie wordt geladen...</p>

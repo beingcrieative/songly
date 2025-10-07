@@ -62,17 +62,17 @@ Based on PRD-0002: Two-Agent Conversation System
   - [x] 3.7 Return JSON response: `{ type: 'lyrics_generated', title, lyrics, style, reasoning }`
   - [x] 3.8 Add error handling with fallback to simpler prompt if validation fails
 
-- [ ] 4.0 Implement Conversation Flow Logic and State Management
-  - [ ] 4.1 Update `src/app/studio/page.tsx` to track conversationPhase state ('gathering' | 'generating' | 'refining' | 'complete')
-  - [ ] 4.2 Add roundNumber counter state that increments after each user message
-  - [ ] 4.3 Add extractedContext state to store cumulative context from conversation agent
-  - [ ] 4.4 Add readinessScore state to track when ready for lyrics generation
-  - [ ] 4.5 Implement transition logic: check if `roundNumber >= MIN_CONVERSATION_ROUNDS AND readinessScore >= 0.7`
-  - [ ] 4.6 Implement user-triggered transition: detect intent phrases ("maak het liedje", "ik ben klaar", "genereer nu") in user messages
-  - [ ] 4.7 Implement max-rounds trigger: force transition after MAX_CONVERSATION_ROUNDS
-  - [ ] 4.8 When transitioning, show transition message: "Dank je wel voor het delen van deze mooie herinneringen! 💕..."
-  - [ ] 4.9 Update conversation entity in InstantDB with phase, roundNumber, extractedContext, readinessScore after each message
-  - [ ] 4.10 Add feature flag check: if `ENABLE_TWO_AGENT_SYSTEM !== 'true'`, fall back to existing `/api/chat` route
+- [x] 4.0 Implement Conversation Flow Logic and State Management
+  - [x] 4.1 Update `src/app/studio/page.tsx` to track conversationPhase state ('gathering' | 'generating' | 'refining' | 'complete')
+  - [x] 4.2 Add roundNumber counter state that increments after each user message
+  - [x] 4.3 Add extractedContext state to store cumulative context from conversation agent
+  - [x] 4.4 Add readinessScore state to track when ready for lyrics generation
+  - [x] 4.5 Implement transition logic: check if `roundNumber >= MIN_CONVERSATION_ROUNDS AND readinessScore >= 0.7`
+  - [x] 4.6 Implement user-triggered transition: detect intent phrases ("maak het liedje", "ik ben klaar", "genereer nu") in user messages
+  - [x] 4.7 Implement max-rounds trigger: force transition after MAX_CONVERSATION_ROUNDS
+  - [x] 4.8 When transitioning, show transition message: "Dank je wel voor het delen van deze mooie herinneringen! 💕..."
+  - [x] 4.9 Update conversation entity in InstantDB with phase, roundNumber, extractedContext, readinessScore after each message
+  - [x] 4.10 Add feature flag check: if `ENABLE_TWO_AGENT_SYSTEM !== 'true'`, fall back to existing `/api/chat` route
 
 - [ ] 5.0 Update UI Components for Two-Phase Flow
   - [ ] 5.1 Update `src/app/studio/page.tsx` handleSendMessage to call `/api/chat/conversation` instead of `/api/chat` when in 'gathering' phase
