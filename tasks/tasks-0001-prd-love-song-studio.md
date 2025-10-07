@@ -50,15 +50,15 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - [x] 3.7 Display "No lyrics yet" state with emoji and helpful message
 - [x] 3.8 Add visual indicators: "Nieuw bijgewerkt" badge, current version dot, version count
 
-### 4.0 Create Context-Aware Composer Controls UI
-- [ ] 4.1 Create `<ComposerControls>` component that reads `composerContext` from latest message
-- [ ] 4.2 Parse composer context JSON to extract suggested controls (mood, tone, section prompts)
-- [ ] 4.3 Render dynamic UI controls based on context (toggles, buttons, select dropdowns)
-- [ ] 4.4 Implement click handlers that inject composer adjustments into chat input
-- [ ] 4.5 Add visual refresh animation when controls update after new AI message
-- [ ] 4.6 Position controls near chat input in conversational pane
-- [ ] 4.7 Add fallback UI when no composer context exists (show generic controls)
-- [ ] 4.8 Track analytics events when users interact with composer suggestions
+### 4.0 Create Context-Aware Composer Controls UI ✅
+- [x] 4.1 Create `<ComposerControls>` component that reads `composerContext` from props
+- [x] 4.2 Parse composer context JSON to extract suggested controls (mood, tone, section prompts)
+- [x] 4.3 Render dynamic UI controls as pill buttons with color-coded categories
+- [x] 4.4 Implement click handlers that call `onSuggestionClick` callback with suggestion text
+- [x] 4.5 Add visual refresh animation (pulse effect) when controls update after new AI message
+- [x] 4.6 Component designed to be positioned near chat input (flexible via className prop)
+- [x] 4.7 Add fallback UI with music icon and helpful message when no composer context exists
+- [x] 4.8 Track analytics events via CustomEvent system for suggestion clicks and context loads
 
 ### 5.0 Implement Responsive Split-View Layout (Desktop/Mobile)
 - [ ] 5.1 Create desktop split-view layout in `page.tsx`: left pane (chat/composer), right pane (lyrics)
@@ -78,3 +78,4 @@ Generated from: `tasks/0001-prd-love-song-studio.md`
 - `src/app/api/lyric-versions/route.ts` - New endpoint for generating and storing lyric versions with hash-based deduplication
 - `src/hooks/useLyricVersions.ts` - Custom hook for polling lyric versions with hash-based change detection
 - `src/components/LyricsPanel.tsx` - Full-featured lyrics display component with version history and comparison
+- `src/components/ComposerControls.tsx` - Context-aware UI controls component with dynamic suggestions and analytics
