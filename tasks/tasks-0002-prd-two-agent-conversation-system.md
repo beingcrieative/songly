@@ -52,15 +52,15 @@ Based on PRD-0002: Two-Agent Conversation System
   - [x] 2.8 Return JSON response: `{ type: 'conversation', message, roundNumber, readinessScore, extractedContext }`
   - [x] 2.9 Add error handling for OpenRouter API failures with user-friendly Dutch error messages
 
-- [ ] 3.0 Create Lyrics Generation Agent System
-  - [ ] 3.1 Create `src/lib/prompts/lyricsAgent.ts` with detailed system prompt (based on PRD: professional songwriter, Suno-optimized structure, incorporates specific details, natural Dutch phrasing)
-  - [ ] 3.2 Create API route `src/app/api/chat/generate-lyrics/route.ts` that accepts POST with conversationTranscript and extractedContext
-  - [ ] 3.3 Build comprehensive prompt combining conversation transcript + extracted context + user preferences
-  - [ ] 3.4 Call OpenRouter with lyrics agent system prompt and generation request
-  - [ ] 3.5 Parse response to extract title, lyrics, style, and reasoning
-  - [ ] 3.6 Validate lyrics format (check for proper sections: [Couplet], [Refrein], [Bridge])
-  - [ ] 3.7 Return JSON response: `{ type: 'lyrics_generated', title, lyrics, style, reasoning }`
-  - [ ] 3.8 Add error handling with fallback to simpler prompt if validation fails
+- [x] 3.0 Create Lyrics Generation Agent System
+  - [x] 3.1 Create `src/lib/prompts/lyricsAgent.ts` with detailed system prompt (based on PRD: professional songwriter, Suno-optimized structure, incorporates specific details, natural Dutch phrasing)
+  - [x] 3.2 Create API route `src/app/api/chat/generate-lyrics/route.ts` that accepts POST with conversationTranscript and extractedContext
+  - [x] 3.3 Build comprehensive prompt combining conversation transcript + extracted context + user preferences
+  - [x] 3.4 Call OpenRouter with lyrics agent system prompt and generation request
+  - [x] 3.5 Parse response to extract title, lyrics, style, and reasoning
+  - [x] 3.6 Validate lyrics format (check for proper sections: [Couplet], [Refrein], [Bridge])
+  - [x] 3.7 Return JSON response: `{ type: 'lyrics_generated', title, lyrics, style, reasoning }`
+  - [x] 3.8 Add error handling with fallback to simpler prompt if validation fails
 
 - [ ] 4.0 Implement Conversation Flow Logic and State Management
   - [ ] 4.1 Update `src/app/studio/page.tsx` to track conversationPhase state ('gathering' | 'generating' | 'refining' | 'complete')
