@@ -16,6 +16,10 @@ const _schema = i.schema({
       createdAt: i.number().indexed().optional(),
       currentStep: i.number().optional(),
       status: i.string().indexed().optional(),
+      extractedContext: i.string().optional(), // Stores JSON of ExtractedContext interface
+      conversationPhase: i.string().indexed().optional(), // 'gathering' | 'generating' | 'refining' | 'complete'
+      roundNumber: i.number().optional(), // Current conversation round counter
+      readinessScore: i.number().optional(), // 0-1 score indicating readiness for lyrics generation
     }),
     messages: i.entity({
       content: i.string().optional(),

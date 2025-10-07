@@ -7,6 +7,9 @@ import { ConversationalStudioLayout } from "@/components/ConversationalStudioLay
 import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 
+// DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
+const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+
 export default function StudioPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -19,21 +22,29 @@ export default function StudioPage() {
 
   // Create conversation on mount
   useEffect(() => {
-    if (user.isLoading || !user.user) return;
+    // DEV_MODE: Skip loading check and use mock user
+    const isLoading = DEV_MODE ? false : user.isLoading;
+    const currentUser = DEV_MODE
+      ? (user.user || { id: 'dev-user-123', email: 'dev@example.com' })
+      : user.user;
+
+    if (isLoading || !currentUser) return;
 
     const convId = id();
     setConversationId(convId);
 
-    // Create conversation in InstantDB
-    db.transact([
-      db.tx.conversations[convId]
-        .update({
-          createdAt: Date.now(),
-          currentStep: 0,
-          status: "active",
-        })
-        .link({ user: user.user.id }),
-    ]);
+    // Create conversation in InstantDB (skip DB write in dev mode to avoid auth issues)
+    if (!DEV_MODE) {
+      db.transact([
+        db.tx.conversations[convId]
+          .update({
+            createdAt: Date.now(),
+            currentStep: 0,
+            status: "active",
+          })
+          .link({ user: currentUser.id }),
+      ]);
+    }
   }, [user.isLoading, user.user]);
 
   // Scroll to bottom when messages change
@@ -49,7 +60,11 @@ export default function StudioPage() {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !conversationId || !user.user) return;
+    const currentUser = DEV_MODE
+      ? (user.user || { id: 'dev-user-123', email: 'dev@example.com' })
+      : user.user;
+
+    if (!inputValue.trim() || !conversationId || !currentUser) return;
 
     const userMessage = {
       role: "user" as const,
@@ -60,17 +75,19 @@ export default function StudioPage() {
     setInputValue("");
     setIsLoading(true);
 
-    // Save user message to InstantDB
-    const userMsgId = id();
-    await db.transact([
-      db.tx.messages[userMsgId]
-        .update({
-          role: "user",
-          content: inputValue,
-          createdAt: Date.now(),
-        })
-        .link({ conversation: conversationId }),
-    ]);
+    // Save user message to InstantDB (skip in dev mode)
+    if (!DEV_MODE) {
+      const userMsgId = id();
+      await db.transact([
+        db.tx.messages[userMsgId]
+          .update({
+            role: "user",
+            content: inputValue,
+            createdAt: Date.now(),
+          })
+          .link({ conversation: conversationId }),
+      ]);
+    }
 
     try {
       // Call chat API
@@ -101,18 +118,20 @@ export default function StudioPage() {
         setLatestComposerContext(data.composerContext);
       }
 
-      // Save AI message to InstantDB
-      const aiMsgId = id();
-      await db.transact([
-        db.tx.messages[aiMsgId]
-          .update({
-            role: "assistant",
-            content: data.content,
-            createdAt: Date.now(),
-            composerContext: data.composerContext || "",
-          })
-          .link({ conversation: conversationId }),
-      ]);
+      // Save AI message to InstantDB (skip in dev mode)
+      if (!DEV_MODE) {
+        const aiMsgId = id();
+        await db.transact([
+          db.tx.messages[aiMsgId]
+            .update({
+              role: "assistant",
+              content: data.content,
+              createdAt: Date.now(),
+              composerContext: data.composerContext || "",
+            })
+            .link({ conversation: conversationId }),
+        ]);
+      }
 
       // Generate lyric version if we have lyrics
       if (data.lyrics) {
@@ -158,7 +177,7 @@ export default function StudioPage() {
     }
   };
 
-  if (user.isLoading) {
+  if (!DEV_MODE && user.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -169,7 +188,7 @@ export default function StudioPage() {
     );
   }
 
-  if (!user.user) {
+  if (!DEV_MODE && !user.user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">

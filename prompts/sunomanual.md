@@ -1,0 +1,82 @@
+# Suno API
+
+## Docs
+
+- [Base64 文件上传](https://docs.sunoapi.org/cn/file-upload-api/upload-file-base-64.md)
+- [文件流上传](https://docs.sunoapi.org/cn/file-upload-api/upload-file-stream.md)
+- [URL 文件上传](https://docs.sunoapi.org/cn/file-upload-api/upload-file-url.md)
+- [Suno API 文档](https://docs.sunoapi.org/cn/index.md): 完整的 Suno API 文档 - 您获取经济实惠且稳定的 AI 音乐 API 服务的门户
+- [添加乐器](https://docs.sunoapi.org/cn/suno-api/add-instrumental.md)
+- [添加乐器回调](https://docs.sunoapi.org/cn/suno-api/add-instrumental-callbacks.md): 当乐器生成任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [添加人声](https://docs.sunoapi.org/cn/suno-api/add-vocals.md)
+- [添加人声回调](https://docs.sunoapi.org/cn/suno-api/add-vocals-callbacks.md): 当人声生成任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [提升音乐风格](https://docs.sunoapi.org/cn/suno-api/boost-music-style.md)
+- [转换为WAV格式](https://docs.sunoapi.org/cn/suno-api/convert-to-wav-format.md): 将现有音乐转换为高质量WAV格式。
+- [WAV格式转换回调](https://docs.sunoapi.org/cn/suno-api/convert-to-wav-format-callbacks.md): 当WAV格式转换任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [生成音乐封面](https://docs.sunoapi.org/cn/suno-api/cover-suno.md): 为生成的音乐创建个性化封面图像。
+- [音乐封面生成回调](https://docs.sunoapi.org/cn/suno-api/cover-suno-callbacks.md): 当音乐封面生成完成时，系统将调用此回调来通知结果。
+- [创建音乐视频](https://docs.sunoapi.org/cn/suno-api/create-music-video.md): 为音乐曲目生成带有可视化效果的MP4视频。
+- [音乐视频生成回调](https://docs.sunoapi.org/cn/suno-api/create-music-video-callbacks.md): 当音乐视频生成任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [延长音乐](https://docs.sunoapi.org/cn/suno-api/extend-music.md): 延长或修改现有音乐作品。
+- [音乐扩展回调](https://docs.sunoapi.org/cn/suno-api/extend-music-callbacks.md): 当音乐扩展任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [生成歌词](https://docs.sunoapi.org/cn/suno-api/generate-lyrics.md): 使用AI模型创建歌词内容，无需生成音频轨道。
+- [歌词生成回调](https://docs.sunoapi.org/cn/suno-api/generate-lyrics-callbacks.md): 当歌词生成任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [生成音乐](https://docs.sunoapi.org/cn/suno-api/generate-music.md): 使用AI模型生成带有或不带歌词的音乐。
+- [音乐生成回调](https://docs.sunoapi.org/cn/suno-api/generate-music-callbacks.md): 当音乐生成任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [获取音乐封面详情](https://docs.sunoapi.org/cn/suno-api/get-cover-suno-details.md): 获取音乐封面生成任务的详细信息。
+- [获取歌词生成详情](https://docs.sunoapi.org/cn/suno-api/get-lyrics-generation-details.md): 获取歌词生成任务的详细信息，包括状态、参数和结果。
+- [获取音乐生成详情](https://docs.sunoapi.org/cn/suno-api/get-music-generation-details.md): 获取音乐生成任务的详细信息，包括状态、参数和结果。
+- [获取音乐视频详情](https://docs.sunoapi.org/cn/suno-api/get-music-video-details.md): 获取音乐视频生成任务的详细信息，包括状态和下载链接。
+- [获取剩余积分](https://docs.sunoapi.org/cn/suno-api/get-remaining-credits.md): 获取您账户当前可用的积分余额。
+- [获取带时间戳的歌词](https://docs.sunoapi.org/cn/suno-api/get-timestamped-lyrics.md): 获取带时间戳的歌词，用于音频播放时的同步显示。
+- [获取音频分离详情](https://docs.sunoapi.org/cn/suno-api/get-vocal-separation-details.md): 获取人声和乐器分离任务的详细信息，包括状态和下载链接。
+- [获取WAV转换详情](https://docs.sunoapi.org/cn/suno-api/get-wav-conversion-details.md): 获取WAV格式转换任务的详细信息，包括状态和下载链接。
+- [Suno API 快速开始](https://docs.sunoapi.org/cn/suno-api/quickstart.md): 几分钟内开始使用 Suno API 生成高质量的AI音乐、歌词和音频处理
+- [人声和乐器分离](https://docs.sunoapi.org/cn/suno-api/separate-vocals-from-music.md): 将音乐音轨分割为人声和伴奏两个独立的部分，或者分离各种乐器的声音。
+- [音频分离回调](https://docs.sunoapi.org/cn/suno-api/separate-vocals-from-music-callbacks.md): 当人声分离任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [上传并翻唱音乐](https://docs.sunoapi.org/cn/suno-api/upload-and-cover-audio.md): 此 API 通过在保留其核心旋律的同时将音轨转换为新样式来覆盖音轨。它结合了 Suno 的上传功能，使用户能够上传音频文件进行处理。预期的结果是刷新了具有新风格的音轨，同时保持了原始旋律的完整性。
+- [上传并翻唱音频回调](https://docs.sunoapi.org/cn/suno-api/upload-and-cover-audio-callbacks.md): 当上传并翻唱音频任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [上传并扩展音乐](https://docs.sunoapi.org/cn/suno-api/upload-and-extend-audio.md): 此 API 在保留音频轨道原始样式的同时扩展了音轨。它包括 Suno 的上传功能，允许用户上传音频文件进行处理。预期的结果是更长的音轨，无缝地延续输入的风格。
+- [上传并扩展音频回调](https://docs.sunoapi.org/cn/suno-api/upload-and-extend-audio-callbacks.md): 当上传并扩展音频任务完成时，系统将通过POST请求将结果发送到您提供的回调URL
+- [Base64 File Upload](https://docs.sunoapi.org/file-upload-api/upload-file-base-64.md): Upload temporary files via Base64 encoded data. Note: Uploaded files are temporary and automatically deleted after 3 days.
+- [File Stream Upload](https://docs.sunoapi.org/file-upload-api/upload-file-stream.md)
+- [URL File Upload](https://docs.sunoapi.org/file-upload-api/upload-file-url.md)
+- [Suno API Documentation](https://docs.sunoapi.org/index.md): Complete Suno API documentation - Your gateway to affordable and stable AI music API services
+- [Add Instrumental](https://docs.sunoapi.org/suno-api/add-instrumental.md): This endpoint generates a musical accompaniment tailored to an uploaded audio file — typically a vocal stem or melody track. It helps users instantly flesh out their vocal ideas with high-quality backing music, all without needing a producer.
+- [Add Instrumental Callbacks](https://docs.sunoapi.org/suno-api/add-instrumental-callbacks.md): When instrumental generation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Add Vocals](https://docs.sunoapi.org/suno-api/add-vocals.md): This endpoint layers AI-generated vocals on top of an existing instrumental. Given a prompt (e.g., lyrical concept or musical mood) and optional audio, it produces vocal output harmonized with the provided track.
+- [Add Vocals Callbacks](https://docs.sunoapi.org/suno-api/add-vocals-callbacks.md): When vocal generation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Boost Music Style](https://docs.sunoapi.org/suno-api/boost-music-style.md)
+- [Convert to WAV Format](https://docs.sunoapi.org/suno-api/convert-to-wav-format.md): Convert existing music tracks to high-quality WAV format.
+- [WAV Format Conversion Callbacks](https://docs.sunoapi.org/suno-api/convert-to-wav-format-callbacks.md): When WAV format conversion tasks are completed, the system will send results to your provided callback URL via POST request
+- [Generate Music Cover](https://docs.sunoapi.org/suno-api/cover-suno.md): Create personalized cover images for generated music.
+- [Music Cover Generation Callbacks](https://docs.sunoapi.org/suno-api/cover-suno-callbacks.md): When music cover generation is complete, the system will call this callback to notify results.
+- [Create Music Video](https://docs.sunoapi.org/suno-api/create-music-video.md): Generate an MP4 video with visualizations for a music track.
+- [Music Video Generation Callbacks](https://docs.sunoapi.org/suno-api/create-music-video-callbacks.md): When music video generation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Extend Music](https://docs.sunoapi.org/suno-api/extend-music.md): Extend or modify existing music tracks.
+- [Music Extension Callbacks](https://docs.sunoapi.org/suno-api/extend-music-callbacks.md): When music extension tasks are completed, the system will send results to your provided callback URL via POST request
+- [Generate Lyrics](https://docs.sunoapi.org/suno-api/generate-lyrics.md): Create lyrics for music using AI models without generating audio tracks.
+- [Lyrics Generation Callbacks](https://docs.sunoapi.org/suno-api/generate-lyrics-callbacks.md): When lyrics generation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Generate Suno AI Music](https://docs.sunoapi.org/suno-api/generate-music.md)
+- [Music Generation Callbacks](https://docs.sunoapi.org/suno-api/generate-music-callbacks.md): When music generation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Get Music Cover Details](https://docs.sunoapi.org/suno-api/get-cover-suno-details.md): Get detailed information about music cover generation tasks.
+- [Get Lyrics Generation Details](https://docs.sunoapi.org/suno-api/get-lyrics-generation-details.md): Retrieve detailed information about a lyrics generation task, including status, parameters, and results.
+- [Get Music Generation Details](https://docs.sunoapi.org/suno-api/get-music-generation-details.md): Retrieve detailed information about a music generation task, including status, parameters, and results.
+- [Get Music Video Details](https://docs.sunoapi.org/suno-api/get-music-video-details.md): Retrieve detailed information about a music video generation task, including status and download link.
+- [Get Remaining Credits](https://docs.sunoapi.org/suno-api/get-remaining-credits.md): Retrieve the current balance of available credits for your account.
+- [Get Timestamped Lyrics](https://docs.sunoapi.org/suno-api/get-timestamped-lyrics.md): Retrieve timestamped lyrics for synchronized display during audio playback.
+- [Get Audio Separation Details](https://docs.sunoapi.org/suno-api/get-vocal-separation-details.md): Retrieve detailed information about a vocal separation task, including status and download links.
+- [Get WAV Conversion Details](https://docs.sunoapi.org/suno-api/get-wav-conversion-details.md): Retrieve detailed information about a WAV format conversion task, including status and download link.
+- [Suno API Quick Start](https://docs.sunoapi.org/suno-api/quickstart.md): Get started with Suno API in minutes to generate high-quality AI music, lyrics, and audio processing
+- [Vocal & Instrument Stem Separation](https://docs.sunoapi.org/suno-api/separate-vocals-from-music.md): Use Suno’s official get‑stem API to split tracks created on our platform into clean vocal, accompaniment, or per‑instrument stems with state‑of‑the‑art source‑separation AI.
+- [Audio Separation Callbacks](https://docs.sunoapi.org/suno-api/separate-vocals-from-music-callbacks.md): When vocal separation tasks are completed, the system will send results to your provided callback URL via POST request
+- [Upload And Cover Audio](https://docs.sunoapi.org/suno-api/upload-and-cover-audio.md): This API covers an audio track by transforming it into a new style while retaining its core melody. It incorporates Suno's upload capability, enabling users to upload an audio file for processing. The expected result is a refreshed audio track with a new style, keeping the original melody intact.
+- [Upload and Cover Audio Callbacks](https://docs.sunoapi.org/suno-api/upload-and-cover-audio-callbacks.md): When upload and cover audio tasks are completed, the system will send results to your provided callback URL via POST request
+- [Upload And Extend Audio](https://docs.sunoapi.org/suno-api/upload-and-extend-audio.md): This API extends audio tracks while preserving the original style of the audio track. It includes Suno's upload functionality, allowing users to upload audio files for processing. The expected result is a longer track that seamlessly continues the input style.
+- [Upload and Extend Audio Callbacks](https://docs.sunoapi.org/suno-api/upload-and-extend-audio-callbacks.md): When upload and extend audio tasks are completed, the system will send results to your provided callback URL via POST request
+
+
+## Optional
+
+- [Home](https://sunoapi.org/)
+- [Old Docs](https://old-docs.sunoapi.org/)
