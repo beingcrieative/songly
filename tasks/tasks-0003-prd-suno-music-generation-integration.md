@@ -65,18 +65,18 @@ Based on PRD-0003: Suno Music Generation Integration
   - [x] 3.11 Implement 120-second timeout - if no update after 2 minutes, show timeout error
   - [x] 3.12 When status becomes "ready", stop timers, set `showVariantSelector` to true
 
-- [ ] 4.0 Build Variant Selection System
-  - [ ] 4.1 Create file `src/components/VariantSelector.tsx` with TypeScript
-  - [ ] 4.2 Add props interface: `variants: Array<{ id, trackId, title, streamAudioUrl, audioUrl, imageUrl, durationSeconds }>`, `onSelect: (variantId: string) => void`, `onClose: () => void`
-  - [ ] 4.3 Create modal overlay with semi-transparent background
-  - [ ] 4.4 Create modal content with heading "Kies je favoriete versie"
-  - [ ] 4.5 Build side-by-side variant cards (50/50 on desktop, stacked on mobile using responsive grid)
-  - [ ] 4.6 For each variant, display: title ("Versie 1", "Versie 2"), duration, album art thumbnail
-  - [ ] 4.7 Add mini audio player to each card with play/pause button
-  - [ ] 4.8 Implement waveform visualization using 5-7 animated bars (simple div elements with height animation)
-  - [ ] 4.9 Add "Selecteer deze versie" button below each variant card
-  - [ ] 4.10 Implement audio playback control (pause other variant when playing one)
-  - [ ] 4.11 On selection, call `onSelect(variantId)`, close modal, proceed to full player
+- [x] 4.0 Build Variant Selection System
+  - [x] 4.1 Create file `src/components/VariantSelector.tsx` with TypeScript
+  - [x] 4.2 Add props interface: `variants: Array<{ id, trackId, title, streamAudioUrl, audioUrl, imageUrl, durationSeconds }>`, `onSelect: (variantId: string) => void`, `onClose: () => void`
+  - [x] 4.3 Create modal overlay with semi-transparent background
+  - [x] 4.4 Create modal content with heading "Kies je favoriete versie"
+  - [x] 4.5 Build side-by-side variant cards (50/50 on desktop, stacked on mobile using responsive grid)
+  - [x] 4.6 For each variant, display: title ("Versie 1", "Versie 2"), duration, album art thumbnail
+  - [x] 4.7 Add mini audio player to each card with play/pause button
+  - [x] 4.8 Implement waveform visualization using 5-7 animated bars (simple div elements with height animation)
+  - [x] 4.9 Add "Selecteer deze versie" button below each variant card
+  - [x] 4.10 Implement audio playback control (pause other variant when playing one)
+  - [x] 4.11 On selection, call `onSelect(variantId)`, close modal, proceed to full player
 
 - [ ] 5.0 Integrate Music Player with Album Art and Controls
   - [ ] 5.1 Create file `src/components/MusicPlayer.tsx` with TypeScript
