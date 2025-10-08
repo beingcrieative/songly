@@ -35,6 +35,13 @@ export default function StudioPage() {
   });
   const [readinessScore, setReadinessScore] = useState(0);
 
+  // Music generation state
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
+  const [generationStage, setGenerationStage] = useState<1 | 2 | 3 | null>(null);
+  const [currentSong, setCurrentSong] = useState<any | null>(null);
+  const [showVariantSelector, setShowVariantSelector] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+
   const user = db.useAuth();
 
   // Create conversation on mount
@@ -490,6 +497,22 @@ export default function StudioPage() {
     }
   };
 
+  /**
+   * Handle music generation
+   * Placeholder function - full implementation will come in Task 3.0
+   */
+  const handleGenerateMusic = async () => {
+    console.log('handleGenerateMusic called - implementation pending');
+    // TODO: Task 3.0 - Implement full music generation logic
+    // This function will:
+    // 1. Generate songId using id()
+    // 2. Extract title, lyrics, style from latestLyrics
+    // 3. Create song entity in InstantDB
+    // 4. Call POST /api/suno
+    // 5. Set isGeneratingMusic, generationStage, currentSong
+    // 6. Set up InstantDB subscription and polling
+  };
+
   if (!DEV_MODE && user.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -641,6 +664,8 @@ export default function StudioPage() {
       latestLyrics={latestLyrics}
       onRefineLyrics={handleRefineLyrics}
       isRefining={isLoading && conversationPhase === 'generating'}
+      onGenerateMusic={handleGenerateMusic}
+      isGeneratingMusic={isGeneratingMusic}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">

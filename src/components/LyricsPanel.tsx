@@ -28,6 +28,9 @@ interface LyricsPanelProps {
   // Refinement props
   onRefineLyrics?: (feedback: string) => void;
   isRefining?: boolean;
+  // Music generation props
+  onGenerateMusic?: () => void;
+  isGeneratingMusic?: boolean;
 }
 
 export function LyricsPanel({
@@ -41,6 +44,8 @@ export function LyricsPanel({
   latestLyrics,
   onRefineLyrics,
   isRefining = false,
+  onGenerateMusic,
+  isGeneratingMusic = false,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -332,16 +337,27 @@ export function LyricsPanel({
             </div>
           )}
 
-          {/* Refinement UI */}
-          {onRefineLyrics && !showRefinementInput && (
-            <div className="mt-6">
-              <button
-                onClick={() => setShowRefinementInput(true)}
-                className="w-full rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50"
-                disabled={isRefining}
-              >
-                ✨ Verfijn lyrics
-              </button>
+          {/* Refinement and Music Generation UI */}
+          {(onRefineLyrics || onGenerateMusic) && !showRefinementInput && (
+            <div className="mt-6 flex gap-3">
+              {onRefineLyrics && (
+                <button
+                  onClick={() => setShowRefinementInput(true)}
+                  className="flex-1 rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50"
+                  disabled={isRefining}
+                >
+                  ✨ Verfijn lyrics
+                </button>
+              )}
+              {onGenerateMusic && (
+                <button
+                  onClick={onGenerateMusic}
+                  className="flex-1 rounded-lg border-2 border-pink-300 bg-white px-4 py-3 font-semibold text-pink-700 transition-all hover:border-pink-500 hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isGeneratingMusic}
+                >
+                  {isGeneratingMusic ? "🎵 Muziek genereren..." : "🎵 Genereer Muziek"}
+                </button>
+              )}
             </div>
           )}
 
