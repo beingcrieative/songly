@@ -36,6 +36,7 @@ export default function StudioPage() {
     partnerTraits: [],
   });
   const [readinessScore, setReadinessScore] = useState(0);
+  const [latestLyrics, setLatestLyrics] = useState<any | null>(null);
 
   // Music generation state
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
@@ -48,6 +49,21 @@ export default function StudioPage() {
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   const user = db.useAuth();
+
+  // Task 3.6, 3.7: InstantDB subscription for song status updates
+  // Always call the hook unconditionally
+  const { data: songData } = db.useQuery({
+    songs: currentSong?.songId
+      ? {
+          $: {
+            where: {
+              id: currentSong.songId,
+            },
+          },
+          sunoVariants: {},
+        }
+      : {},
+  });
 
   // Create conversation on mount
   useEffect(() => {
@@ -79,26 +95,15 @@ export default function StudioPage() {
     }
   }, [user.isLoading, user.user]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Chat container ref for scroll management
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Task 3.6, 3.7: InstantDB subscription for song status updates
-  const { data: songData } = db.useQuery(
-    currentSong?.songId
-      ? {
-          songs: {
-            $: {
-              where: {
-                id: currentSong.songId,
-              },
-            },
-            sunoVariants: {},
-          },
-        }
-      : { songs: {} }
-  );
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (!currentSong?.songId || !songData?.songs) return;
@@ -360,6 +365,7 @@ export default function StudioPage() {
       };
 
       setMessages((prev) => [...prev, lyricsMessage]);
+      setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
       setConversationPhase('complete');
 
       // Update conversation phase
@@ -415,6 +421,9 @@ export default function StudioPage() {
     setMessages((prev) => [...prev, aiMessage]);
     if (data.composerContext) {
       setLatestComposerContext(data.composerContext);
+    }
+    if (data.lyrics) {
+      setLatestLyrics(data.lyrics);  // Update latestLyrics state for lyrics panel
     }
 
     // Save AI message to InstantDB (skip in dev mode)
@@ -511,6 +520,7 @@ export default function StudioPage() {
       };
 
       setMessages((prev) => [...prev, refinedMessage]);
+      setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
       setConversationPhase('refining');
 
       // Update conversation phase in DB
@@ -755,7 +765,7 @@ export default function StudioPage() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-gray-50 p-4">
         <div className="mx-auto max-w-3xl space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-12">
@@ -803,8 +813,6 @@ export default function StudioPage() {
               </div>
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
@@ -852,11 +860,6 @@ export default function StudioPage() {
     </div>
   );
 
-  // Find latest generated lyrics from messages
-  const latestLyrics = messages.length > 0
-    ? messages.slice().reverse().find((m) => m.lyrics)?.lyrics
-    : null;
-
   // Get current song and variants from query
   const currentSongData = songData?.songs?.find((s: any) => s.id === currentSong?.songId);
   const variants = currentSongData?.sunoVariants || [];
@@ -867,7 +870,7 @@ export default function StudioPage() {
     : null;
 
   const selectedSongForPlayer = selectedSongData ? {
-    id: selectedSongData.id,
+    id: selectedSongData.id || '',
     title: currentSongData?.title || currentSong?.title || 'Liefdesliedje',
     imageUrl: selectedSongData.imageUrl || currentSongData?.imageUrl || '',
     streamAudioUrl: selectedSongData.streamAudioUrl || currentSongData?.streamAudioUrl || selectedSongData.audioUrl || '',

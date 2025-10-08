@@ -10,7 +10,7 @@ import { calculateReadinessScore } from '@/lib/utils/readinessScore';
 import { ConversationAgentResponse, ExtractedContext } from '@/types/conversation';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
 
 export async function POST(request: NextRequest) {
   try {

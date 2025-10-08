@@ -1,5 +1,10 @@
 import { ExtractedContext } from '@/types/conversation';
 
+const EXTRACTION_MODEL =
+  process.env.OPENROUTER_EXTRACTION_MODEL ||
+  process.env.OPENROUTER_MODEL ||
+  'google/gemini-2.5-flash-lite';
+
 /**
  * Context extraction utility for analyzing conversation history
  * and extracting structured information for song generation.
@@ -52,7 +57,7 @@ BELANGRIJK: Retourneer ALLEEN het JSON object, geen andere tekst.`;
         'X-Title': 'Liefdesliedje Maker - Context Extraction',
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-chat-v3.1:free',
+        model: EXTRACTION_MODEL,
         messages: [
           { role: 'system', content: EXTRACTION_PROMPT },
           { role: 'user', content: `Conversatie:\n${conversationText}` },
