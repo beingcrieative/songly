@@ -29,7 +29,7 @@ Based on PRD-0003: Suno Music Generation Integration
 
 ## Tasks
 
-- [ ] 1.0 Add Music Generation Button and State Management
+- [x] 1.0 Add Music Generation Button and State Management
   - [x] 1.1 Add `onGenerateMusic` prop to LyricsPanel component interface (optional callback function)
   - [x] 1.2 Add "Genereer Muziek" button in LyricsPanel below "Verfijn lyrics" button
   - [x] 1.3 Style button to match existing design system (similar styling to "Verfijn lyrics")
@@ -39,17 +39,17 @@ Based on PRD-0003: Suno Music Generation Integration
   - [x] 1.7 Create `handleGenerateMusic` function in studio page
   - [x] 1.8 Pass `handleGenerateMusic` and `isGeneratingMusic` as props to LyricsPanel
 
-- [ ] 2.0 Create Multi-Stage Progress Animation Component
-  - [ ] 2.1 Create file `src/components/MusicGenerationProgress.tsx` with TypeScript
-  - [ ] 2.2 Add props interface: `stage: 1 | 2 | 3`, `estimatedTimeRemaining: number`
-  - [ ] 2.3 Create horizontal stage indicator with 3 nodes (Stage 1, 2, 3)
-  - [ ] 2.4 Style nodes: inactive=gray, active=purple, completed=green with checkmark
-  - [ ] 2.5 Add stage-specific messages: "🎵 Melodie wordt gemaakt...", "🎤 Vocals worden toegevoegd...", "✨ Laatste details..."
-  - [ ] 2.6 Create SVG musical notes (♪ ♫ ♬) with floating animation (bottom-left to top-right)
-  - [ ] 2.7 Use CSS keyframe animations for note movement with fade-in/fade-out
-  - [ ] 2.8 Add time remaining display: "Nog ongeveer {X} seconden..."
-  - [ ] 2.9 Add subtle purple/pink gradient background overlay
-  - [ ] 2.10 Ensure animations use `transform` and `opacity` for GPU acceleration (60fps)
+- [x] 2.0 Create Multi-Stage Progress Animation Component
+  - [x] 2.1 Create file `src/components/MusicGenerationProgress.tsx` with TypeScript
+  - [x] 2.2 Add props interface: `stage: 1 | 2 | 3`, `estimatedTimeRemaining: number`
+  - [x] 2.3 Create horizontal stage indicator with 3 nodes (Stage 1, 2, 3)
+  - [x] 2.4 Style nodes: inactive=gray, active=purple, completed=green with checkmark
+  - [x] 2.5 Add stage-specific messages: "🎵 Melodie wordt gemaakt...", "🎤 Vocals worden toegevoegd...", "✨ Laatste details..."
+  - [x] 2.6 Create SVG musical notes (♪ ♫ ♬) with floating animation (bottom-left to top-right)
+  - [x] 2.7 Use CSS keyframe animations for note movement with fade-in/fade-out
+  - [x] 2.8 Add time remaining display: "Nog ongeveer {X} seconden..."
+  - [x] 2.9 Add subtle purple/pink gradient background overlay
+  - [x] 2.10 Ensure animations use `transform` and `opacity` for GPU acceleration (60fps)
 
 - [ ] 3.0 Implement Music Generation Trigger and Status Checking
   - [ ] 3.1 In `handleGenerateMusic`, generate new `songId` using `id()` from InstantDB
