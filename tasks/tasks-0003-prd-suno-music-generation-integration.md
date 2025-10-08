@@ -78,18 +78,18 @@ Based on PRD-0003: Suno Music Generation Integration
   - [x] 4.10 Implement audio playback control (pause other variant when playing one)
   - [x] 4.11 On selection, call `onSelect(variantId)`, close modal, proceed to full player
 
-- [ ] 5.0 Integrate Music Player with Album Art and Controls
-  - [ ] 5.1 Create file `src/components/MusicPlayer.tsx` with TypeScript
-  - [ ] 5.2 Add props interface: `title: string`, `albumArt: string`, `audioUrl: string`, `streamUrl: string`, `onDownload?: () => void`
-  - [ ] 5.3 Create player layout: album art (320x320px, rounded corners) at top
-  - [ ] 5.4 Add play/pause button overlaid on album art (80px diameter, white with 50% opacity background)
-  - [ ] 5.5 Implement HTML5 `<audio>` element with `streamUrl` as source (prefer stream over full file)
-  - [ ] 5.6 Add progress bar below album art (full width, 8px height, purple fill, draggable seek)
-  - [ ] 5.7 Display current time and total duration in MM:SS format below progress bar
-  - [ ] 5.8 Implement seek functionality (click/drag on progress bar updates audio currentTime)
-  - [ ] 5.9 Update LyricsPanel to expand and show MusicPlayer at top when song is ready
-  - [ ] 5.10 Keep lyrics visible below player (scrollable if content overflows)
-  - [ ] 5.11 Add audio event listeners: onTimeUpdate for progress, onEnded for completion, onError for failures
+- [x] 5.0 Integrate Music Player with Album Art and Controls
+  - [x] 5.1 Create file `src/components/MusicPlayer.tsx` with TypeScript
+  - [x] 5.2 Add props interface: `title: string`, `albumArt: string`, `audioUrl: string`, `streamUrl: string`, `onDownload?: () => void`
+  - [x] 5.3 Create player layout: album art (320x320px, rounded corners) at top
+  - [x] 5.4 Add play/pause button overlaid on album art (80px diameter, white with 50% opacity background)
+  - [x] 5.5 Implement HTML5 `<audio>` element with `streamUrl` as source (prefer stream over full file)
+  - [x] 5.6 Add progress bar below album art (full width, 8px height, purple fill, draggable seek)
+  - [x] 5.7 Display current time and total duration in MM:SS format below progress bar
+  - [x] 5.8 Implement seek functionality (click/drag on progress bar updates audio currentTime)
+  - [x] 5.9 Update LyricsPanel to expand and show MusicPlayer at top when song is ready
+  - [x] 5.10 Keep lyrics visible below player (scrollable if content overflows)
+  - [x] 5.11 Add audio event listeners: onTimeUpdate for progress, onEnded for completion, onError for failures
 
 - [ ] 6.0 Add Error Handling and Post-Generation Actions
   - [ ] 6.1 Add error state to studio page: `generationError: string | null`

@@ -5,6 +5,7 @@ import { useLyricVersionsWithNotification } from "@/hooks/useLyricVersions";
 import { InstaQLEntity } from "@instantdb/react";
 import { type AppSchema } from "@/instant.schema";
 import { ConversationPhase, ExtractedContext } from "@/types/conversation";
+import { MusicPlayer } from "@/components/MusicPlayer";
 
 type LyricVersion = InstaQLEntity<AppSchema, "lyric_versions">;
 
@@ -31,6 +32,15 @@ interface LyricsPanelProps {
   // Music generation props
   onGenerateMusic?: () => void;
   isGeneratingMusic?: boolean;
+  // Task 5.9: Music player props
+  selectedSong?: {
+    id: string;
+    title: string;
+    imageUrl: string;
+    streamAudioUrl: string;
+    audioUrl: string;
+  } | null;
+  onDownloadSong?: () => void;
 }
 
 export function LyricsPanel({
@@ -46,6 +56,8 @@ export function LyricsPanel({
   isRefining = false,
   onGenerateMusic,
   isGeneratingMusic = false,
+  selectedSong,
+  onDownloadSong,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -306,6 +318,19 @@ export function LyricsPanel({
       {/* Latest lyrics content */}
       <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-pink-50 p-6">
         <div className="mx-auto max-w-2xl">
+          {/* Task 5.9, 5.10: Show MusicPlayer at top when song is ready, keep lyrics visible below */}
+          {selectedSong && (
+            <div className="mb-8">
+              <MusicPlayer
+                title={selectedSong.title}
+                albumArt={selectedSong.imageUrl}
+                audioUrl={selectedSong.audioUrl}
+                streamUrl={selectedSong.streamAudioUrl}
+                onDownload={onDownloadSong}
+              />
+            </div>
+          )}
+
           {/* Latest version indicator */}
           <div className="mb-4 flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-pink-500"></div>
