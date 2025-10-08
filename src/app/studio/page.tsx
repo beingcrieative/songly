@@ -41,6 +41,7 @@ export default function StudioPage() {
   const [currentSong, setCurrentSong] = useState<any | null>(null);
   const [showVariantSelector, setShowVariantSelector] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const user = db.useAuth();
 
@@ -78,6 +79,42 @@ export default function StudioPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Task 3.6, 3.7: InstantDB subscription for song status updates
+  const { data: songData } = db.useQuery(
+    currentSong?.songId
+      ? {
+          songs: {
+            $: {
+              where: {
+                id: currentSong.songId,
+              },
+            },
+          },
+        }
+      : { songs: {} }
+  );
+
+  useEffect(() => {
+    if (!currentSong?.songId || !songData?.songs) return;
+
+    const song = songData.songs.find((s: any) => s.id === currentSong.songId);
+
+    if (song && (song.status === 'ready' || song.status === 'complete')) {
+      console.log('Song status changed to ready/complete via InstantDB subscription');
+
+      // Task 3.10: Stop polling when callback arrives
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      // Task 3.12: Show variant selector
+      setIsGeneratingMusic(false);
+      setGenerationStage(null);
+      setShowVariantSelector(true);
+    }
+  }, [songData, currentSong?.songId]);
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue((prev) => {
@@ -499,18 +536,192 @@ export default function StudioPage() {
 
   /**
    * Handle music generation
-   * Placeholder function - full implementation will come in Task 3.0
    */
   const handleGenerateMusic = async () => {
-    console.log('handleGenerateMusic called - implementation pending');
-    // TODO: Task 3.0 - Implement full music generation logic
-    // This function will:
-    // 1. Generate songId using id()
-    // 2. Extract title, lyrics, style from latestLyrics
-    // 3. Create song entity in InstantDB
-    // 4. Call POST /api/suno
-    // 5. Set isGeneratingMusic, generationStage, currentSong
-    // 6. Set up InstantDB subscription and polling
+    if (!latestLyrics || !conversationId) {
+      console.error('Cannot generate music: missing lyrics or conversationId');
+      return;
+    }
+
+    // Task 3.1: Generate new songId
+    const songId = id();
+
+    // Task 3.2: Extract title, lyrics, style from latestLyrics
+    const title = latestLyrics.title || 'Liefdesliedje';
+    const lyrics = latestLyrics.lyrics || '';
+    const musicStyle = latestLyrics.style || 'romantic ballad';
+
+    console.log('Starting music generation:', { songId, title, musicStyle });
+
+    // Task 3.3: Create song entity in InstantDB
+    const currentUser = DEV_MODE
+      ? { id: 'dev-user-123' }
+      : user.user;
+
+    if (!currentUser) {
+      console.error('No user available');
+      return;
+    }
+
+    if (!DEV_MODE) {
+      try {
+        await db.transact([
+          db.tx.songs[songId]
+            .update({
+              title,
+              lyrics,
+              musicStyle,
+              status: 'generating',
+              createdAt: Date.now(),
+            })
+            .link({ conversation: conversationId, user: currentUser.id }),
+        ]);
+      } catch (error) {
+        console.error('Failed to create song entity:', error);
+        return;
+      }
+    }
+
+    // Task 3.5: Update state to show progress animation
+    setIsGeneratingMusic(true);
+    setGenerationStage(1);
+    setCurrentSong({ songId, title, lyrics, musicStyle });
+
+    try {
+      // Task 3.4: Call POST /api/suno
+      const response = await fetch('/api/suno', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songId,
+          title,
+          lyrics,
+          musicStyle,
+          model: 'V4',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to start music generation');
+      }
+
+      console.log('Music generation started:', data);
+
+      // Store taskId in currentSong
+      setCurrentSong((prev) => prev ? { ...prev, taskId: data.taskId } : null);
+
+      // Task 3.8: Stage transitions (20s, 40s)
+      setTimeout(() => setGenerationStage(2), 20000);
+      setTimeout(() => setGenerationStage(3), 40000);
+
+      // Task 3.9: Start polling after 10 seconds as fallback
+      setTimeout(() => {
+        if (isGeneratingMusic) {
+          startPolling(songId, data.taskId);
+        }
+      }, 10000);
+
+    } catch (error: any) {
+      console.error('Music generation error:', error);
+      setIsGeneratingMusic(false);
+      setGenerationStage(null);
+
+      // Update song status to failed (if not in dev mode)
+      if (!DEV_MODE) {
+        await db.transact([
+          db.tx.songs[songId].update({
+            status: 'failed',
+            errorMessage: error.message,
+          }),
+        ]);
+      }
+
+      // Show error message to user
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Sorry, er ging iets mis bij het genereren van de muziek: ${error.message}`,
+        },
+      ]);
+    }
+  };
+
+  /**
+   * Poll Suno API for status updates
+   * Task 3.9, 3.10, 3.11: Polling with timeout
+   */
+  const startPolling = (songId: string, taskId: string) => {
+    let pollCount = 0;
+    const maxPolls = 24; // 24 * 5s = 120s timeout
+
+    // Clear any existing polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = setInterval(async () => {
+      pollCount++;
+
+      // Task 3.11: 120-second timeout
+      if (pollCount > maxPolls) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setIsGeneratingMusic(false);
+        setGenerationStage(null);
+        console.error('Music generation timed out');
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'De muziekgeneratie duurt langer dan verwacht. Probeer het later opnieuw.',
+          },
+        ]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/suno?taskId=${taskId}`);
+        const data = await response.json();
+
+        if (data.status === 'ready' || data.status === 'complete') {
+          // Task 3.10: Stop polling on completion
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+
+          // Task 3.12: Show variant selector
+          setIsGeneratingMusic(false);
+          setGenerationStage(null);
+          setShowVariantSelector(true);
+
+          console.log('Music generation complete via polling:', data);
+        } else if (data.status === 'failed') {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setIsGeneratingMusic(false);
+          setGenerationStage(null);
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: 'Er ging iets mis bij het genereren van de muziek. Probeer het opnieuw.',
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 5000);
   };
 
   if (!DEV_MODE && user.isLoading) {

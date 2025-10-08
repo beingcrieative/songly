@@ -51,19 +51,19 @@ Based on PRD-0003: Suno Music Generation Integration
   - [x] 2.9 Add subtle purple/pink gradient background overlay
   - [x] 2.10 Ensure animations use `transform` and `opacity` for GPU acceleration (60fps)
 
-- [ ] 3.0 Implement Music Generation Trigger and Status Checking
-  - [ ] 3.1 In `handleGenerateMusic`, generate new `songId` using `id()` from InstantDB
-  - [ ] 3.2 Extract title from `latestLyrics.title`, lyrics from `latestLyrics.lyrics`, style from `latestLyrics.style`
-  - [ ] 3.3 Create song entity in InstantDB with status "generating", link to conversation and user (skip in DEV_MODE)
-  - [ ] 3.4 Call POST `/api/suno` with payload: `{ songId, title, lyrics, musicStyle, model: "V4" }`
-  - [ ] 3.5 Update `isGeneratingMusic` to true, set `generationStage` to 1, store `currentSong` with songId
-  - [ ] 3.6 Set up InstantDB query subscription on `songs` entity filtered by `songId`
-  - [ ] 3.7 Add useEffect to watch for song status changes (when status becomes "ready")
-  - [ ] 3.8 Implement timer-based stage transitions: Stage 1→2 after 20s, Stage 2→3 after 40s
-  - [ ] 3.9 After 10 seconds with no callback update, start polling GET `/api/suno?taskId={taskId}` every 5 seconds
-  - [ ] 3.10 Stop polling when InstantDB subscription detects status change to "ready"
-  - [ ] 3.11 Implement 120-second timeout - if no update after 2 minutes, show timeout error
-  - [ ] 3.12 When status becomes "ready", stop timers, set `showVariantSelector` to true
+- [x] 3.0 Implement Music Generation Trigger and Status Checking
+  - [x] 3.1 In `handleGenerateMusic`, generate new `songId` using `id()` from InstantDB
+  - [x] 3.2 Extract title from `latestLyrics.title`, lyrics from `latestLyrics.lyrics`, style from `latestLyrics.style`
+  - [x] 3.3 Create song entity in InstantDB with status "generating", link to conversation and user (skip in DEV_MODE)
+  - [x] 3.4 Call POST `/api/suno` with payload: `{ songId, title, lyrics, musicStyle, model: "V4" }`
+  - [x] 3.5 Update `isGeneratingMusic` to true, set `generationStage` to 1, store `currentSong` with songId
+  - [x] 3.6 Set up InstantDB query subscription on `songs` entity filtered by `songId`
+  - [x] 3.7 Add useEffect to watch for song status changes (when status becomes "ready")
+  - [x] 3.8 Implement timer-based stage transitions: Stage 1→2 after 20s, Stage 2→3 after 40s
+  - [x] 3.9 After 10 seconds with no callback update, start polling GET `/api/suno?taskId={taskId}` every 5 seconds
+  - [x] 3.10 Stop polling when InstantDB subscription detects status change to "ready"
+  - [x] 3.11 Implement 120-second timeout - if no update after 2 minutes, show timeout error
+  - [x] 3.12 When status becomes "ready", stop timers, set `showVariantSelector` to true
 
 - [ ] 4.0 Build Variant Selection System
   - [ ] 4.1 Create file `src/components/VariantSelector.tsx` with TypeScript
