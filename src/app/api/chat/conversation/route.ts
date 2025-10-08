@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
       throw new Error('No response from conversation agent');
     }
 
+    // Parse concept lyrics from response (hidden from chat, shown in lyrics panel)
+    const conceptLyrics = parseConceptLyrics(aiMessage);
+
+    // Remove concept lyrics block from visible message
+    const visibleMessage = aiMessage.replace(/###CONCEPT_LYRICS v\d+###[\s\S]*?###END###/g, '').trim();
+
     // Extract context from the full conversation (including new AI message)
     const fullConversation = [
       ...messages,
@@ -110,10 +116,11 @@ export async function POST(request: NextRequest) {
     // Build response
     const responseData: ConversationAgentResponse = {
       type: 'conversation',
-      message: aiMessage,
+      message: visibleMessage,  // Use message without concept lyrics block
       roundNumber: conversationRound + 1,
       readinessScore: scoreBreakdown.totalScore,
       extractedContext: extractedContext,
+      conceptLyrics: conceptLyrics,  // Add concept lyrics to response
     };
 
     return NextResponse.json(responseData);
@@ -130,5 +137,32 @@ export async function POST(request: NextRequest) {
       { error: errorMessage, details: error.message },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Parse concept lyrics from AI message
+ * Format: ###CONCEPT_LYRICS v{N}###\n{JSON}\n###END###
+ */
+function parseConceptLyrics(message: string): any | null {
+  try {
+    const match = message.match(/###CONCEPT_LYRICS v(\d+)###\s*([\s\S]*?)\s*###END###/);
+    if (!match) {
+      return null;
+    }
+
+    const jsonContent = match[2].trim();
+    const parsed = JSON.parse(jsonContent);
+
+    return {
+      version: parsed.version || parseInt(match[1]),
+      title: parsed.title || 'Liefdesliedje',
+      lyrics: parsed.lyrics || '',
+      style: parsed.style || 'romantic ballad',
+      notes: parsed.notes || '',
+    };
+  } catch (error) {
+    console.error('Failed to parse concept lyrics:', error);
+    return null;
   }
 }

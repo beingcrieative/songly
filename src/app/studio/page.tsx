@@ -8,7 +8,7 @@ import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
-import { ConversationPhase, ExtractedContext } from "@/types/conversation";
+import { ConversationPhase, ExtractedContext, ConceptLyrics } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
@@ -37,6 +37,7 @@ export default function StudioPage() {
   });
   const [readinessScore, setReadinessScore] = useState(0);
   const [latestLyrics, setLatestLyrics] = useState<any | null>(null);
+  const [conceptLyrics, setConceptLyrics] = useState<ConceptLyrics | null>(null);
 
   // Music generation state
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
@@ -276,9 +277,12 @@ export default function StudioPage() {
 
     setMessages((prev) => [...prev, aiMessage]);
 
-    // Update extracted context and readiness score
+    // Update extracted context, readiness score, and concept lyrics
     setExtractedContext(data.extractedContext);
     setReadinessScore(data.readinessScore);
+    if (data.conceptLyrics) {
+      setConceptLyrics(data.conceptLyrics);
+    }
 
     // Save AI message to InstantDB (skip in dev mode)
     if (!DEV_MODE) {
@@ -886,6 +890,7 @@ export default function StudioPage() {
       extractedContext={extractedContext}
       roundNumber={roundNumber}
       readinessScore={readinessScore}
+      conceptLyrics={conceptLyrics}
       latestLyrics={latestLyrics}
       onRefineLyrics={handleRefineLyrics}
       isRefining={isLoading && conversationPhase === 'generating'}

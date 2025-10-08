@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLyricVersionsWithNotification } from "@/hooks/useLyricVersions";
 import { InstaQLEntity } from "@instantdb/react";
 import { type AppSchema } from "@/instant.schema";
-import { ConversationPhase, ExtractedContext } from "@/types/conversation";
+import { ConversationPhase, ExtractedContext, ConceptLyrics } from "@/types/conversation";
 import { MusicPlayer } from "@/components/MusicPlayer";
 
 type LyricVersion = InstaQLEntity<AppSchema, "lyric_versions">;
@@ -25,6 +25,7 @@ interface LyricsPanelProps {
   roundNumber?: number;
   readinessScore?: number;
   extractedContext?: ExtractedContext;
+  conceptLyrics?: ConceptLyrics | null;  // Progressive concept lyrics during gathering
   latestLyrics?: GeneratedLyrics | null;
   // Refinement props
   onRefineLyrics?: (feedback: string) => void;
@@ -55,6 +56,7 @@ export function LyricsPanel({
   roundNumber = 0,
   readinessScore = 0,
   extractedContext,
+  conceptLyrics,
   latestLyrics,
   onRefineLyrics,
   isRefining = false,
@@ -127,6 +129,47 @@ export function LyricsPanel({
         {/* Extracted context display */}
         <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-pink-50 p-6">
           <div className="mx-auto max-w-2xl space-y-6">
+            {/* Concept lyrics display (if available) */}
+            {conceptLyrics && (
+              <div className="rounded-lg border-2 border-pink-300 bg-white p-6 shadow-lg">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-pink-700">
+                    🎵 {conceptLyrics.title}
+                  </h3>
+                  <span className="rounded-full bg-pink-100 px-3 py-1 text-xs font-semibold text-pink-700">
+                    v{conceptLyrics.version}
+                  </span>
+                </div>
+
+                {conceptLyrics.style && (
+                  <p className="mb-3 text-xs font-medium text-gray-600 italic">
+                    {conceptLyrics.style}
+                  </p>
+                )}
+
+                <div className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-gray-800 max-h-96 overflow-y-auto">
+                  {conceptLyrics.lyrics.split('\n').map((line, idx) => {
+                    if (line.match(/^\[.*\]$/)) {
+                      return (
+                        <div key={idx} className="my-3 font-sans text-xs font-bold uppercase tracking-wide text-pink-600">
+                          {line}
+                        </div>
+                      );
+                    }
+                    return <div key={idx}>{line || <br />}</div>;
+                  })}
+                </div>
+
+                {conceptLyrics.notes && (
+                  <div className="mt-4 rounded-lg bg-pink-50 p-3">
+                    <p className="text-xs text-pink-700">
+                      <span className="font-semibold">✨ Nieuw:</span> {conceptLyrics.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Toggle button */}
             <button
               onClick={() => setShowExtractedContext(!showExtractedContext)}

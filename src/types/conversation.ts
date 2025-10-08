@@ -32,6 +32,17 @@ export interface ExtractedContext {
 export type ConversationPhase = 'gathering' | 'generating' | 'refining' | 'complete';
 
 /**
+ * Concept lyrics generated during conversation
+ */
+export interface ConceptLyrics {
+  version: number;
+  title: string;
+  lyrics: string;
+  style: string;
+  notes?: string;
+}
+
+/**
  * Conversation agent API response
  */
 export interface ConversationAgentResponse {
@@ -40,6 +51,7 @@ export interface ConversationAgentResponse {
   roundNumber: number;
   readinessScore: number; // 0-1 scale
   extractedContext: ExtractedContext;
+  conceptLyrics?: ConceptLyrics | null;  // Progressive concept lyrics updated each round
 }
 
 /**
