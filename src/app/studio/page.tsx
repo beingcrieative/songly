@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
 import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
+import { VariantSelector } from "@/components/VariantSelector";
 import { ConversationPhase, ExtractedContext } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 
@@ -92,6 +94,7 @@ export default function StudioPage() {
                 id: currentSong.songId,
               },
             },
+            sunoVariants: {},
           },
         }
       : { songs: {} }
@@ -854,6 +857,23 @@ export default function StudioPage() {
     ? messages.slice().reverse().find((m) => m.lyrics)?.lyrics
     : null;
 
+  // Get current song and variants from query
+  const currentSongData = songData?.songs?.find((s: any) => s.id === currentSong?.songId);
+  const variants = currentSongData?.sunoVariants || [];
+
+  // Get selected song data for music player
+  const selectedSongData = selectedVariantId && currentSongData
+    ? variants.find((v: any) => v.id === selectedVariantId) || currentSongData
+    : null;
+
+  const selectedSongForPlayer = selectedSongData ? {
+    id: selectedSongData.id,
+    title: currentSongData?.title || currentSong?.title || 'Liefdesliedje',
+    imageUrl: selectedSongData.imageUrl || currentSongData?.imageUrl || '',
+    streamAudioUrl: selectedSongData.streamAudioUrl || currentSongData?.streamAudioUrl || selectedSongData.audioUrl || '',
+    audioUrl: selectedSongData.audioUrl || currentSongData?.audioUrl || '',
+  } : null;
+
   // Lyrics Pane Component
   const lyricsPane = conversationId ? (
     <LyricsPanel
@@ -868,6 +888,16 @@ export default function StudioPage() {
       isRefining={isLoading && conversationPhase === 'generating'}
       onGenerateMusic={handleGenerateMusic}
       isGeneratingMusic={isGeneratingMusic}
+      selectedSong={selectedSongForPlayer}
+      generationError={generationError}
+      onRetryGeneration={() => {
+        setGenerationError(null);
+        handleGenerateMusic();
+      }}
+      onAdjustLyrics={() => {
+        setGenerationError(null);
+        setConversationPhase('refining');
+      }}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">
@@ -875,5 +905,43 @@ export default function StudioPage() {
     </div>
   );
 
-  return <ConversationalStudioLayout chatPane={chatPane} lyricsPane={lyricsPane} />;
+  return (
+    <>
+      <ConversationalStudioLayout chatPane={chatPane} lyricsPane={lyricsPane} />
+
+      {/* Music generation progress overlay */}
+      {isGeneratingMusic && generationStage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-2xl">
+            <MusicGenerationProgress
+              stage={generationStage}
+              estimatedTimeRemaining={
+                generationStage === 1 ? 60 : generationStage === 2 ? 40 : 20
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Variant selector modal */}
+      {showVariantSelector && variants.length > 0 && (
+        <VariantSelector
+          variants={variants.map((v: any) => ({
+            id: v.id,
+            trackId: v.trackId || v.id,
+            title: v.title || currentSongData?.title || 'Versie',
+            streamAudioUrl: v.streamAudioUrl || v.audioUrl || '',
+            audioUrl: v.audioUrl || '',
+            imageUrl: v.imageUrl || currentSongData?.imageUrl || '',
+            durationSeconds: v.durationSeconds || 180,
+          }))}
+          onSelect={(variantId) => {
+            setSelectedVariantId(variantId);
+            setShowVariantSelector(false);
+          }}
+          onClose={() => setShowVariantSelector(false)}
+        />
+      )}
+    </>
+  );
 }
