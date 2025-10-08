@@ -41,6 +41,10 @@ interface LyricsPanelProps {
     audioUrl: string;
   } | null;
   onDownloadSong?: () => void;
+  // Task 6.3: Error handling props
+  generationError?: string | null;
+  onRetryGeneration?: () => void;
+  onAdjustLyrics?: () => void;
 }
 
 export function LyricsPanel({
@@ -58,6 +62,9 @@ export function LyricsPanel({
   isGeneratingMusic = false,
   selectedSong,
   onDownloadSong,
+  generationError,
+  onRetryGeneration,
+  onAdjustLyrics,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -383,6 +390,50 @@ export function LyricsPanel({
                   {isGeneratingMusic ? "🎵 Muziek genereren..." : "🎵 Genereer Muziek"}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Task 6.3, 6.4, 6.5, 6.6: Error display UI */}
+          {generationError && (
+            <div className="mt-6 rounded-lg border-2 border-red-200 bg-red-50 p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <svg
+                  className="h-6 w-6 text-red-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <h4 className="font-semibold text-red-900">{generationError}</h4>
+              </div>
+
+              <div className="flex gap-3">
+                {/* Task 6.5: Retry button */}
+                {onRetryGeneration && (
+                  <button
+                    onClick={onRetryGeneration}
+                    className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition-all hover:bg-red-700"
+                  >
+                    🔄 Probeer opnieuw
+                  </button>
+                )}
+
+                {/* Task 6.6: Adjust lyrics button */}
+                {onAdjustLyrics && (
+                  <button
+                    onClick={onAdjustLyrics}
+                    className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-3 font-semibold text-red-700 transition-all hover:border-red-500 hover:bg-red-50"
+                  >
+                    ✏️ Pas lyrics aan
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

@@ -91,18 +91,18 @@ Based on PRD-0003: Suno Music Generation Integration
   - [x] 5.10 Keep lyrics visible below player (scrollable if content overflows)
   - [x] 5.11 Add audio event listeners: onTimeUpdate for progress, onEnded for completion, onError for failures
 
-- [ ] 6.0 Add Error Handling and Post-Generation Actions
-  - [ ] 6.1 Add error state to studio page: `generationError: string | null`
-  - [ ] 6.2 In music generation handler, wrap API call in try-catch and set error state on failure
-  - [ ] 6.3 Create error display UI in LyricsPanel when `generationError` is set
-  - [ ] 6.4 Show user-friendly Dutch message: "Er ging iets mis met het genereren van je muziek"
-  - [ ] 6.5 Add "Probeer opnieuw" button that calls `handleGenerateMusic` again with same params
-  - [ ] 6.6 Add "Pas lyrics aan" button that returns to lyrics refinement (set phase to 'refining')
-  - [ ] 6.7 Update songs entity status to "failed" with errorMessage when error occurs
-  - [ ] 6.8 Add timeout error handling: if polling exceeds 120s, show "Generatie duurt langer dan verwacht"
-  - [ ] 6.9 Create file `src/lib/utils/audioHelpers.ts` with `downloadAudioFile(url, filename)` function
-  - [ ] 6.10 Add "Download MP3" button below music player
-  - [ ] 6.11 Implement download handler: generate filename `{song-title}-liefdesliedje.mp3`, trigger download using audioUrl
-  - [ ] 6.12 Add "Deel je liedje" button (placeholder for future feature, show coming soon message)
-  - [ ] 6.13 Add "Maak nieuwe versie" button that shows options to change style or refine lyrics first
-  - [ ] 6.14 Verify all error messages are in Dutch and user-friendly (no technical jargon)
+- [x] 6.0 Add Error Handling and Post-Generation Actions
+  - [x] 6.1 Add error state to studio page: `generationError: string | null`
+  - [x] 6.2 In music generation handler, wrap API call in try-catch and set error state on failure
+  - [x] 6.3 Create error display UI in LyricsPanel when `generationError` is set
+  - [x] 6.4 Show user-friendly Dutch message: "Er ging iets mis met het genereren van je muziek"
+  - [x] 6.5 Add "Probeer opnieuw" button that calls `handleGenerateMusic` again with same params
+  - [x] 6.6 Add "Pas lyrics aan" button that returns to lyrics refinement (set phase to 'refining')
+  - [x] 6.7 Update songs entity status to "failed" with errorMessage when error occurs
+  - [x] 6.8 Add timeout error handling: if polling exceeds 120s, show "Generatie duurt langer dan verwacht"
+  - [x] 6.9 Create file `src/lib/utils/audioHelpers.ts` with `downloadAudioFile(url, filename)` function
+  - [x] 6.10 Add "Download MP3" button below music player
+  - [x] 6.11 Implement download handler: generate filename `{song-title}-liefdesliedje.mp3`, trigger download using audioUrl
+  - [x] 6.12 Add "Deel je liedje" button (placeholder for future feature, show coming soon message)
+  - [x] 6.13 Add "Maak nieuwe versie" button that shows options to change style or refine lyrics first
+  - [x] 6.14 Verify all error messages are in Dutch and user-friendly (no technical jargon)

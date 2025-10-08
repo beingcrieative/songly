@@ -42,6 +42,8 @@ export default function StudioPage() {
   const [showVariantSelector, setShowVariantSelector] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Task 6.1: Error state
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   const user = db.useAuth();
 
@@ -628,6 +630,9 @@ export default function StudioPage() {
       setIsGeneratingMusic(false);
       setGenerationStage(null);
 
+      // Task 6.2, 6.4, 6.7: Set error state with user-friendly Dutch message
+      setGenerationError('Er ging iets mis met het genereren van je muziek');
+
       // Update song status to failed (if not in dev mode)
       if (!DEV_MODE) {
         await db.transact([
@@ -637,15 +642,6 @@ export default function StudioPage() {
           }),
         ]);
       }
-
-      // Show error message to user
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Sorry, er ging iets mis bij het genereren van de muziek: ${error.message}`,
-        },
-      ]);
     }
   };
 
@@ -675,13 +671,8 @@ export default function StudioPage() {
         setGenerationStage(null);
         console.error('Music generation timed out');
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: 'De muziekgeneratie duurt langer dan verwacht. Probeer het later opnieuw.',
-          },
-        ]);
+        // Task 6.8: Timeout error handling
+        setGenerationError('Generatie duurt langer dan verwacht');
         return;
       }
 

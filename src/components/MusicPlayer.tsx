@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { downloadAudioFile, generateSongFilename } from "@/lib/utils/audioHelpers";
 
 /**
  * MusicPlayer Component
@@ -64,6 +65,17 @@ export function MusicPlayer({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Task 6.10, 6.11: Download handler
+  const handleDownload = async () => {
+    try {
+      const filename = generateSongFilename(title);
+      await downloadAudioFile(audioUrl, filename);
+    } catch (error) {
+      console.error('Failed to download song:', error);
+      alert('Download mislukt. Probeer het opnieuw.');
+    }
+  };
+
   return (
     <div className="w-full">
       {/* Task 5.3: Player layout with album art at top */}
@@ -123,6 +135,36 @@ export function MusicPlayer({
           <div className="mt-2 flex justify-between text-sm text-gray-600">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
+          </div>
+
+          {/* Task 6.10, 6.11, 6.12, 6.13: Action buttons */}
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={handleDownload}
+              className="w-full rounded-lg bg-purple-600 px-4 py-3 font-semibold text-white transition-all hover:bg-purple-700 hover:shadow-lg"
+            >
+              💾 Download MP3
+            </button>
+
+            {/* Task 6.12: Share button (placeholder) */}
+            <button
+              onClick={() => alert('Deelfunctie komt binnenkort beschikbaar!')}
+              className="w-full rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50"
+            >
+              🔗 Deel je liedje
+            </button>
+
+            {/* Task 6.13: Create new version button (placeholder) */}
+            <button
+              onClick={() =>
+                alert(
+                  'Maak een nieuwe versie:\n\n• Verander de muziekstijl\n• Verfijn de lyrics eerst\n\nDeze functie komt binnenkort!'
+                )
+              }
+              className="w-full rounded-lg border-2 border-pink-300 bg-white px-4 py-3 font-semibold text-pink-700 transition-all hover:border-pink-500 hover:bg-pink-50"
+            >
+              ✨ Maak nieuwe versie
+            </button>
           </div>
         </div>
       </div>
