@@ -10,6 +10,9 @@ Based on: `0005-prd-template-based-studio-workflow.md`
 - ✅ `genereermuziek.md` - Audio generation instructions (CREATED)
 - ✅ `src/components/TemplateSelector.tsx` - Template selection component (left pane) (CREATED)
 - ✅ `src/components/TemplateCard.tsx` - Individual template display card (CREATED)
+- ✅ `src/lib/utils/sunoLyricsPrompt.ts` - Lyrics prompt builder utility (CREATED)
+- ✅ `src/app/api/suno/lyrics/route.ts` - Suno lyrics generation endpoint (CREATED)
+- ✅ `src/app/api/suno/lyrics/callback/route.ts` - Suno lyrics callback handler (CREATED)
 - `src/components/AdvancedControlsPanel.tsx` - Advanced Suno parameters panel
 - `src/components/KaraokeLyrics.tsx` - Synchronized lyrics display component
 - `src/components/ErrorModal.tsx` - Error handling modal with recovery options
@@ -75,20 +78,20 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 2.9 Add responsive layout for template cards (stack on mobile)
   - [x] 2.10 Style with existing pink/romantic theme (pink-500 for selected state)
 
-- [ ] 3.0 Implement Suno Lyrics Generation API
-  - [ ] 3.1 Create `src/lib/utils/sunoLyricsPrompt.ts` with `buildSunoLyricsPrompt()` function
-  - [ ] 3.2 Implement prompt builder using ExtractedContext and template config
-  - [ ] 3.3 Format prompt with memories, emotions, partner traits, and music style
-  - [ ] 3.4 Create `src/app/api/suno/lyrics/route.ts` POST endpoint
-  - [ ] 3.5 Add request validation (prompt required, character limits)
-  - [ ] 3.6 Call Suno `/api/v1/lyrics` endpoint with Authorization header
-  - [ ] 3.7 Handle response and extract task_id
-  - [ ] 3.8 Return task_id and status to client
-  - [ ] 3.9 Create `src/app/api/suno/lyrics/callback/route.ts` POST endpoint
-  - [ ] 3.10 Parse callback payload for lyrics data
-  - [ ] 3.11 Update conversation or create lyrics entity in InstantDB
-  - [ ] 3.12 Add error handling for Suno API errors (400, 429, 500)
-  - [ ] 3.13 Log all requests/responses for debugging
+- [x] 3.0 Implement Suno Lyrics Generation API
+  - [x] 3.1 Create `src/lib/utils/sunoLyricsPrompt.ts` with `buildSunoLyricsPrompt()` function
+  - [x] 3.2 Implement prompt builder using ExtractedContext and template config
+  - [x] 3.3 Format prompt with memories, emotions, partner traits, and music style
+  - [x] 3.4 Create `src/app/api/suno/lyrics/route.ts` POST endpoint
+  - [x] 3.5 Add request validation (prompt required, character limits)
+  - [x] 3.6 Call Suno `/api/v1/lyrics` endpoint with Authorization header
+  - [x] 3.7 Handle response and extract task_id
+  - [x] 3.8 Return task_id and status to client
+  - [x] 3.9 Create `src/app/api/suno/lyrics/callback/route.ts` POST endpoint
+  - [x] 3.10 Parse callback payload for lyrics data
+  - [x] 3.11 Update conversation or create lyrics entity in InstantDB
+  - [x] 3.12 Add error handling for Suno API errors (400, 429, 500)
+  - [x] 3.13 Log all requests/responses for debugging
 
 - [ ] 4.0 Integrate Template Selection with Studio Workflow
   - [ ] 4.1 Update `src/app/studio/page.tsx` to add `selectedTemplateId` state
