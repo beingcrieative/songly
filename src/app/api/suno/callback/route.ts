@@ -118,26 +118,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, info: "no tracks" });
     }
 
-    const variantTx = normalizedTracks.map((track: any) =>
-      adminDb.tx.sunoVariants[track.trackId]
-        .update({
-          songId: targetSongId,
-          trackId: track.trackId,
-          title: track.title,
-          audioUrl: track.audioUrl,
-          streamAudioUrl: track.streamAudioUrl,
-          sourceAudioUrl: track.sourceAudioUrl,
-          sourceStreamAudioUrl: track.sourceStreamAudioUrl,
-          imageUrl: track.imageUrl,
-          durationSeconds: track.durationSeconds,
-          modelName: track.modelName,
-          prompt: track.prompt,
-          tags: track.tags,
-          createdAt: track.createdAt,
-          order: track.order,
-        })
-        .link({ song: targetSongId }),
-    );
+    // Task 6.2-6.7: Handle progressive loading timestamps
+    const now = Date.now();
+    const variantTx = normalizedTracks.map((track: any) => {
+      const updateData: any = {
+        songId: targetSongId,
+        trackId: track.trackId,
+        title: track.title,
+        audioUrl: track.audioUrl,
+        streamAudioUrl: track.streamAudioUrl,
+        sourceAudioUrl: track.sourceAudioUrl,
+        sourceStreamAudioUrl: track.sourceStreamAudioUrl,
+        imageUrl: track.imageUrl,
+        durationSeconds: track.durationSeconds,
+        modelName: track.modelName,
+        prompt: track.prompt,
+        tags: track.tags,
+        createdAt: track.createdAt,
+        order: track.order,
+      };
+
+      // Task 6.4, 6.5: Set streamAvailableAt when streaming URL is available
+      if (callbackType === 'first' && track.streamAudioUrl) {
+        updateData.streamAvailableAt = now;
+      }
+
+      // Task 6.6, 6.7: Set downloadAvailableAt when download URL is available
+      if (callbackType === 'complete' && track.audioUrl) {
+        updateData.downloadAvailableAt = now;
+      }
+
+      return adminDb.tx.sunoVariants[track.trackId]
+        .update(updateData)
+        .link({ song: targetSongId });
+    });
 
     const primaryTrack = normalizedTracks[0] || null;
 

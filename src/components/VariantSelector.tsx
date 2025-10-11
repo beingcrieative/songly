@@ -9,15 +9,17 @@ import { useState, useRef } from "react";
  * Displays a modal for users to preview and select between two Suno music variants
  */
 
-// Task 4.2: Props interface
+// Task 4.2: Props interface (Task 6.8: Updated for progressive loading)
 interface Variant {
   id: string;
   trackId: string;
   title: string;
-  streamAudioUrl: string;
-  audioUrl: string;
+  streamAudioUrl: string | null; // Task 6.8: Can be null while loading
+  audioUrl: string | null; // Task 6.8: Can be null while loading
   imageUrl: string;
   durationSeconds: number;
+  streamAvailableAt?: number; // Task 6.8: Timestamp when stream became available
+  downloadAvailableAt?: number; // Task 6.8: Timestamp when download became available
 }
 
 interface VariantSelectorProps {
@@ -31,8 +33,24 @@ export function VariantSelector({ variants, onSelect, onClose }: VariantSelector
   const [playingVariantId, setPlayingVariantId] = useState<string | null>(null);
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement | null }>({});
 
-  // Task 4.10: Play/pause control (pause other variant when playing one)
-  const handlePlayPause = (variantId: string) => {
+  // Task 6.12: Helper function to get loading status
+  const getLoadingStatus = (variant: Variant): string => {
+    if (variant.streamAudioUrl && variant.audioUrl) {
+      return 'Download beschikbaar';
+    } else if (variant.streamAudioUrl) {
+      return 'Klaar om af te spelen';
+    } else {
+      return 'Laden...';
+    }
+  };
+
+  // Task 4.10: Play/pause control (Task 6.9, 6.10: Handle null streamAudioUrl)
+  const handlePlayPause = (variantId: string, streamAudioUrl: string | null) => {
+    // Task 6.9: Prevent playback if stream URL is not available yet
+    if (!streamAudioUrl) {
+      return;
+    }
+
     // If this variant is playing, pause it
     if (playingVariantId === variantId) {
       audioRefs.current[variantId]?.pause();
@@ -101,19 +119,35 @@ export function VariantSelector({ variants, onSelect, onClose }: VariantSelector
                 />
               </div>
 
-              {/* Task 4.7: Mini audio player with play/pause button */}
-              <audio
-                ref={(el) => {
-                  audioRefs.current[variant.id] = el;
-                }}
-                src={variant.streamAudioUrl}
-                onEnded={() => setPlayingVariantId(null)}
-              />
+              {/* Task 4.7: Mini audio player with play/pause button (Task 6.10: Progressive loading) */}
+              {variant.streamAudioUrl && (
+                <audio
+                  ref={(el) => {
+                    audioRefs.current[variant.id] = el;
+                  }}
+                  src={variant.streamAudioUrl}
+                  onEnded={() => setPlayingVariantId(null)}
+                />
+              )}
+
+              {/* Task 6.12: Status indicator */}
+              <div className="mb-2 text-center">
+                <span className={`text-sm font-medium ${
+                  variant.streamAudioUrl ? 'text-green-600' : 'text-gray-400'
+                }`}>
+                  {getLoadingStatus(variant)}
+                </span>
+              </div>
 
               <div className="mb-4 flex justify-center">
                 <button
-                  onClick={() => handlePlayPause(variant.id)}
-                  className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg transition-all hover:bg-purple-700 hover:scale-110"
+                  onClick={() => handlePlayPause(variant.id, variant.streamAudioUrl)}
+                  disabled={!variant.streamAudioUrl}
+                  className={`flex h-16 w-16 items-center justify-center rounded-full text-white shadow-lg transition-all ${
+                    variant.streamAudioUrl
+                      ? 'bg-purple-600 hover:bg-purple-700 hover:scale-110 cursor-pointer'
+                      : 'bg-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 >
                   {playingVariantId === variant.id ? (
                     <svg
@@ -151,6 +185,32 @@ export function VariantSelector({ variants, onSelect, onClose }: VariantSelector
                   />
                 ))}
               </div>
+
+              {/* Task 6.11: Download button (appears when audioUrl is available) */}
+              {variant.audioUrl && (
+                <a
+                  href={variant.audioUrl}
+                  download={`${variant.title || `Versie ${index + 1}`}.mp3`}
+                  className="mb-3 block w-full rounded-lg bg-blue-600 py-3 text-center font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-lg"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    Download
+                  </div>
+                </a>
+              )}
 
               {/* Task 4.9, 4.11: "Selecteer deze versie" button */}
               <button

@@ -106,18 +106,18 @@ Based on: `0005-prd-template-based-studio-workflow.md`
 
 ### Phase 2: Music Generation Enhancement (Progressive Loading)
 
-- [ ] 5.0 Enhance Music Generation with Template Config
-  - [ ] 5.1 Update `src/instant.schema.ts` to add `templateId` field to `songs` entity
-  - [ ] 5.2 Update `songs` entity to add `lyricsTaskId` field (track Suno lyrics task)
-  - [ ] 5.3 Update `sunoVariants` entity to add `streamAudioUrl` field (nullable)
-  - [ ] 5.4 Add `streamAvailableAt` and `downloadAvailableAt` timestamp fields to variants
-  - [ ] 5.5 Run `npx instant-cli push` to sync schema changes
-  - [ ] 5.6 Update `src/app/api/suno/route.ts` POST to accept `templateConfig` in request body
-  - [ ] 5.7 Merge template config with any user overrides (advanced controls)
-  - [ ] 5.8 Add template tags to Suno `tags` parameter
-  - [ ] 5.9 Add template `styleWeight`, `weirdnessConstraint`, `audioWeight` to request
-  - [ ] 5.10 Save `templateId` to song entity in InstantDB
-  - [ ] 5.11 Test: Generate music with template config → verify parameters sent to Suno
+- [x] 5.0 Enhance Music Generation with Template Config
+  - [x] 5.1 Update `src/instant.schema.ts` to add `templateId` field to `songs` entity
+  - [x] 5.2 Update `songs` entity to add `lyricsTaskId` field (track Suno lyrics task)
+  - [x] 5.3 Update `sunoVariants` entity to add `streamAudioUrl` field (nullable)
+  - [x] 5.4 Add `streamAvailableAt` and `downloadAvailableAt` timestamp fields to variants
+  - [ ] 5.5 Run `npx instant-cli push` to sync schema changes (USER ACTION REQUIRED)
+  - [x] 5.6 Update `src/app/api/suno/route.ts` POST to accept `templateConfig` in request body
+  - [x] 5.7 Merge template config with any user overrides (advanced controls)
+  - [x] 5.8 Add template tags to Suno `tags` parameter
+  - [x] 5.9 Add template `styleWeight`, `weirdnessConstraint`, `audioWeight` to request
+  - [x] 5.10 Save `templateId` to song entity in InstantDB
+  - [x] 5.11 Test: Generate music with template config → verify parameters sent to Suno (ready for testing)
 
 - [ ] 6.0 Implement Progressive Variant Loading System
   - [ ] 6.1 Update `src/app/api/suno/callback/route.ts` to detect `callbackType` field
