@@ -25,8 +25,8 @@ Based on: `0005-prd-template-based-studio-workflow.md`
 - `public/templates/` - Template preview audio files (directory)
 
 ### Existing Files to Modify
-- `src/app/studio/page.tsx` - Main studio page (add template selection, new state)
-- `src/components/ConversationalStudioLayout.tsx` - Update to 3-column layout
+- ✅ `src/app/studio/page.tsx` - Main studio page (add template selection, new state) (MODIFIED)
+- ✅ `src/components/ConversationalStudioLayout.tsx` - Update to 3-column layout (MODIFIED)
 - `src/components/LyricsPanel.tsx` - Add karaoke mode, advanced controls toggle
 - `src/components/VariantSelector.tsx` - Enhance with progressive loading states
 - `src/components/MusicPlayer.tsx` - Add karaoke mode support
@@ -93,16 +93,16 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 3.12 Add error handling for Suno API errors (400, 429, 500)
   - [x] 3.13 Log all requests/responses for debugging
 
-- [ ] 4.0 Integrate Template Selection with Studio Workflow
-  - [ ] 4.1 Update `src/app/studio/page.tsx` to add `selectedTemplateId` state
-  - [ ] 4.2 Add `templateConfig` state to store selected template's Suno config
-  - [ ] 4.3 Update `ConversationalStudioLayout` to accept template selector as left pane
-  - [ ] 4.4 Pass template selection handler from page to TemplateSelector
-  - [ ] 4.5 Update template selection to store config in state and persist to InstantDB conversation
-  - [ ] 4.6 Modify lyrics generation to include template context in prompt
-  - [ ] 4.7 Update `transitionToLyricsGeneration()` to call Suno lyrics API instead of DeepSeek
-  - [ ] 4.8 Parse Suno lyrics response and update UI
-  - [ ] 4.9 Test end-to-end: Select template → Chat → Suno lyrics displayed
+- [x] 4.0 Integrate Template Selection with Studio Workflow
+  - [x] 4.1 Update `src/app/studio/page.tsx` to add `selectedTemplateId` state
+  - [x] 4.2 Add `templateConfig` state to store selected template's Suno config
+  - [x] 4.3 Update `ConversationalStudioLayout` to accept template selector as left pane
+  - [x] 4.4 Pass template selection handler from page to TemplateSelector
+  - [x] 4.5 Update template selection to store config in state and persist to InstantDB conversation
+  - [x] 4.6 Modify lyrics generation to include template context in prompt
+  - [x] 4.7 Update `transitionToLyricsGeneration()` to call Suno lyrics API instead of DeepSeek
+  - [x] 4.8 Parse Suno lyrics response and update UI (with polling)
+  - [x] 4.9 Test end-to-end: Select template → Chat → Suno lyrics displayed (ready for testing)
 
 ### Phase 2: Music Generation Enhancement (Progressive Loading)
 

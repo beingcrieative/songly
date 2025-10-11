@@ -8,8 +8,11 @@ import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
+import { TemplateSelector } from "@/components/TemplateSelector";
 import { ConversationPhase, ExtractedContext, ConceptLyrics, UserPreferences } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
+import { MusicTemplate, getTemplateById } from "@/templates/music-templates";
+import { buildSunoLyricsPrompt } from "@/lib/utils/sunoLyricsPrompt";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
@@ -54,6 +57,10 @@ export default function StudioPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   // Task 6.1: Error state
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  // Task 4.1, 4.2: Template selection state
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateConfig, setTemplateConfig] = useState<MusicTemplate['sunoConfig'] | null>(null);
 
   const user = db.useAuth();
 
@@ -177,6 +184,24 @@ export default function StudioPage() {
       }
     })();
   }, [songSettings, conversationId]);
+
+  // Task 4.5: Persist template selection to InstantDB
+  useEffect(() => {
+    if (DEV_MODE || !conversationId || !selectedTemplateId) return;
+    (async () => {
+      try {
+        await db.transact([
+          db.tx.conversations[conversationId].update({
+            selectedTemplateId,
+            templateConfig: templateConfig ? JSON.stringify(templateConfig) : null,
+          }),
+        ]);
+        console.log('✅ Template selection persisted to DB');
+      } catch (e) {
+        console.warn('Failed to persist template selection:', e);
+      }
+    })();
+  }, [selectedTemplateId, templateConfig, conversationId]);
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue((prev) => {
@@ -387,22 +412,39 @@ export default function StudioPage() {
   };
 
   /**
-   * Generate lyrics using lyrics generation agent
+   * Task 4.6, 4.7: Generate lyrics using Suno API instead of DeepSeek
    */
   const generateLyrics = async () => {
     try {
-      // Build conversation transcript
-      const transcript = messages
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n');
+      // Task 4.6: Get selected template or use default
+      const template = selectedTemplateId
+        ? getTemplateById(selectedTemplateId)
+        : getTemplateById('romantic-ballad'); // Fallback to romantic ballad
 
-      const response = await fetch("/api/chat/generate-lyrics", {
+      if (!template) {
+        throw new Error('No template selected');
+      }
+
+      // Task 4.6: Build Suno-optimized prompt with template context
+      const prompt = buildSunoLyricsPrompt(
+        extractedContext,
+        template,
+        songSettings.language || 'Nederlands'
+      );
+
+      console.log('Generating lyrics with Suno...');
+      console.log('Template:', template.name);
+      console.log('Prompt length:', prompt.length);
+
+      // Task 4.7: Call Suno lyrics API
+      const response = await fetch("/api/suno/lyrics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversationTranscript: transcript,
-          extractedContext: extractedContext,
-          userPreferences: songSettings,
+          prompt,
+          callBackUrl: conversationId
+            ? `${window.location.origin}/api/suno/lyrics/callback?conversationId=${conversationId}`
+            : undefined,
         }),
       });
 
@@ -412,29 +454,16 @@ export default function StudioPage() {
         throw new Error(data.error);
       }
 
-      // Do not dump full lyrics into the chat stream.
-      // Instead, post a short notice and render lyrics exclusively in the right panel.
-      const noticeMessage = {
-        role: "assistant" as const,
-        content:
-          "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨",
-      };
+      // Task 4.8: For now, poll for results (callback is async)
+      // In production, the callback will update the conversation directly
+      const taskId = data.taskId;
 
-      setMessages((prev) => [...prev, noticeMessage]);
-      setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
-      setConversationPhase('complete');
-
-      // Update conversation phase
-      if (!DEV_MODE && conversationId) {
-        await db.transact([
-          db.tx.conversations[conversationId].update({
-            conversationPhase: 'complete',
-          }),
-        ]);
+      if (taskId) {
+        // Start polling for lyrics
+        await pollForLyrics(taskId);
+      } else {
+        throw new Error('No task ID returned from Suno');
       }
-
-      // Generate lyric version
-      await generateLyricVersion(data);
     } catch (error: any) {
       console.error("Lyrics generation error:", error);
       setMessages((prev) => [
@@ -446,6 +475,60 @@ export default function StudioPage() {
       ]);
       setConversationPhase('gathering');
     }
+  };
+
+  /**
+   * Poll Suno API for lyrics generation status
+   */
+  const pollForLyrics = async (taskId: string) => {
+    let attempts = 0;
+    const maxAttempts = 24; // 24 * 5s = 120s timeout
+
+    const poll = async (): Promise<void> => {
+      attempts++;
+
+      if (attempts > maxAttempts) {
+        throw new Error('Lyrics generation timed out');
+      }
+
+      const response = await fetch(`/api/suno/lyrics?taskId=${taskId}`);
+      const data = await response.json();
+
+      if (data.status === 'complete' && data.lyrics) {
+        // Success! Show lyrics
+        const noticeMessage = {
+          role: "assistant" as const,
+          content:
+            "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨",
+        };
+
+        setMessages((prev) => [...prev, noticeMessage]);
+        setLatestLyrics({ lyrics: data.lyrics, title: 'Jouw Liefdesliedje', style: templateConfig?.style || '' });
+        setConversationPhase('complete');
+
+        // Update conversation phase
+        if (!DEV_MODE && conversationId) {
+          await db.transact([
+            db.tx.conversations[conversationId].update({
+              conversationPhase: 'complete',
+            }),
+          ]);
+        }
+
+        // Generate lyric version
+        await generateLyricVersion({ lyrics: data.lyrics, title: 'Jouw Liefdesliedje', style: templateConfig?.style || '' });
+
+        return; // Exit polling
+      } else if (data.status === 'failed') {
+        throw new Error('Lyrics generation failed');
+      }
+
+      // Still generating, wait and poll again
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      return poll();
+    };
+
+    await poll();
   };
 
   /**
@@ -967,9 +1050,31 @@ export default function StudioPage() {
     </div>
   );
 
+  // Task 4.4: Template selection handler
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = getTemplateById(templateId);
+    if (template) {
+      setTemplateConfig(template.sunoConfig);
+      console.log('Template selected:', template.name, template.sunoConfig);
+    }
+  };
+
+  // Task 4.3: Template pane with TemplateSelector
+  const templatePane = (
+    <TemplateSelector
+      selectedTemplateId={selectedTemplateId}
+      onTemplateSelect={handleTemplateSelect}
+    />
+  );
+
   return (
     <>
-      <ConversationalStudioLayout chatPane={chatPane} lyricsPane={lyricsPane} />
+      <ConversationalStudioLayout
+        templatePane={templatePane}
+        chatPane={chatPane}
+        lyricsPane={lyricsPane}
+      />
 
       {/* Music generation progress overlay */}
       {isGeneratingMusic && generationStage && (

@@ -3,12 +3,14 @@
 import { useState, ReactNode } from "react";
 
 interface ConversationalStudioLayoutProps {
+  templatePane?: ReactNode; // Task 4.3: Add template pane (left)
   chatPane: ReactNode;
   lyricsPane: ReactNode;
   className?: string;
 }
 
 export function ConversationalStudioLayout({
+  templatePane,
   chatPane,
   lyricsPane,
   className = "",
@@ -17,10 +19,18 @@ export function ConversationalStudioLayout({
 
   return (
     <div className={`flex h-screen flex-col ${className}`}>
-      {/* Desktop: Split-view layout with CSS Grid */}
-      {/* Mobile: Stacked layout with chat on top */}
-      <div className="hidden h-full md:grid md:grid-cols-2 md:gap-0">
-        {/* Left Pane: Chat + Composer */}
+      {/* Task 4.3: Desktop: 3-column layout (Template | Chat | Lyrics) */}
+      <div className="hidden h-full md:grid md:grid-cols-[300px_1fr_400px] md:gap-0">
+        {/* Left Pane: Template Selector */}
+        {templatePane && (
+          <div className="flex flex-col border-r border-gray-200 bg-white">
+            <div className="flex h-full flex-col overflow-hidden">
+              {templatePane}
+            </div>
+          </div>
+        )}
+
+        {/* Middle Pane: Chat + Composer */}
         <div className="flex flex-col border-r border-gray-200 bg-white">
           <div className="flex h-full flex-col overflow-hidden">
             {chatPane}
