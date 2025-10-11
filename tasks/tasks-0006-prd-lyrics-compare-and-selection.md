@@ -64,9 +64,9 @@
   - [x] 5.4 Compact chat spacing and allow collapsing while compare UI is visible
   - [x] 5.5 Text labels remain Dutch; English toggle deferred (out of scope)
 
-- [ ] 6.0 QA: mobile behavior (swipe/CTA), accessibility, and error/timeout paths
-  - [ ] 6.1 Mobile: two variants stacked; swipe works; sticky CTA visible; selection required
-  - [ ] 6.2 Keyboard nav: radio focus, CTA activation, ARIA labels for cards
-  - [ ] 6.3 Error handling: callback missing, polling timeout, refine blocked after first use
-  - [ ] 6.4 Verify callback path uses NEXT_PUBLIC_BASE_URL; lyrics appear without relying on details endpoints
-  - [ ] 6.5 Performance: no unnecessary re‑renders; compare UI unmounts after selection
+- [x] 6.0 QA: mobile behavior (swipe/CTA), accessibility, and error/timeout paths
+  - [x] 6.1 Mobile: two variants stacked; swipe works; sticky CTA visible; selection required
+  - [x] 6.2 Keyboard nav: radio focus, CTA activation, ARIA labels for cards
+  - [x] 6.3 Error handling: callback missing, polling timeout, refine blocked after first use
+  - [x] 6.4 Verify callback path uses NEXT_PUBLIC_BASE_URL; lyrics appear without relying on details endpoints
+  - [x] 6.5 Performance: no unnecessary re‑renders; compare UI unmounts after selection

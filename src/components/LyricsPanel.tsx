@@ -452,12 +452,32 @@ export function LyricsPanel({
 
           {/* Refinement and Music Generation UI */}
           {(onRefineLyrics || onGenerateMusic || onManualEditSave) && !showRefinementInput && (
-            <div className="mt-6 flex flex-col gap-3 md:flex-row">
+            <div className="mt-6 flex flex-col gap-3">
+              {!canRefine && onRefineLyrics && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                  ℹ️ Verfijnen is al gebruikt. Je kunt de lyrics nog wel handmatig bewerken.
+                </div>
+              )}
+              <div className="flex flex-col gap-3 md:flex-row">
               {onRefineLyrics && (
                 <button
                   onClick={() => setShowRefinementInput(true)}
                   className="flex-1 rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={isRefining || !canRefine}
+                  title={
+                    !canRefine
+                      ? "Verfijnen is al gebruikt voor deze lyrics"
+                      : isRefining
+                        ? "Bezig met verfijnen..."
+                        : "Klik om lyrics te verfijnen"
+                  }
+                  aria-label={
+                    !canRefine
+                      ? "Verfijnen niet beschikbaar - al gebruikt"
+                      : isRefining
+                        ? "Bezig met verfijnen"
+                        : "Verfijn lyrics"
+                  }
                 >
                   ✨ Verfijn lyrics
                 </button>
@@ -479,6 +499,7 @@ export function LyricsPanel({
                   {isGeneratingMusic ? "🎵 Muziek genereren..." : "🎵 Genereer Muziek"}
                 </button>
               )}
+              </div>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, memo, useCallback } from "react";
 
 interface LyricsCompareProps {
   options: string[];
@@ -11,7 +11,7 @@ interface LyricsCompareProps {
   isSaving?: boolean;
 }
 
-export function LyricsCompare({
+const LyricsCompareComponent = memo(function LyricsCompare({
   options,
   selectedIndex,
   onSelect,
@@ -37,13 +37,13 @@ export function LyricsCompare({
     return selectedIndex;
   }, [selectedIndex, options.length]);
 
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
     touchStartX.current = touch.clientX;
     touchStartY.current = touch.clientY;
-  };
+  }, []);
 
-  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     if (touchStartX.current === null || touchStartY.current === null) return;
     const touch = event.changedTouches[0];
     const deltaX = touch.clientX - touchStartX.current;
@@ -75,20 +75,52 @@ export function LyricsCompare({
 
     touchStartX.current = null;
     touchStartY.current = null;
-  };
+  }, [effectiveSelected, options.length, onSelect]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    // Arrow key navigation between variants
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const currentIndex = selectedIndex ?? 0;
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      let nextIndex = currentIndex + direction;
+      if (nextIndex < 0) nextIndex = 0;
+      if (nextIndex >= options.length) nextIndex = options.length - 1;
+      if (nextIndex !== currentIndex) {
+        onSelect(nextIndex);
+      }
+    }
+    // Enter to confirm selection
+    if (event.key === "Enter" && selectedIndex !== null && !isRefining && !isSaving) {
+      event.preventDefault();
+      onUseSelected();
+    }
+  }, [selectedIndex, options.length, onSelect, isRefining, isSaving, onUseSelected]);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-6">
-      <h2 className="mb-4 text-center text-lg font-bold text-gray-800">Kies je favoriete lyrics</h2>
+      <h2 id="lyrics-compare-heading" className="mb-4 text-center text-lg font-bold text-gray-800">
+        Kies je favoriete lyrics
+      </h2>
 
       <div
+        role="group"
+        aria-labelledby="lyrics-compare-heading"
+        aria-describedby="lyrics-compare-description"
         className="grid gap-4 md:grid-cols-2"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
       >
+        <div id="lyrics-compare-description" className="sr-only">
+          Vergelijk twee lyrics varianten en selecteer je favoriet. Gebruik pijltjestoetsen om te navigeren, Enter om te bevestigen, of swipe links/rechts op mobiel.
+        </div>
         {options.map((text, idx) => (
           <div
             key={idx}
+            role="article"
+            aria-labelledby={`lyrics-option-${idx}`}
             className={`${baseCardClasses} ${selectedIndex === idx ? selectedClasses : unselectedClasses}`}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
@@ -96,13 +128,18 @@ export function LyricsCompare({
                 <input
                   type="radio"
                   name="lyricsOption"
+                  id={`lyrics-option-${idx}`}
                   checked={selectedIndex === idx}
                   onChange={() => onSelect(idx)}
                   className="h-4 w-4 text-pink-600 focus:ring-pink-500"
+                  aria-label={`Selecteer ${labels[idx] || `Versie ${idx + 1}`}`}
                 />
-                <span className="text-sm font-semibold text-gray-700">
+                <label
+                  htmlFor={`lyrics-option-${idx}`}
+                  className="text-sm font-semibold text-gray-700 cursor-pointer"
+                >
                   {labels[idx] || `Versie ${idx + 1}`}
-                </span>
+                </label>
               </div>
               {selectedIndex === idx && (
                 <span className="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-semibold text-pink-700">
@@ -111,7 +148,11 @@ export function LyricsCompare({
               )}
             </div>
 
-            <div className="max-h-96 flex-1 overflow-y-auto px-4 py-3">
+            <div
+              className="max-h-96 flex-1 overflow-y-auto px-4 py-3"
+              tabIndex={0}
+              aria-label={`Lyrics tekst voor ${labels[idx] || `Versie ${idx + 1}`}`}
+            >
               <div className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-gray-800">
                 {text}
               </div>
@@ -130,14 +171,24 @@ export function LyricsCompare({
             type="button"
             disabled={selectedIndex === null || isRefining || isSaving}
             onClick={onUseSelected}
+            aria-label={
+              selectedIndex === null
+                ? "Selecteer eerst een lyrics variant"
+                : isSaving
+                  ? "Bezig met opslaan..."
+                  : isRefining
+                    ? "Bezig met verfijnen..."
+                    : `Gebruik ${labels[selectedIndex] || `Versie ${selectedIndex + 1}`}`
+            }
             className="w-full rounded-full bg-pink-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-pink-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            Gebruik geselecteerde lyrics
+            {isSaving ? "Bezig met opslaan..." : isRefining ? "Bezig met verfijnen..." : "Gebruik geselecteerde lyrics"}
           </button>
         </div>
       </div>
     </div>
   );
-}
+});
 
-export default LyricsCompare;
+export { LyricsCompareComponent as LyricsCompare };
+export default LyricsCompareComponent;
