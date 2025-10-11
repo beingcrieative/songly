@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { id } from "@instantdb/react";
 import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
 import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { LyricsCompare } from "@/components/LyricsCompare";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
 import { TemplateSelector } from "@/components/TemplateSelector";
@@ -13,6 +14,17 @@ import { ConversationPhase, ExtractedContext, ConceptLyrics, UserPreferences } f
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 import { MusicTemplate, getTemplateById } from "@/templates/music-templates";
 import { buildSunoLyricsPrompt } from "@/lib/utils/sunoLyricsPrompt";
+import {
+  AdvancedSettings,
+  DEFAULT_ADVANCED_SETTINGS,
+} from "@/components/AdvancedControlsPanel";
+import { ParameterSheet, type ParameterValues } from "@/components/ParameterSheet";
+import {
+  trackLyricsOptionsShown,
+  trackLyricsOptionSelected,
+  trackLyricsRegenerated,
+  trackLyricsRefined,
+} from "@/lib/analytics/events";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
@@ -21,6 +33,9 @@ const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
 const ENABLE_TWO_AGENT_SYSTEM = process.env.NEXT_PUBLIC_ENABLE_TWO_AGENT_SYSTEM !== 'false';
 const MIN_CONVERSATION_ROUNDS = parseInt(process.env.NEXT_PUBLIC_MIN_CONVERSATION_ROUNDS || '6');
 const MAX_CONVERSATION_ROUNDS = parseInt(process.env.NEXT_PUBLIC_MAX_CONVERSATION_ROUNDS || '10');
+
+// Task 5.3: LYRICS_COMPARE Feature Flag
+const ENABLE_LYRICS_COMPARE = process.env.NEXT_PUBLIC_ENABLE_LYRICS_COMPARE === 'true';
 
 export default function StudioPage() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -43,9 +58,10 @@ export default function StudioPage() {
   const [conceptLyrics, setConceptLyrics] = useState<ConceptLyrics | null>(null);
   // Song settings (user-controlled)
   const [songSettings, setSongSettings] = useState<UserPreferences>({
-    language: 'Nederlands',
-    vocalGender: 'neutral',
-    mood: ['romantisch'],
+    language: "Nederlands",
+    vocalGender: "neutral",
+    vocalAge: undefined,
+    mood: ["romantisch"],
   });
 
   // Music generation state
@@ -55,12 +71,83 @@ export default function StudioPage() {
   const [showVariantSelector, setShowVariantSelector] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isRefiningLyrics, setIsRefiningLyrics] = useState(false);
+  const [refinementCount, setRefinementCount] = useState(0);
+  const [surpriseModeSelections, setSurpriseModeSelections] = useState(0);
+  const [lyricsOptions, setLyricsOptions] = useState<string[]>([]);
+  const [selectedLyricIndex, setSelectedLyricIndex] = useState<number | null>(null);
+  const [refineUsed, setRefineUsed] = useState(false);
+  const [manualEdited, setManualEdited] = useState(false);
+  const [lyricsTaskId, setLyricsTaskId] = useState<string | null>(null);
+  const [pendingLyricVariants, setPendingLyricVariants] = useState<string[]>([]);
+  const [isSavingLyricSelection, setIsSavingLyricSelection] = useState(false);
+  const [pendingLyricSource, setPendingLyricSource] = useState<'suno' | 'suno-refine'>('suno');
+  const [isParameterSheetOpen, setIsParameterSheetOpen] = useState(false);
   // Task 6.1: Error state
   const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Task 4.1, 4.2: Template selection state
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templateConfig, setTemplateConfig] = useState<MusicTemplate['sunoConfig'] | null>(null);
+  const [advancedSettings, setAdvancedSettings] =
+    useState<AdvancedSettings>(DEFAULT_ADVANCED_SETTINGS);
+  const resetAdvancedSettingsToTemplate = () => {
+    if (!templateConfig) return;
+    setAdvancedSettings((prev) => ({
+      ...prev,
+      model: templateConfig.model,
+      styleWeight:
+        typeof templateConfig.styleWeight === "number"
+          ? templateConfig.styleWeight
+          : DEFAULT_ADVANCED_SETTINGS.styleWeight,
+      weirdnessConstraint:
+        typeof templateConfig.weirdnessConstraint === "number"
+          ? templateConfig.weirdnessConstraint
+          : DEFAULT_ADVANCED_SETTINGS.weirdnessConstraint,
+      audioWeight:
+        typeof templateConfig.audioWeight === "number"
+          ? templateConfig.audioWeight
+          : DEFAULT_ADVANCED_SETTINGS.audioWeight,
+      negativeTags: templateConfig.negativeTags ?? DEFAULT_ADVANCED_SETTINGS.negativeTags,
+    }));
+  };
+
+  const [musicParameters, setMusicParameters] = useState<ParameterValues>({
+    language: "Nederlands",
+    vocalGender: DEFAULT_ADVANCED_SETTINGS.vocalGender,
+    vocalAge: undefined,
+  });
+  const [parameterSheetDefaults, setParameterSheetDefaults] = useState<ParameterValues | null>(null);
+  const [isParameterSheetSubmitting, setIsParameterSheetSubmitting] = useState(false);
+
+  const computeParameterDefaults = useCallback((): ParameterValues => {
+    const baseLanguage = songSettings.language || "Nederlands";
+    const advancedGender = advancedSettings.enabled ? advancedSettings.vocalGender : undefined;
+    const baseGender =
+      songSettings.vocalGender ||
+      advancedGender ||
+      DEFAULT_ADVANCED_SETTINGS.vocalGender;
+    return {
+      language: baseLanguage,
+      vocalGender: baseGender,
+      vocalAge: songSettings.vocalAge,
+    };
+  }, [
+    songSettings.language,
+    songSettings.vocalGender,
+    songSettings.vocalAge,
+    advancedSettings.enabled,
+    advancedSettings.vocalGender,
+  ]);
+
+  useEffect(() => {
+    const defaults = computeParameterDefaults();
+    setMusicParameters((prev) => ({
+      language: prev.language || defaults.language,
+      vocalGender: prev.vocalGender || defaults.vocalGender,
+      vocalAge: prev.vocalAge ?? defaults.vocalAge,
+    }));
+  }, [computeParameterDefaults]);
 
   const user = db.useAuth();
 
@@ -128,6 +215,18 @@ export default function StudioPage() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (refinementCount > 0) {
+      console.log('[analytics] total_refinements', refinementCount);
+    }
+  }, [refinementCount]);
+
+  useEffect(() => {
+    if (surpriseModeSelections > 0) {
+      console.log('[analytics] surprise_mode_selected', { count: surpriseModeSelections });
+    }
+  }, [surpriseModeSelections]);
 
   // Task 7.9: Cleanup polling interval on component unmount
   useEffect(() => {
@@ -447,14 +546,18 @@ export default function StudioPage() {
       console.log('Prompt length:', prompt.length);
 
       // Task 4.7: Call Suno lyrics API
+      const callbackBase = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SUNO_CALLBACK_ORIGIN || '';
+      if (!callbackBase) {
+        throw new Error('NEXT_PUBLIC_BASE_URL (public callback origin) is not configured');
+      }
+
       const response = await fetch("/api/suno/lyrics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt,
-          callBackUrl: conversationId
-            ? `${window.location.origin}/api/suno/lyrics/callback?conversationId=${conversationId}`
-            : undefined,
+          callBackUrl: `${callbackBase}/api/suno/lyrics/callback` +
+            (conversationId ? `?conversationId=${conversationId}` : ''),
         }),
       });
 
@@ -468,14 +571,33 @@ export default function StudioPage() {
       // In production, the callback will update the conversation directly
       const taskId = data.taskId;
 
-      if (taskId) {
-        // Start polling for lyrics
-        await pollForLyrics(taskId);
-      } else {
+      if (!taskId) {
         throw new Error('No task ID returned from Suno');
+      }
+
+      // Start polling for lyrics
+      try {
+        await pollForLyrics(taskId);
+      } catch (e) {
+        console.error('Lyrics polling failed:', e);
+        setGenerationError((e as Error).message || 'Lyrics generation timed out');
+        setLyricsOptions([]);
+        setSelectedLyricIndex(null);
+        setPendingLyricVariants([]);
+        setLyricsTaskId(null);
+        setLatestLyrics(null);
+        setConversationPhase('gathering');
+
+        // Task 5.2: Track regeneration due to timeout/error
+        trackLyricsRegenerated({
+          conversationId: conversationId || undefined,
+          reason: 'timeout',
+        });
+        throw e;
       }
     } catch (error: any) {
       console.error("Lyrics generation error:", error);
+      setGenerationError(error.message || 'Er ging iets mis bij het genereren van de lyrics.');
       setMessages((prev) => [
         ...prev,
         {
@@ -484,52 +606,114 @@ export default function StudioPage() {
         },
       ]);
       setConversationPhase('gathering');
+      throw error;
     }
   };
 
   /**
    * Poll Suno API for lyrics generation status
    */
-  const pollForLyrics = async (taskId: string) => {
+  const pollForLyrics = async (taskId: string, options?: { refinement?: boolean }) => {
     let attempts = 0;
     const maxAttempts = 24; // 24 * 5s = 120s timeout
+    setLyricsTaskId(taskId);
 
     const poll = async (): Promise<void> => {
       attempts++;
 
       if (attempts > maxAttempts) {
+        setLyricsTaskId(null);
+        setPendingLyricVariants([]);
         throw new Error('Lyrics generation timed out');
       }
 
       const response = await fetch(`/api/suno/lyrics?taskId=${taskId}`);
       const data = await response.json();
 
-      if (data.status === 'complete' && data.lyrics) {
+      if (data.status === 'complete' && (data.lyrics || data.variants)) {
         // Success! Show lyrics
+        const isRefinement = !!options?.refinement;
+        const messageText = isRefinement
+          ? "Ik heb de lyrics verbeterd op basis van je feedback. De bijgewerkte versie staat rechts. ✨"
+          : "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨";
+
         const noticeMessage = {
           role: "assistant" as const,
-          content:
-            "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨",
+          content: messageText,
         };
 
         setMessages((prev) => [...prev, noticeMessage]);
-        setLatestLyrics({ lyrics: data.lyrics, title: 'Jouw Liefdesliedje', style: templateConfig?.style || '' });
-        setConversationPhase('complete');
+
+        const variantArray = Array.isArray((data as any).variants)
+          ? (data as any).variants.filter((entry: any) => typeof entry === 'string' && entry.trim().length > 0)
+          : [];
+        const hasVariants = variantArray.length >= 2;
+
+        if (hasVariants) {
+          setPendingLyricVariants(variantArray);
+          setLyricsOptions(variantArray.slice(0, 2));
+          setSelectedLyricIndex(null);
+          setLatestLyrics(null);
+          setRefineUsed(false);
+          setManualEdited(false);
+          setPendingLyricSource(isRefinement ? 'suno-refine' : 'suno');
+
+          // Task 5.2: Track lyrics options shown
+          trackLyricsOptionsShown({
+            taskId,
+            variantCount: variantArray.length,
+            conversationId: conversationId || undefined,
+          });
+        } else if (data.lyrics) {
+          const finalLyrics = String(data.lyrics);
+          setPendingLyricVariants([]);
+          setLyricsOptions([]);
+          setSelectedLyricIndex(null);
+          setLatestLyrics({
+            lyrics: finalLyrics,
+            title: 'Jouw Liefdesliedje',
+            style: templateConfig?.style || '',
+          });
+          setRefineUsed(false);
+          setManualEdited(false);
+          setLyricsTaskId(null);
+          setPendingLyricSource('suno');
+          await generateLyricVersion(
+            {
+              lyrics: finalLyrics,
+              title: 'Jouw Liefdesliedje',
+              style: templateConfig?.style || '',
+            },
+            {
+              source: isRefinement ? 'suno-refine' : 'suno',
+              variantIndex: 0,
+              taskId,
+              isRefinement: isRefinement,
+            }
+          );
+        }
+        if (isRefinement) {
+          setRefinementCount((prev) => {
+            const next = prev + 1;
+            console.log('[analytics] refinement_count', next);
+            return next;
+          });
+        }
+        setConversationPhase(isRefinement ? 'refining' : 'complete');
 
         // Update conversation phase
         if (!DEV_MODE && conversationId) {
           await db.transact([
             db.tx.conversations[conversationId].update({
-              conversationPhase: 'complete',
+              conversationPhase: isRefinement ? 'refining' : 'complete',
             }),
           ]);
         }
 
-        // Generate lyric version
-        await generateLyricVersion({ lyrics: data.lyrics, title: 'Jouw Liefdesliedje', style: templateConfig?.style || '' });
-
         return; // Exit polling
       } else if (data.status === 'failed') {
+        setLyricsTaskId(null);
+        setPendingLyricVariants([]);
         throw new Error('Lyrics generation failed');
       }
 
@@ -592,22 +776,74 @@ export default function StudioPage() {
 
     // Generate lyric version if we have lyrics
     if (data.lyrics) {
-      await generateLyricVersion(data.lyrics);
+      await generateLyricVersion(data.lyrics, { source: 'conversation-agent' });
     }
   };
 
-  const generateLyricVersion = async (lyricsData: any) => {
+  type LyricVersionOptions = {
+    source?: string;
+    variantIndex?: number | null;
+    taskId?: string | null;
+    isManual?: boolean;
+    isRefinement?: boolean;
+    isSelection?: boolean;
+  };
+
+  const generateLyricVersion = async (lyricsData: any, options: LyricVersionOptions = {}) => {
     if (!conversationId) return;
 
     try {
+      const lyricObject =
+        typeof lyricsData === 'string'
+          ? { lyrics: lyricsData }
+          : lyricsData && typeof lyricsData === 'object'
+          ? lyricsData
+          : { lyrics: String(lyricsData || '') };
+
+      const lyricText = lyricObject.lyrics || (typeof lyricObject === 'string' ? lyricObject : '');
+      if (!lyricText) {
+        console.warn('generateLyricVersion called without lyrics content');
+        return;
+      }
+
+      const source = options.source || 'conversation';
+      const providedLyricsPayload: Record<string, any> = {
+        title: lyricObject.title || 'Jouw Liefdesliedje',
+        lyrics: lyricText,
+        style: lyricObject.style || templateConfig?.style || '',
+        notes: lyricObject.notes,
+        source,
+      };
+
+      if (typeof options.variantIndex === 'number') {
+        providedLyricsPayload.variantIndex = options.variantIndex;
+      }
+      if (options.taskId) {
+        providedLyricsPayload.taskId = options.taskId;
+      }
+      if (options.isManual) {
+        providedLyricsPayload.isManual = true;
+      }
+      if (options.isRefinement) {
+        providedLyricsPayload.isRefinement = true;
+      }
+      if (options.isSelection) {
+        providedLyricsPayload.isSelection = true;
+      }
+      if (options.isManual || options.isRefinement || options.isSelection) {
+        providedLyricsPayload.selectedAt = Date.now();
+      }
+
       const response = await fetch("/api/lyric-versions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conversationId,
           messages: messages.map((m) => ({ role: m.role, content: m.content })),
-          previousLyrics: lyricsData.lyrics,
+          previousLyrics: lyricText,
           previousVersion: 0,
+          songId: currentSong?.songId,
+          providedLyrics: providedLyricsPayload,
         }),
       });
 
@@ -626,9 +862,14 @@ export default function StudioPage() {
    * Handle lyrics refinement based on user feedback
    */
   const handleRefineLyrics = async (feedback: string) => {
+    if (refineUsed) {
+      console.warn('Refine already used, skipping');
+      return;
+    }
     if (!feedback.trim()) return;
 
     setIsLoading(true);
+    setIsRefiningLyrics(true);
     setConversationPhase('generating');
 
     try {
@@ -637,27 +878,48 @@ export default function StudioPage() {
         throw new Error('No lyrics to refine');
       }
 
-      // Build conversation transcript
-      const transcript = messages
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n');
+      const template = selectedTemplateId
+        ? getTemplateById(selectedTemplateId)
+        : getTemplateById('romantic-ballad');
 
-      // Call refinement API
-      const response = await fetch("/api/chat/refine-lyrics", {
+      if (!template) {
+        throw new Error('Geen template gevonden voor refinement');
+      }
+
+      const previousLyricsPayload =
+        typeof latestLyrics === 'string' || !latestLyrics
+          ? latestLyrics
+          : latestLyrics.lyrics
+          ? latestLyrics
+          : latestLyrics;
+
+      const callbackBase = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SUNO_CALLBACK_ORIGIN || '';
+      if (!callbackBase) {
+        throw new Error('NEXT_PUBLIC_BASE_URL (public callback origin) is not configured');
+      }
+
+      const response = await fetch("/api/suno/lyrics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          previousLyrics: latestLyrics,
+          previousLyrics: previousLyricsPayload,
           feedback: feedback,
-          conversationTranscript: transcript,
-          extractedContext: extractedContext,
+          templateId: template.id,
+          context: extractedContext,
+          callBackUrl: `${callbackBase}/api/suno/lyrics/callback` +
+            (conversationId ? `?conversationId=${conversationId}` : ''),
         }),
       });
 
       const data = await response.json();
 
-      if (data.error) {
-        throw new Error(data.error);
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Suno refinement start mislukt');
+      }
+
+      const taskId = data.taskId;
+      if (!taskId) {
+        throw new Error('Suno gaf geen taak ID terug voor refinement');
       }
 
       // Post a short notice only; keep full refined lyrics in the right panel
@@ -668,20 +930,16 @@ export default function StudioPage() {
       };
 
       setMessages((prev) => [...prev, refineNotice]);
-      setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
-      setConversationPhase('refining');
+      setRefineUsed(true);
 
-      // Update conversation phase in DB
-      if (!DEV_MODE && conversationId) {
-        await db.transact([
-          db.tx.conversations[conversationId].update({
-            conversationPhase: 'refining',
-          }),
-        ]);
-      }
+      // Task 5.2: Track lyrics refined
+      trackLyricsRefined({
+        conversationId: conversationId || undefined,
+        refinementType: 'auto',
+        hasUsedRefineBefore: refineUsed,
+      });
 
-      // Create new lyric version
-      await generateLyricVersion(data);
+      await pollForLyrics(taskId, { refinement: true });
     } catch (error: any) {
       console.error("Lyrics refinement error:", error);
       setMessages((prev) => [
@@ -691,38 +949,80 @@ export default function StudioPage() {
           content: `Sorry, er ging iets mis bij het verfijnen van de lyrics: ${error.message}\n\nProbeer het opnieuw met andere feedback.`,
         },
       ]);
+      setRefineUsed(false);
+      setPendingLyricVariants([]);
+      setLyricsTaskId(null);
     } finally {
       setIsLoading(false);
-      setConversationPhase('complete');
+      setIsRefiningLyrics(false);
+      setConversationPhase((prev) => (prev === 'generating' ? 'complete' : prev));
     }
   };
 
   /**
    * Handle music generation
    */
-  const handleGenerateMusic = async () => {
+  const startMusicGeneration = async (parameterOverrides?: ParameterValues) => {
     if (!latestLyrics || !conversationId) {
-      console.error('Cannot generate music: missing lyrics or conversationId');
+      console.error("Cannot generate music: missing lyrics or conversationId");
       return;
     }
+
+    const defaults = computeParameterDefaults();
+    const activeParameters: ParameterValues = {
+      language:
+        parameterOverrides?.language || musicParameters.language || defaults.language,
+      vocalGender:
+        parameterOverrides?.vocalGender ||
+        musicParameters.vocalGender ||
+        defaults.vocalGender,
+      vocalAge:
+        parameterOverrides?.vocalAge ??
+        (musicParameters.vocalAge ?? defaults.vocalAge),
+    };
+
+    const generationPreferences: UserPreferences = {
+      ...songSettings,
+      language: activeParameters.language,
+      vocalGender: activeParameters.vocalGender,
+      vocalAge: activeParameters.vocalAge,
+    };
+
+    setMusicParameters(activeParameters);
+    setSongSettings(generationPreferences);
+
+    if (
+      advancedSettings.enabled &&
+      advancedSettings.vocalGender !== activeParameters.vocalGender
+    ) {
+      setAdvancedSettings((prev) => ({
+        ...prev,
+        vocalGender: activeParameters.vocalGender,
+      }));
+    }
+
+    setGenerationError(null);
 
     // Task 3.1: Generate new songId
     const songId = id();
 
     // Task 3.2: Extract title, lyrics, style from latestLyrics
-    const title = latestLyrics.title || 'Liefdesliedje';
-    const lyrics = latestLyrics.lyrics || '';
-    const musicStyle = latestLyrics.style || 'romantic ballad';
+    const title = latestLyrics.title || "Liefdesliedje";
+    const lyrics = latestLyrics.lyrics || "";
+    const musicStyle = latestLyrics.style || "romantic ballad";
 
-    console.log('Starting music generation:', { songId, title, musicStyle });
+    console.log("Starting music generation:", {
+      songId,
+      title,
+      musicStyle,
+      parameters: activeParameters,
+    });
 
     // Task 3.3: Create song entity in InstantDB
-    const currentUser = DEV_MODE
-      ? { id: 'dev-user-123' }
-      : user.user;
+    const currentUser = DEV_MODE ? { id: "dev-user-123" } : user.user;
 
     if (!currentUser) {
-      console.error('No user available');
+      console.error("No user available");
       return;
     }
 
@@ -734,14 +1034,14 @@ export default function StudioPage() {
               title,
               lyrics,
               musicStyle,
-              generationParams: JSON.stringify(songSettings),
-              status: 'generating',
+              generationParams: JSON.stringify(generationPreferences),
+              status: "generating",
               createdAt: Date.now(),
             })
             .link({ conversation: conversationId, user: currentUser.id }),
         ]);
       } catch (error) {
-        console.error('Failed to create song entity:', error);
+        console.error("Failed to create song entity:", error);
         return;
       }
     }
@@ -749,39 +1049,84 @@ export default function StudioPage() {
     // Task 3.5: Update state to show progress animation
     setIsGeneratingMusic(true);
     setGenerationStage(1);
-    setCurrentSong({ songId, title, lyrics, musicStyle });
+    setCurrentSong({
+      songId,
+      title,
+      lyrics,
+      musicStyle,
+      parameters: activeParameters,
+    });
 
     try {
       // Task 5.0: Get template config for music generation
       const template = selectedTemplateId
         ? getTemplateById(selectedTemplateId)
-        : getTemplateById('romantic-ballad');
+        : getTemplateById("romantic-ballad");
+
+      if (!template) {
+        throw new Error("Geen templateconfiguratie gevonden voor muziek generatie");
+      }
+
+      if (template.id === "surprise-me") {
+        console.log("[analytics] surprise_mode_music_generation", {
+          conversationId,
+          songId,
+        });
+      }
+
+      const baseTemplateConfig = template ? { ...template.sunoConfig } : undefined;
+      let mergedTemplateConfig = baseTemplateConfig;
+
+      if (baseTemplateConfig && advancedSettings.enabled) {
+        mergedTemplateConfig = {
+          ...baseTemplateConfig,
+          model: advancedSettings.model,
+          styleWeight: advancedSettings.styleWeight,
+          weirdnessConstraint: advancedSettings.weirdnessConstraint,
+          audioWeight: advancedSettings.audioWeight,
+        };
+
+        const trimmedNegatives = advancedSettings.negativeTags.trim();
+        if (trimmedNegatives) {
+          mergedTemplateConfig.negativeTags = trimmedNegatives;
+        } else {
+          delete mergedTemplateConfig.negativeTags;
+        }
+      }
+
+      const resolvedModel =
+        mergedTemplateConfig?.model ||
+        baseTemplateConfig?.model ||
+        template?.sunoConfig.model ||
+        DEFAULT_ADVANCED_SETTINGS.model;
 
       // Task 3.4: Call POST /api/suno with template config
-      const response = await fetch('/api/suno', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/suno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           songId,
           title,
           lyrics,
           musicStyle,
-          model: 'V4',
-          // Task 5.0: Pass template configuration
-          templateConfig: template?.sunoConfig,
+          model: resolvedModel,
+          templateConfig: mergedTemplateConfig,
+          vocalPreferences: activeParameters,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        throw new Error(data.error || 'Failed to start music generation');
+        throw new Error(data.error || "Failed to start music generation");
       }
 
-      console.log('Music generation started:', data);
+      console.log("Music generation started:", data);
 
       // Store taskId in currentSong
-      setCurrentSong((prev: any) => prev ? { ...prev, taskId: data.taskId } : null);
+      setCurrentSong((prev: any) =>
+        prev ? { ...prev, taskId: data.taskId } : null
+      );
 
       // Task 3.8: Stage transitions (20s, 40s)
       setTimeout(() => setGenerationStage(2), 20000);
@@ -793,24 +1138,57 @@ export default function StudioPage() {
           startPolling(songId, data.taskId);
         }
       }, 10000);
-
     } catch (error: any) {
-      console.error('Music generation error:', error);
+      console.error("Music generation error:", error);
       setIsGeneratingMusic(false);
       setGenerationStage(null);
 
       // Task 6.2, 6.4, 6.7: Set error state with user-friendly Dutch message
-      setGenerationError('Er ging iets mis met het genereren van je muziek');
+      setGenerationError("Er ging iets mis met het genereren van je muziek");
 
       // Update song status to failed (if not in dev mode)
       if (!DEV_MODE) {
         await db.transact([
           db.tx.songs[songId].update({
-            status: 'failed',
+            status: "failed",
             errorMessage: error.message,
           }),
         ]);
       }
+    }
+  };
+
+  const handleOpenParameterSheet = () => {
+    if (!canGenerateMusic || isGeneratingMusic) {
+      return;
+    }
+    const defaults = computeParameterDefaults();
+    const currentValues: ParameterValues = {
+      language: musicParameters.language || defaults.language,
+      vocalGender: musicParameters.vocalGender || defaults.vocalGender,
+      vocalAge:
+        musicParameters.vocalAge !== undefined
+          ? musicParameters.vocalAge
+          : defaults.vocalAge,
+    };
+    setParameterSheetDefaults(currentValues);
+    setIsParameterSheetOpen(true);
+  };
+
+  const handleCloseParameterSheet = () => {
+    if (isParameterSheetSubmitting) return;
+    setIsParameterSheetOpen(false);
+    setParameterSheetDefaults(null);
+  };
+
+  const handleConfirmParameterSheet = async (values: ParameterValues) => {
+    setIsParameterSheetSubmitting(true);
+    try {
+      await startMusicGeneration(values);
+      setIsParameterSheetOpen(false);
+      setParameterSheetDefaults(values);
+    } finally {
+      setIsParameterSheetSubmitting(false);
     }
   };
 
@@ -946,10 +1324,12 @@ export default function StudioPage() {
   }
 
   // Chat Pane Component
+  // Task 5.3: Compact spacing when compare UI is active
+  const showCompactChat = ENABLE_LYRICS_COMPARE && lyricsOptions.length >= 2;
   const chatPane = (
-    <div className="flex h-full flex-col">
+    <div className={`flex h-full flex-col ${showCompactChat ? 'bg-white' : ''}`}>
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
+      <div className={`bg-white px-4 py-3 ${showCompactChat ? 'border-b border-gray-200' : 'border-b border-gray-200 md:px-6 md:py-4'}`}>
         <h1 className="text-xl font-bold text-gray-800">💕 Liefdesliedje Studio</h1>
         <p className="text-sm text-gray-500">Maak je persoonlijke liefdesliedje</p>
         {ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering' && (
@@ -960,10 +1340,13 @@ export default function StudioPage() {
       </div>
 
       {/* Messages Area */}
-      <div ref={chatContainerRef} className="flex-1 overflow-y-auto bg-gray-50 p-4">
-        <div className="mx-auto max-w-3xl space-y-4">
+      <div
+        ref={chatContainerRef}
+        className={`flex-1 overflow-y-auto ${showCompactChat ? 'bg-white px-3 py-2' : 'bg-gray-50 p-4'}`}
+      >
+        <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
           {messages.length === 0 && (
-            <div className="text-center py-12">
+            <div className="text-center py-10">
               <div className="text-6xl mb-4">🎵</div>
               <h2 className="text-xl font-semibold text-gray-700 mb-2">
                 Welkom bij je liefdesliedje studio!
@@ -982,20 +1365,20 @@ export default function StudioPage() {
               }`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                  message.role === "user"
-                    ? "bg-pink-500 text-white"
-                    : "bg-white text-gray-800 shadow-sm"
-                }`}
-              >
-                <div className="whitespace-pre-wrap">{message.content}</div>
-              </div>
+              className={`max-w-[80%] rounded-lg px-3 py-2 md:px-4 md:py-3 ${
+                message.role === "user"
+                  ? "bg-pink-500 text-white"
+                  : "bg-white text-gray-800 shadow-sm"
+              }`}
+            >
+              <div className="whitespace-pre-wrap">{message.content}</div>
             </div>
+          </div>
           ))}
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="rounded-lg bg-white px-4 py-3 shadow-sm">
+              <div className="rounded-lg bg-white px-3 py-2 shadow-sm md:px-4 md:py-3">
                 {conversationPhase === 'generating' ? (
                   <p className="text-sm text-gray-600">Lyrics worden gegenereerd...</p>
                 ) : (
@@ -1012,8 +1395,8 @@ export default function StudioPage() {
       </div>
 
       {/* Composer Controls + Input Area */}
-      <div className="border-t border-gray-200 bg-white p-4">
-        <div className="mx-auto max-w-3xl space-y-3">
+      <div className={`border-t border-gray-200 bg-white ${showCompactChat ? 'px-3 py-2' : 'p-4'}`}>
+        <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-2' : 'max-w-3xl space-y-3'}`}>
           {/* Composer Controls */}
           <ComposerControls
             composerContext={latestComposerContext}
@@ -1028,7 +1411,7 @@ export default function StudioPage() {
           />
 
           {/* Input Area */}
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${showCompactChat ? 'items-center' : ''}`}>
             <input
               type="text"
               value={inputValue}
@@ -1040,12 +1423,12 @@ export default function StudioPage() {
                   : "Typ je bericht..."
               }
               disabled={isLoading}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 disabled:bg-gray-100"
+              className={`flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200 disabled:bg-gray-100 md:px-4 md:py-3`}
             />
             <button
               onClick={handleSendMessage}
               disabled={isLoading || !inputValue.trim()}
-              className="rounded-lg bg-pink-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-pink-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="rounded-lg bg-pink-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-pink-600 disabled:bg-gray-300 disabled:cursor-not-allowed md:px-6 md:py-3"
             >
               Verstuur
             </button>
@@ -1072,34 +1455,155 @@ export default function StudioPage() {
     audioUrl: selectedSongData.audioUrl || currentSongData?.audioUrl || '',
   } : null;
 
+  const handleLyricVariantSelection = async (index: number) => {
+    if (isSavingLyricSelection) return;
+    const variantsSource = pendingLyricVariants.length > 0 ? pendingLyricVariants : lyricsOptions;
+    const selectedText = variantsSource[index];
+
+    // Task 5.2: Track lyrics option selected
+    trackLyricsOptionSelected({
+      taskId: lyricsTaskId || 'unknown',
+      variantIndex: index,
+      conversationId: conversationId || undefined,
+    });
+
+    if (!selectedText) {
+      console.warn('No lyric variant found for index', index);
+      return;
+    }
+
+    setIsSavingLyricSelection(true);
+    try {
+      await generateLyricVersion(
+        {
+          lyrics: selectedText,
+          title: 'Gekozen Lyrics',
+          style: templateConfig?.style || '',
+        },
+        {
+          source: pendingLyricSource,
+          variantIndex: index,
+          taskId: lyricsTaskId,
+          isSelection: true,
+        }
+      );
+
+      setLatestLyrics({
+        title: 'Gekozen Lyrics',
+        lyrics: selectedText,
+        style: templateConfig?.style || '',
+      });
+      setLyricsOptions([]);
+      setPendingLyricVariants([]);
+      setSelectedLyricIndex(null);
+      setLyricsTaskId(null);
+      setRefineUsed(false);
+      setManualEdited(false);
+      setConversationPhase('complete');
+      setGenerationError(null);
+      setPendingLyricSource('suno');
+    } catch (error) {
+      console.error('Failed to persist selected lyrics:', error);
+      setGenerationError('Opslaan van de gekozen lyrics is mislukt. Probeer het opnieuw.');
+    } finally {
+      setIsSavingLyricSelection(false);
+    }
+  };
+
+  const handleManualEditSave = (text: string) => {
+    if (!text.trim()) return;
+    setLatestLyrics((prev) =>
+      prev
+        ? { ...prev, lyrics: text }
+        : { title: 'Gekozen Lyrics', lyrics: text, style: templateConfig?.style || '' }
+    );
+    setLyricsOptions([]);
+    setSelectedLyricIndex(null);
+    setManualEdited(true);
+    setPendingLyricVariants([]);
+    setLyricsTaskId(null);
+    setPendingLyricSource('suno');
+
+    // Task 5.2: Track manual edit as refinement
+    trackLyricsRefined({
+      conversationId: conversationId || undefined,
+      refinementType: 'manual_edit',
+      hasUsedRefineBefore: refineUsed || manualEdited,
+    });
+    void generateLyricVersion(
+      {
+        lyrics: text,
+        title: 'Gekozen Lyrics',
+        style: templateConfig?.style || '',
+      },
+      {
+        source: 'manual-edit',
+        isManual: true,
+      }
+    );
+  };
+
+  const canGenerateMusic = Boolean(latestLyrics?.lyrics) && !isRefiningLyrics;
+  const canRefine = !refineUsed && Boolean(latestLyrics?.lyrics) && !isRefiningLyrics;
+  const fallbackParameters = computeParameterDefaults();
+  const parameterSheetResolvedDefaults: ParameterValues =
+    parameterSheetDefaults || {
+      language: musicParameters.language || fallbackParameters.language,
+      vocalGender: musicParameters.vocalGender || fallbackParameters.vocalGender,
+      vocalAge:
+        musicParameters.vocalAge !== undefined
+          ? musicParameters.vocalAge
+          : fallbackParameters.vocalAge,
+    };
+
   // Lyrics Pane Component
+  // Task 5.3: Guard with ENABLE_LYRICS_COMPARE feature flag
   const lyricsPane = conversationId ? (
-    <LyricsPanel
-      conversationId={conversationId}
-      className="h-full"
-      conversationPhase={conversationPhase}
-      extractedContext={extractedContext}
-      roundNumber={roundNumber}
-      readinessScore={readinessScore}
-      conceptLyrics={conceptLyrics}
-      latestLyrics={latestLyrics}
-      onRefineLyrics={handleRefineLyrics}
-      isRefining={isLoading && conversationPhase === 'generating'}
-      onGenerateMusic={handleGenerateMusic}
-      isGeneratingMusic={isGeneratingMusic}
-      selectedSong={selectedSongForPlayer}
-      generationError={generationError}
-      onRetryGeneration={() => {
-        setGenerationError(null);
-        handleGenerateMusic();
-      }}
-      onAdjustLyrics={() => {
-        setGenerationError(null);
-        setConversationPhase('refining');
-      }}
-      preferences={songSettings}
-      onChangePreferences={setSongSettings}
-    />
+    ENABLE_LYRICS_COMPARE && lyricsOptions.length >= 2 ? (
+      <div className="h-full overflow-auto">
+        <LyricsCompare
+          options={lyricsOptions.slice(0, 2)}
+          selectedIndex={selectedLyricIndex}
+          onSelect={(i) => setSelectedLyricIndex(i)}
+          onUseSelected={() => {
+            if (selectedLyricIndex === null) return;
+            void handleLyricVariantSelection(selectedLyricIndex);
+          }}
+          isRefining={isRefiningLyrics}
+          isSaving={isSavingLyricSelection}
+        />
+      </div>
+    ) : (
+      <LyricsPanel
+        conversationId={conversationId}
+        className="h-full"
+        conversationPhase={conversationPhase}
+        extractedContext={extractedContext}
+        roundNumber={roundNumber}
+        readinessScore={readinessScore}
+        conceptLyrics={conceptLyrics}
+        latestLyrics={latestLyrics}
+        onRefineLyrics={canRefine ? handleRefineLyrics : undefined}
+        isRefining={isRefiningLyrics}
+        canRefine={canRefine}
+        onGenerateMusic={handleOpenParameterSheet}
+        isGeneratingMusic={isGeneratingMusic}
+        canGenerateMusic={canGenerateMusic}
+        onManualEditSave={handleManualEditSave}
+        selectedSong={selectedSongForPlayer}
+        generationError={generationError}
+        onRetryGeneration={() => {
+          setGenerationError(null);
+          startMusicGeneration(musicParameters);
+        }}
+        onAdjustLyrics={() => {
+          setGenerationError(null);
+          setConversationPhase('refining');
+        }}
+        preferences={songSettings}
+        onChangePreferences={setSongSettings}
+      />
+    )
   ) : (
     <div className="flex h-full items-center justify-center p-8">
       <p className="text-gray-500">Conversatie wordt geladen...</p>
@@ -1108,19 +1612,48 @@ export default function StudioPage() {
 
   // Task 4.4: Template selection handler
   const handleTemplateSelect = (templateId: string) => {
+    const isSurprise = templateId === 'surprise-me';
+    const wasSurprise = selectedTemplateId === 'surprise-me';
+
+    if (isSurprise && !wasSurprise) {
+      setSurpriseModeSelections((prev) => prev + 1);
+    }
+
     setSelectedTemplateId(templateId);
     const template = getTemplateById(templateId);
     if (template) {
-      setTemplateConfig(template.sunoConfig);
+      setTemplateConfig({ ...template.sunoConfig });
+      setAdvancedSettings((prev) => ({
+        ...prev,
+        model: template.sunoConfig.model || prev.model,
+        styleWeight:
+          typeof template.sunoConfig.styleWeight === "number"
+            ? template.sunoConfig.styleWeight
+            : DEFAULT_ADVANCED_SETTINGS.styleWeight,
+        weirdnessConstraint:
+          typeof template.sunoConfig.weirdnessConstraint === "number"
+            ? template.sunoConfig.weirdnessConstraint
+            : DEFAULT_ADVANCED_SETTINGS.weirdnessConstraint,
+        audioWeight:
+          typeof template.sunoConfig.audioWeight === "number"
+            ? template.sunoConfig.audioWeight
+            : DEFAULT_ADVANCED_SETTINGS.audioWeight,
+        negativeTags: template.sunoConfig.negativeTags ?? DEFAULT_ADVANCED_SETTINGS.negativeTags,
+      }));
       console.log('Template selected:', template.name, template.sunoConfig);
     }
   };
 
   // Task 4.3: Template pane with TemplateSelector
-  const templatePane = (
+  // Task 5.3: Hide template pane when compare UI is active
+  const templatePane = (ENABLE_LYRICS_COMPARE && lyricsOptions.length >= 2) ? null : (
     <TemplateSelector
       selectedTemplateId={selectedTemplateId}
       onTemplateSelect={handleTemplateSelect}
+      advancedSettings={advancedSettings}
+      onAdvancedSettingsChange={(next) => setAdvancedSettings(next)}
+      onResetAdvancedSettings={resetAdvancedSettingsToTemplate}
+      disableAdvancedControls={isGeneratingMusic}
     />
   );
 
@@ -1165,6 +1698,14 @@ export default function StudioPage() {
           onClose={() => setShowVariantSelector(false)}
         />
       )}
+
+      <ParameterSheet
+        isOpen={isParameterSheetOpen}
+        defaults={parameterSheetResolvedDefaults}
+        onClose={handleCloseParameterSheet}
+        onConfirm={handleConfirmParameterSheet}
+        isSubmitting={isParameterSheetSubmitting}
+      />
     </>
   );
 }

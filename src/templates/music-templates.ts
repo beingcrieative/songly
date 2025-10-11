@@ -27,6 +27,9 @@ export interface SunoConfig {
 
   /** Audio weight: audio vs lyrics focus (0.00-1.00) */
   audioWeight?: number;
+
+  /** Elements or styles to avoid (comma-separated) */
+  negativeTags?: string;
 }
 
 /**
@@ -133,6 +136,9 @@ export function validateTemplate(template: MusicTemplate): void {
  * @returns Template or undefined if not found
  */
 export function getTemplateById(id: string): MusicTemplate | undefined {
+  if (id === SURPRISE_ME_TEMPLATE.id) {
+    return SURPRISE_ME_TEMPLATE;
+  }
   return MUSIC_TEMPLATES.find((t) => t.id === id);
 }
 
@@ -216,11 +222,9 @@ export const SURPRISE_ME_TEMPLATE: MusicTemplate = {
   icon: '✨',
   sunoConfig: {
     style: '', // Empty = max creativity
-    tags: 'love song', // Minimal constraint
+    tags: 'love song', // Minimal constraint per Task 10.1
     model: 'V5',
-    styleWeight: 0.5,
-    weirdnessConstraint: 0.8, // High creativity
-    audioWeight: 0.5,
+    weirdnessConstraint: 0.8, // Encourage creative deviations
   },
 };
 

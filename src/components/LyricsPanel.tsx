@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLyricVersionsWithNotification } from "@/hooks/useLyricVersions";
 import { InstaQLEntity } from "@instantdb/react";
 import { type AppSchema } from "@/instant.schema";
@@ -32,9 +32,12 @@ interface LyricsPanelProps {
   // Refinement props
   onRefineLyrics?: (feedback: string) => void;
   isRefining?: boolean;
+  canRefine?: boolean;
+  onManualEditSave?: (text: string) => void;
   // Music generation props
   onGenerateMusic?: () => void;
   isGeneratingMusic?: boolean;
+  canGenerateMusic?: boolean;
   // Task 5.9: Music player props
   selectedSong?: {
     id: string;
@@ -65,8 +68,11 @@ export function LyricsPanel({
   latestLyrics,
   onRefineLyrics,
   isRefining = false,
+  canRefine = true,
+  onManualEditSave,
   onGenerateMusic,
   isGeneratingMusic = false,
+  canGenerateMusic = true,
   selectedSong,
   onDownloadSong,
   generationError,
@@ -80,6 +86,12 @@ export function LyricsPanel({
   const [showExtractedContext, setShowExtractedContext] = useState(true);
   const [showRefinementInput, setShowRefinementInput] = useState(false);
   const [refinementFeedback, setRefinementFeedback] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editedLyrics, setEditedLyrics] = useState(latestLyrics?.lyrics || "");
+
+  useEffect(() => {
+    setEditedLyrics(latestLyrics?.lyrics || "");
+  }, [latestLyrics]);
 
   const { versions, latestVersion, isLoading, hasNewVersion } = useLyricVersionsWithNotification({
     conversationId,
@@ -439,22 +451,30 @@ export function LyricsPanel({
           )}
 
           {/* Refinement and Music Generation UI */}
-          {(onRefineLyrics || onGenerateMusic) && !showRefinementInput && (
-            <div className="mt-6 flex gap-3">
+          {(onRefineLyrics || onGenerateMusic || onManualEditSave) && !showRefinementInput && (
+            <div className="mt-6 flex flex-col gap-3 md:flex-row">
               {onRefineLyrics && (
                 <button
                   onClick={() => setShowRefinementInput(true)}
-                  className="flex-1 rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50"
-                  disabled={isRefining}
+                  className="flex-1 rounded-lg border-2 border-purple-300 bg-white px-4 py-3 font-semibold text-purple-700 transition-all hover:border-purple-500 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isRefining || !canRefine}
                 >
                   ✨ Verfijn lyrics
+                </button>
+              )}
+              {onManualEditSave && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="flex-1 rounded-lg border-2 border-blue-300 bg-white px-4 py-3 font-semibold text-blue-700 transition-all hover:border-blue-500 hover:bg-blue-50"
+                >
+                  ✏️ Bewerk lyrics
                 </button>
               )}
               {onGenerateMusic && (
                 <button
                   onClick={onGenerateMusic}
                   className="flex-1 rounded-lg border-2 border-pink-300 bg-white px-4 py-3 font-semibold text-pink-700 transition-all hover:border-pink-500 hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isGeneratingMusic}
+                  disabled={isGeneratingMusic || !canGenerateMusic}
                 >
                   {isGeneratingMusic ? "🎵 Muziek genereren..." : "🎵 Genereer Muziek"}
                 </button>
@@ -482,26 +502,19 @@ export function LyricsPanel({
                 <h4 className="font-semibold text-red-900">{generationError}</h4>
               </div>
 
-              <div className="flex gap-3">
-                {/* Task 6.5: Retry button */}
-                {onRetryGeneration && (
-                  <button
-                    onClick={onRetryGeneration}
-                    className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition-all hover:bg-red-700"
-                  >
-                    🔄 Probeer opnieuw
-                  </button>
-                )}
-
-                {/* Task 6.6: Adjust lyrics button */}
-                {onAdjustLyrics && (
-                  <button
-                    onClick={onAdjustLyrics}
-                    className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-3 font-semibold text-red-700 transition-all hover:border-red-500 hover:bg-red-50"
-                  >
-                    ✏️ Pas lyrics aan
-                  </button>
-                )}
+              <div className="flex flex-col gap-2 md:flex-row">
+                <button
+                  onClick={onRetryGeneration}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition-all hover:bg-red-700"
+                >
+                  🔄 Opnieuw proberen
+                </button>
+                <button
+                  onClick={onAdjustLyrics}
+                  className="flex-1 rounded-lg border-2 border-red-300 bg-white px-4 py-3 font-semibold text-red-700 transition-all hover:border-red-500 hover:bg-red-50"
+                >
+                  ⬅️ Terug naar chat
+                </button>
               </div>
             </div>
           )}
@@ -515,7 +528,11 @@ export function LyricsPanel({
               <textarea
                 value={refinementFeedback}
                 onChange={(e) => setRefinementFeedback(e.target.value)}
-                placeholder="bijv. 'Maak het refrein pakkender' of 'Gebruik meer beelden uit de trein'"
+                placeholder={
+                  isRefining
+                    ? "Lyrics worden verfijnd..."
+                    : "bijv. 'Maak het refrein pakkender' of 'Gebruik meer beelden uit de trein'"
+                }
                 className="w-full rounded-lg border border-purple-300 p-3 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
                 rows={3}
                 disabled={isRefining}
@@ -529,7 +546,7 @@ export function LyricsPanel({
                       setShowRefinementInput(false);
                     }
                   }}
-                  disabled={!refinementFeedback.trim() || isRefining}
+                  disabled={!refinementFeedback.trim() || isRefining || !canRefine}
                   className="flex-1 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {isRefining ? "Verfijnen..." : "Verfijn lyrics"}
@@ -547,8 +564,53 @@ export function LyricsPanel({
               </div>
             </div>
           )}
+
+          {/* Manual edit modal */}
+          {showEditModal && onManualEditSave && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl">
+                <h3 className="text-lg font-semibold text-gray-800">Bewerk lyrics</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Pas de tekst aan en sla op om deze versie te gebruiken voor muziek generatie.
+                </p>
+                <textarea
+                  value={editedLyrics}
+                  onChange={(e) => setEditedLyrics(e.target.value)}
+                  rows={12}
+                  className="mt-4 w-full rounded-lg border border-gray-300 p-3 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-200"
+                  placeholder="Schrijf hier je aangepaste lyrics..."
+                />
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    onClick={() => {
+                      onManualEditSave(editedLyrics);
+                      setShowEditModal(false);
+                    }}
+                    disabled={!editedLyrics.trim()}
+                    className="rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Opslaan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Refinement indicator */}
+      {isRefining && (
+        <div className="border-t border-purple-200 bg-purple-50 px-6 py-3 text-sm text-purple-700 flex items-center gap-2">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-purple-500"></div>
+          <span>Lyrics worden verfijnd...</span>
+        </div>
+      )}
 
       {/* Version history footer */}
       {olderVersions.length > 0 && (

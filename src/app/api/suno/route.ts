@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       instrumental,
       // Task 5.6: Accept template configuration
       templateConfig,
+      vocalPreferences: requestVocalPreferences,
     } = await request.json();
 
     if (!lyrics) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch vocal preferences and user mood/language from database if songId is provided
-    let vocalPreferences: VocalPreferences = {};
+    let mergedVocalPreferences: VocalPreferences = {};
     let userMoodTags: string[] = [];
 
     if (songId) {
@@ -99,8 +100,8 @@ export async function POST(request: NextRequest) {
             }
 
             // Merge preferences (song-level takes precedence)
-            vocalPreferences = mergeVocalPreferences(conversationPrefs, songPrefs);
-            console.log('Merged vocal preferences:', vocalPreferences);
+            mergedVocalPreferences = mergeVocalPreferences(conversationPrefs, songPrefs);
+            console.log('Merged vocal preferences (conversation/song):', mergedVocalPreferences);
           }
         }
       } catch (error) {
@@ -109,11 +110,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (requestVocalPreferences && typeof requestVocalPreferences === "object") {
+      const sanitizedRequestPrefs: VocalPreferences = {
+        language:
+          typeof requestVocalPreferences.language === "string"
+            ? requestVocalPreferences.language
+            : undefined,
+        vocalGender:
+          requestVocalPreferences.vocalGender === "male" ||
+          requestVocalPreferences.vocalGender === "female" ||
+          requestVocalPreferences.vocalGender === "neutral"
+            ? requestVocalPreferences.vocalGender
+            : undefined,
+        vocalAge:
+          requestVocalPreferences.vocalAge === "young" ||
+          requestVocalPreferences.vocalAge === "mature" ||
+          requestVocalPreferences.vocalAge === "deep"
+            ? requestVocalPreferences.vocalAge
+            : undefined,
+        vocalDescription:
+          typeof requestVocalPreferences.vocalDescription === "string"
+            ? requestVocalPreferences.vocalDescription
+            : undefined,
+      };
+      mergedVocalPreferences = mergeVocalPreferences(mergedVocalPreferences, sanitizedRequestPrefs);
+      console.log('Merged vocal preferences (request override):', sanitizedRequestPrefs);
+    }
+
     console.log('=== SUNO API REQUEST DEBUG ===');
     console.log('Title:', title);
     console.log('Music Style:', musicStyle);
     console.log('Lyrics length:', lyrics?.length);
-    console.log('Vocal Preferences:', vocalPreferences);
+    console.log('Vocal Preferences:', mergedVocalPreferences);
     console.log('API Key present:', !!SUNO_API_KEY);
     console.log('API Key (first 10 chars):', SUNO_API_KEY.substring(0, 10));
     console.log('Requested Model:', model || DEFAULT_MODEL);
@@ -140,8 +168,8 @@ export async function POST(request: NextRequest) {
     const wantsInstrumental = Boolean(makeInstrumental ?? instrumental ?? false);
 
     // Build vocal description and tags from preferences
-    const vocalDescription = buildVocalDescription(vocalPreferences);
-    const vocalTags = buildVocalTags(vocalPreferences);
+    const vocalDescription = buildVocalDescription(mergedVocalPreferences);
+    const vocalTags = buildVocalTags(mergedVocalPreferences);
 
     // Enhance prompt with vocal description
     let enhancedPrompt = lyrics;

@@ -1,213 +1,149 @@
 /**
  * Suno Lyrics Prompt Builder
  *
- * Builds optimized prompts for Suno's lyrics generation API.
- * Part of Task 3.0: Implement Suno Lyrics Generation API
+ * Generates compact prompts for Suno's lyrics-only endpoint.
+ * Suno enforces ~200 characters max, so we prioritise key details
+ * and gracefully truncate while keeping the message readable.
  */
 
 import { ExtractedContext } from "@/types/conversation";
 import { MusicTemplate } from "@/templates/music-templates";
 
-/**
- * Build a Suno-optimized lyrics generation prompt
- *
- * Task 3.1, 3.2, 3.3: Format prompt with memories, emotions, partner traits, and music style
- *
- * @param context - Extracted conversation context
- * @param template - Selected music template
- * @param language - Target language (default: Nederlands)
- * @returns Formatted prompt for Suno lyrics API
- */
+const MAX_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || "200");
+const MIN_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || "60");
+
+const STANDARD_FILLER = [
+  "Beschrijf intieme details en zorg voor couplet-refrein structuur.",
+  "Gebruik rijm en ritme zodat de tekst muzikaal aanvoelt.",
+  "Eindig met een warme, hoopvolle boodschap."
+];
+
+const SURPRISE_FILLER = [
+  "Mix onverwachte genres en tempo’s voor een speelse sfeer.",
+  "Gebruik surrealistische beelden en sterke emoties.",
+  "Laat het einde open en prikkelend."
+];
+
+const REFINEMENT_FILLER = [
+  "Behoud emotie maar verbeter ritme en rijm.",
+  "Voeg levendige details toe aan nieuwe passages.",
+  "Zorg dat de herziene versie vloeiend en persoonlijk blijft."
+];
+
+function clean(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function shorten(text: string, limit: number): string {
+  const value = clean(text);
+  if (!value) return "";
+  if (value.length <= limit) return value;
+  return `${value.slice(0, Math.max(limit - 1, 1)).trimEnd()}…`;
+}
+
+function composePrompt(sentences: Array<string | null>, fillers: string[]): string {
+  const usable = sentences
+    .map((s) => (s ? clean(s) : ""))
+    .filter(Boolean);
+
+  let result = "";
+  for (const sentence of usable) {
+    const candidate = result ? `${result} ${sentence}` : sentence;
+    if (candidate.length <= MAX_PROMPT_CHARS) {
+      result = candidate;
+    } else {
+      const remaining = MAX_PROMPT_CHARS - result.length;
+      if (remaining > 4) {
+        result = `${result} ${shorten(sentence, remaining)}`.trim();
+      }
+      break;
+    }
+  }
+
+  if (!result) {
+    result = shorten(fillers[0] || "Schrijf een persoonlijk liefdeslied.", MAX_PROMPT_CHARS);
+  }
+
+  if (result.length < MIN_PROMPT_CHARS) {
+    for (const filler of fillers) {
+      const cleaned = clean(filler);
+      if (!cleaned) continue;
+      const candidate = result ? `${result} ${cleaned}` : cleaned;
+      if (candidate.length >= MIN_PROMPT_CHARS && candidate.length <= MAX_PROMPT_CHARS) {
+        result = candidate;
+        break;
+      }
+      if (candidate.length < MIN_PROMPT_CHARS) {
+        result = candidate;
+        continue;
+      }
+      const remaining = MAX_PROMPT_CHARS - result.length;
+      if (remaining > 4) {
+        result = `${result} ${shorten(cleaned, remaining)}`.trim();
+      }
+      break;
+    }
+  }
+
+  return shorten(result, MAX_PROMPT_CHARS);
+}
+
 export function buildSunoLyricsPrompt(
   context: ExtractedContext,
   template: MusicTemplate,
-  language: string = 'Nederlands'
+  language: string = "Nederlands"
 ): string {
-  const { memories, emotions, partnerTraits } = context;
+  const { partnerName, memories = [], emotions = [], partnerTraits = [] } = context;
 
-  // Handle "Verras Me" template differently (more open-ended)
-  if (template.id === 'surprise-me') {
-    return buildSurpriseModePrompt(context, language);
+  if (template.id === "surprise-me") {
+    return composePrompt(
+      [
+        `Schrijf een verrassend liefdeslied in ${language}.`,
+        memories[0] ? `Onthoud deze scène: ${shorten(memories[0], 40)}.` : null,
+        emotions[0] ? `Belangrijkste emotie: ${shorten(emotions[0], 30)}.` : null,
+        "Mix genres, tempo’s en onverwachte structuren.",
+        "Behoud een emotionele kern ondanks de experimenten."
+      ],
+      SURPRISE_FILLER
+    );
   }
 
-  // Build structured prompt for regular templates
-  const sections: string[] = [];
-
-  // Header
-  sections.push(`Schrijf lyrics voor een ${template.name.toLowerCase()} liefdesliedje in het ${language}.`);
-  sections.push('');
-
-  // Context section
-  sections.push('**Context:**');
-
-  if (context.partnerName) {
-    sections.push(`- Voor: ${context.partnerName}`);
-  }
-
-  if (memories.length > 0) {
-    // Limit to top 5 most relevant memories
-    const topMemories = memories.slice(0, 5);
-    sections.push(`- Herinneringen: ${topMemories.join(', ')}`);
-  }
-
-  if (emotions.length > 0) {
-    sections.push(`- Emoties: ${emotions.join(', ')}`);
-  }
-
-  if (partnerTraits.length > 0) {
-    // Limit to top 5 traits
-    const topTraits = partnerTraits.slice(0, 5);
-    sections.push(`- Eigenschappen: ${topTraits.join(', ')}`);
-  }
-
-  sections.push('');
-
-  // Musical style section
-  sections.push('**Muzikale Stijl:**');
-  sections.push(template.sunoConfig.style);
-  sections.push('');
-
-  sections.push('**Genres/Tags:**');
-  sections.push(template.sunoConfig.tags);
-  sections.push('');
-
-  // Instructions
-  sections.push('**Instructies:**');
-  sections.push(`- Schrijf complete lyrics met duidelijke verse/chorus/bridge structuur`);
-  sections.push(`- Gebruik de herinneringen en emoties op een natuurlijke, authentieke manier`);
-  sections.push(`- Houd de taal ${language === 'Nederlands' ? 'Nederlands' : language}`);
-  sections.push(`- Maak de tekst muzikaal (rijm, ritme, herhaling)`);
-  sections.push(`- Vermijd clichés, wees origineel en persoonlijk`);
-  sections.push(`- Lengte: ongeveer 200-300 woorden`);
-  sections.push('');
-
-  sections.push('Genereer de lyrics nu:');
-
-  return sections.join('\n');
+  return composePrompt(
+    [
+      `Schrijf een ${template.name.toLowerCase()} liefdeslied in ${language}.`,
+      partnerName ? `Voor ${partnerName}.` : null,
+      memories[0] ? `Belangrijke herinnering: ${shorten(memories[0], 40)}.` : null,
+      emotions[0] ? `Dominante emotie: ${shorten(emotions[0], 30)}.` : null,
+      partnerTraits[0] ? `Eigenschap: ${shorten(partnerTraits[0], 25)}.` : null,
+      template.sunoConfig.style
+        ? `Stijl: ${shorten(template.sunoConfig.style, 40)}.`
+        : null,
+      template.sunoConfig.tags
+        ? `Tags: ${shorten(template.sunoConfig.tags, 35)}.`
+        : null,
+      "Gebruik coupletten, refreinen en een brug met een hoopvolle slotzin."
+    ],
+    STANDARD_FILLER
+  );
 }
 
-/**
- * Build prompt for "Verras Me" mode (open-ended, creative)
- */
-function buildSurpriseModePrompt(
-  context: ExtractedContext,
-  language: string
-): string {
-  const { memories, emotions, partnerTraits } = context;
-
-  const sections: string[] = [];
-
-  sections.push(`Schrijf een verrassend en uniek liefdesliedje in het ${language}.`);
-  sections.push('');
-
-  sections.push('**Inspiratie:**');
-
-  if (memories.length > 0) {
-    sections.push(`Herinneringen: ${memories.slice(0, 3).join(', ')}`);
-  }
-
-  if (emotions.length > 0) {
-    sections.push(`Emoties: ${emotions.slice(0, 3).join(', ')}`);
-  }
-
-  sections.push('');
-
-  sections.push('**Creatieve vrijheid:**');
-  sections.push('- Kies je eigen muziekstijl en genre');
-  sections.push('- Experimenteer met structuur en ritme');
-  sections.push('- Wees origineel en verrassend');
-  sections.push('- Maak het persoonlijk en emotioneel');
-  sections.push('');
-
-  sections.push('Laat je creativiteit de vrije loop en schrijf een mooi liefdesliedje:');
-
-  return sections.join('\n');
-}
-
-/**
- * Build refinement prompt for existing lyrics
- *
- * Used when user provides feedback to improve lyrics
- *
- * @param previousLyrics - The lyrics to refine
- * @param feedback - User's feedback/instructions
- * @param context - Original conversation context
- * @param template - Selected template
- * @returns Refinement prompt for Suno
- */
 export function buildLyricsRefinementPrompt(
   previousLyrics: string,
   feedback: string,
-  context: ExtractedContext,
+  _context: ExtractedContext,
   template: MusicTemplate
 ): string {
-  const sections: string[] = [];
+  const snippet = shorten(previousLyrics, template.id === "surprise-me" ? 60 : 80);
 
-  sections.push(`Verbeter de volgende lyrics op basis van de feedback van de gebruiker.`);
-  sections.push('');
+  const sentences: Array<string | null> = [
+    `Pas de lyrics aan op basis van feedback: ${shorten(feedback, 60)}.`,
+    template.id === "surprise-me"
+      ? "Behoud de verrassende structuur maar laat de tekst vloeiend blijven."
+      : "Behoud de gekozen stijl, emotie en couplet-refrein balans.",
+    `Huidige kern: ${snippet}.`,
+    "Lever een volledige, herschreven versie terug."
+  ];
 
-  sections.push('**Huidige Lyrics:**');
-  sections.push('```');
-  sections.push(previousLyrics);
-  sections.push('```');
-  sections.push('');
-
-  sections.push('**Feedback van gebruiker:**');
-  sections.push(feedback);
-  sections.push('');
-
-  sections.push('**Muzikale stijl (behouden):**');
-  sections.push(template.sunoConfig.style);
-  sections.push('');
-
-  sections.push('**Instructies:**');
-  sections.push('- Verwerk de feedback van de gebruiker');
-  sections.push('- Behoud de goede elementen van de originele lyrics');
-  sections.push('- Blijf binnen dezelfde muzikale stijl');
-  sections.push('- Zorg dat de lyrics nog steeds persoonlijk en emotioneel zijn');
-  sections.push('');
-
-  sections.push('Genereer de verbeterde lyrics:');
-
-  return sections.join('\n');
-}
-
-/**
- * Validate prompt length against Suno limits
- *
- * Suno API limits:
- * - V3_5/V4: ≤ 3000 characters
- * - V4_5/V4_5PLUS/V5: ≤ 5000 characters
- *
- * @param prompt - Generated prompt
- * @param model - Suno model version
- * @returns true if within limits, false otherwise
- */
-export function validatePromptLength(
-  prompt: string,
-  model: 'V3_5' | 'V4' | 'V4_5' | 'V4_5PLUS' | 'V5'
-): boolean {
-  const maxLength = ['V4_5', 'V4_5PLUS', 'V5'].includes(model) ? 5000 : 3000;
-  return prompt.length <= maxLength;
-}
-
-/**
- * Truncate prompt to fit within Suno limits
- *
- * @param prompt - Prompt to truncate
- * @param model - Suno model version
- * @returns Truncated prompt
- */
-export function truncatePrompt(
-  prompt: string,
-  model: 'V3_5' | 'V4' | 'V4_5' | 'V4_5PLUS' | 'V5'
-): string {
-  const maxLength = ['V4_5', 'V4_5PLUS', 'V5'].includes(model) ? 5000 : 3000;
-
-  if (prompt.length <= maxLength) {
-    return prompt;
-  }
-
-  // Truncate and add ellipsis
-  return prompt.substring(0, maxLength - 20) + '\n\n[Prompt truncated]';
+  const fillers = template.id === "surprise-me" ? SURPRISE_FILLER : REFINEMENT_FILLER;
+  return composePrompt(sentences, fillers);
 }

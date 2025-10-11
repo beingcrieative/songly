@@ -16,13 +16,20 @@ export function ConversationalStudioLayout({
   className = "",
 }: ConversationalStudioLayoutProps) {
   const [isLyricsPanelOpen, setIsLyricsPanelOpen] = useState(false);
+  const hasTemplatePane = Boolean(templatePane);
+  const desktopGridCols = hasTemplatePane
+    ? "md:grid-cols-[300px_1fr_400px]"
+    : "md:grid-cols-[1fr_400px]";
+  const chatPaneBorders = hasTemplatePane
+    ? "border-r border-gray-200"
+    : "border-r border-gray-200";
 
   return (
     <div className={`flex h-screen flex-col ${className}`}>
       {/* Task 4.3: Desktop: 3-column layout (Template | Chat | Lyrics) */}
-      <div className="hidden h-full md:grid md:grid-cols-[300px_1fr_400px] md:gap-0">
+      <div className={`hidden h-full md:grid ${desktopGridCols} md:gap-0`}>
         {/* Left Pane: Template Selector */}
-        {templatePane && (
+        {hasTemplatePane && (
           <div className="flex flex-col border-r border-gray-200 bg-white">
             <div className="flex h-full flex-col overflow-hidden">
               {templatePane}
@@ -31,7 +38,7 @@ export function ConversationalStudioLayout({
         )}
 
         {/* Middle Pane: Chat + Composer */}
-        <div className="flex flex-col border-r border-gray-200 bg-white">
+        <div className={`flex flex-col bg-white ${chatPaneBorders}`}>
           <div className="flex h-full flex-col overflow-hidden">
             {chatPane}
           </div>

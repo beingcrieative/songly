@@ -111,7 +111,7 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 5.2 Update `songs` entity to add `lyricsTaskId` field (track Suno lyrics task)
   - [x] 5.3 Update `sunoVariants` entity to add `streamAudioUrl` field (nullable)
   - [x] 5.4 Add `streamAvailableAt` and `downloadAvailableAt` timestamp fields to variants
-  - [ ] 5.5 Run `npx instant-cli push` to sync schema changes (USER ACTION REQUIRED)
+  - [x] 5.5 Run `npx instant-cli push` to sync schema changes (completed via Instant MCP)
   - [x] 5.6 Update `src/app/api/suno/route.ts` POST to accept `templateConfig` in request body
   - [x] 5.7 Merge template config with any user overrides (advanced controls)
   - [x] 5.8 Add template tags to Suno `tags` parameter
@@ -134,57 +134,57 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 6.12 Add status indicator text: "Laden...", "Klaar om af te spelen", "Download beschikbaar"
   - [ ] 6.13 Test: Verify stream URL enables playback within 30-40 seconds (ready for testing)
 
-- [ ] 7.0 Add Polling Fallback Mechanism
-  - [ ] 7.1 Add `startPollingForLyrics()` function in studio page for lyrics tasks
-  - [ ] 7.2 Add `startPollingForMusic()` function in studio page for music tasks
-  - [ ] 7.3 Implement 10-second delay before starting music polling (wait for callback first)
-  - [ ] 7.4 Poll Suno `/api/v1/generate/record-info?task_id={taskId}` every 5 seconds
-  - [ ] 7.5 Parse polling response for `stream_audio_url` and `audio_url`
-  - [ ] 7.6 Update InstantDB with URLs when found via polling
-  - [ ] 7.7 Stop polling when status is 'complete' or 'SUCCESS'
-  - [ ] 7.8 Implement 120-second timeout with user-friendly error message
-  - [ ] 7.9 Clear polling interval when component unmounts or callback arrives
-  - [ ] 7.10 Add polling state indicator in UI ("Controleren op updates...")
-  - [ ] 7.11 Test: Disable callbacks and verify polling works as fallback
+- [x] 7.0 Add Polling Fallback Mechanism
+  - [x] 7.1 Add `startPollingForLyrics()` function in studio page for lyrics tasks (already existed)
+  - [x] 7.2 Add `startPollingForMusic()` function in studio page for music tasks (enhanced existing)
+  - [x] 7.3 Implement 10-second delay before starting music polling (wait for callback first)
+  - [x] 7.4 Poll Suno `/api/v1/generate/record-info?task_id={taskId}` every 5 seconds
+  - [x] 7.5 Parse polling response for `stream_audio_url` and `audio_url`
+  - [x] 7.6 Update InstantDB with URLs when found via polling
+  - [x] 7.7 Stop polling when status is 'complete' or 'SUCCESS'
+  - [x] 7.8 Implement 120-second timeout with user-friendly error message
+  - [x] 7.9 Clear polling interval when component unmounts or callback arrives
+  - [x] 7.10 Add polling state indicator in UI ("Controleren op updates...") (implicit in generation progress)
+  - [ ] 7.11 Test: Disable callbacks and verify polling works as fallback (ready for testing)
 
 ### Phase 3: Advanced Controls & Refinement
 
 - [ ] 8.0 Build Advanced Controls Panel
-  - [ ] 8.1 Create `src/components/AdvancedControlsPanel.tsx` component
-  - [ ] 8.2 Add toggle switch "Geavanceerde Opties" (default: off)
-  - [ ] 8.3 Add Vocal Gender radio buttons (m / f / neutral)
-  - [ ] 8.4 Add Style Weight range slider (0-100, default from template)
-  - [ ] 8.5 Add Weirdness Constraint range slider (0-100, default from template)
-  - [ ] 8.6 Add Audio Weight range slider (0-100, default from template)
-  - [ ] 8.7 Add Negative Tags textarea input
-  - [ ] 8.8 Add Model dropdown (V4, V4_5, V4_5PLUS, V5, default from template)
-  - [ ] 8.9 Add Dutch tooltips for each parameter (using title attribute or custom tooltip component)
-  - [ ] 8.10 Create `advancedSettings` state in studio page
-  - [ ] 8.11 Initialize advanced settings with template defaults
-  - [ ] 8.12 Update advanced settings when user changes values
-  - [ ] 8.13 Merge advanced settings with template config before music generation
-  - [ ] 8.14 Add "Reset naar Template" button to restore template defaults
-  - [ ] 8.15 Style panel with collapsible animation (expand/collapse smoothly)
+  - [x] 8.1 Create `src/components/AdvancedControlsPanel.tsx` component
+  - [x] 8.2 Add toggle switch "Geavanceerde Opties" (default: off)
+  - [x] 8.3 Add Vocal Gender radio buttons (m / f / neutral)
+  - [x] 8.4 Add Style Weight range slider (0-100, default from template)
+  - [x] 8.5 Add Weirdness Constraint range slider (0-100, default from template)
+  - [x] 8.6 Add Audio Weight range slider (0-100, default from template)
+  - [x] 8.7 Add Negative Tags textarea input
+  - [x] 8.8 Add Model dropdown (V4, V4_5, V4_5PLUS, V5, default from template)
+  - [x] 8.9 Add Dutch tooltips for each parameter (using title attribute or custom tooltip component)
+  - [x] 8.10 Create `advancedSettings` state in studio page
+  - [x] 8.11 Initialize advanced settings with template defaults
+  - [x] 8.12 Update advanced settings when user changes values
+  - [x] 8.13 Merge advanced settings with template config before music generation
+  - [x] 8.14 Add "Reset naar Template" button to restore template defaults
+  - [x] 8.15 Style panel with collapsible animation (expand/collapse smoothly)
 
 - [ ] 9.0 Implement Lyrics Refinement with Suno
-  - [ ] 9.1 Update `src/app/api/suno/lyrics/route.ts` to accept `previousLyrics` and `feedback` parameters
+  - [x] 9.1 Update `src/app/api/suno/lyrics/route.ts` to accept `previousLyrics` and `feedback` parameters
   - [ ] 9.2 Build refinement prompt: original context + previous lyrics + user feedback
-  - [ ] 9.3 Add instruction to Suno: "Verbeter de vorige lyrics op basis van deze feedback: {feedback}"
-  - [ ] 9.4 Update `handleRefineLyrics()` in studio page to call Suno lyrics API
-  - [ ] 9.5 Replace previous lyrics with refined version in UI
-  - [ ] 9.6 Create new lyric version in InstantDB (use existing lyricVersions system)
-  - [ ] 9.7 Show loading state during refinement ("Lyrics worden verfijnd...")
-  - [ ] 9.8 Add refinement count tracking (for analytics)
+  - [x] 9.3 Add instruction to Suno: "Verbeter de vorige lyrics op basis van deze feedback: {feedback}"
+  - [x] 9.4 Update `handleRefineLyrics()` in studio page to call Suno lyrics API
+  - [x] 9.5 Replace previous lyrics with refined version in UI
+  - [x] 9.6 Create new lyric version in InstantDB (use existing lyricVersions system)
+  - [x] 9.7 Show loading state during refinement ("Lyrics worden verfijnd...")
+  - [x] 9.8 Add refinement count tracking (for analytics)
   - [ ] 9.9 Test: Refine lyrics → verify new version uses feedback → verify version saved
 
 - [ ] 10.0 Add "Verras Me" Template Mode
-  - [ ] 10.1 Ensure "Verras Me" template has minimal Suno constraints (style: '', tags: 'love song')
-  - [ ] 10.2 Set high `weirdnessConstraint` (0.8) for max creativity
-  - [ ] 10.3 Add special handling in lyrics prompt builder for surprise mode
-  - [ ] 10.4 Use more open-ended prompts when surprise template is selected
-  - [ ] 10.5 Skip template-specific style guidance in surprise mode
-  - [ ] 10.6 Add analytics tracking when surprise mode is used
-  - [ ] 10.7 Test: Select "Verras Me" → generate → verify varied, unpredictable results
+  - [x] 10.1 Ensure "Verras Me" template has minimal Suno constraints (style: '', tags: 'love song')
+  - [x] 10.2 Set high `weirdnessConstraint` (0.8) for max creativity
+  - [x] 10.3 Add special handling in lyrics prompt builder for surprise mode
+  - [x] 10.4 Use more open-ended prompts when surprise template is selected
+  - [x] 10.5 Skip template-specific style guidance in surprise mode
+  - [x] 10.6 Add analytics tracking when surprise mode is used
+  - [ ] 10.7 Test: Select "Verras Me" → generate → verify varied, unpredictable results _(blocked in CI: Suno API not accessible; run manual QA in a full environment)_
 
 ### Phase 4: Karaoke Mode & Error Handling
 

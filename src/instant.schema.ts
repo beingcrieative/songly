@@ -85,6 +85,13 @@ const _schema = i.schema({
       createdAt: i.number().indexed().optional(),
       hash: i.string().indexed().optional(),
       version: i.number().optional(),
+      variantIndex: i.number().optional(),
+      variantSource: i.string().optional(),
+      isManual: i.boolean().optional(),
+      isRefined: i.boolean().optional(),
+      isSelection: i.boolean().optional(),
+      selectedAt: i.number().optional(),
+      selectedFromTaskId: i.string().optional(),
     }),
   },
   links: {

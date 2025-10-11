@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TemplateCard } from "./TemplateCard";
-import { MUSIC_TEMPLATES, SURPRISE_ME_TEMPLATE, MusicTemplate } from "@/templates/music-templates";
+import { MUSIC_TEMPLATES, SURPRISE_ME_TEMPLATE } from "@/templates/music-templates";
+import { AdvancedControlsPanel, AdvancedSettings } from "./AdvancedControlsPanel";
 
 /**
  * TemplateSelector Component
@@ -14,11 +15,29 @@ import { MUSIC_TEMPLATES, SURPRISE_ME_TEMPLATE, MusicTemplate } from "@/template
 interface TemplateSelectorProps {
   selectedTemplateId: string | null;
   onTemplateSelect: (templateId: string) => void;
+  advancedSettings?: AdvancedSettings;
+  onAdvancedSettingsChange?: (next: AdvancedSettings) => void;
+  onResetAdvancedSettings?: () => void;
+  disableAdvancedControls?: boolean;
 }
 
-export function TemplateSelector({ selectedTemplateId, onTemplateSelect }: TemplateSelectorProps) {
+export function TemplateSelector({
+  selectedTemplateId,
+  onTemplateSelect,
+  advancedSettings,
+  onAdvancedSettingsChange,
+  onResetAdvancedSettings,
+  disableAdvancedControls = false,
+}: TemplateSelectorProps) {
   // Task 2.6: Map all templates to TemplateCard components
   const allTemplates = [...MUSIC_TEMPLATES, SURPRISE_ME_TEMPLATE];
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(Boolean(advancedSettings?.enabled));
+
+  useEffect(() => {
+    if (advancedSettings?.enabled) {
+      setIsAdvancedOpen(true);
+    }
+  }, [advancedSettings?.enabled]);
 
   // Task 2.8: Template selection handler
   const handleTemplateSelect = (templateId: string) => {
@@ -26,7 +45,7 @@ export function TemplateSelector({ selectedTemplateId, onTemplateSelect }: Templ
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="flex h-full flex-col overflow-y-auto bg-gray-50">
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-4 py-4">
         <h2 className="text-lg font-bold text-gray-800">🎵 Kies je Stijl</h2>
@@ -84,6 +103,50 @@ export function TemplateSelector({ selectedTemplateId, onTemplateSelect }: Templ
                 {allTemplates.find(t => t.id === selectedTemplateId)?.name}
               </strong>
             </span>
+          </div>
+        </div>
+      )}
+
+      {advancedSettings && onAdvancedSettingsChange && (
+        <div className="border-t border-gray-200 bg-white px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setIsAdvancedOpen((prev) => !prev)}
+            disabled={disableAdvancedControls || !selectedTemplateId}
+            aria-expanded={isAdvancedOpen}
+            className="flex w-full items-center justify-between rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-700 transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>Geavanceerde Opties</span>
+            <svg
+              className={`h-4 w-4 transition-transform ${isAdvancedOpen ? "rotate-180" : ""}`}
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 8l5 5 5-5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              isAdvancedOpen ? "max-h-[640px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+            }`}
+            aria-hidden={!isAdvancedOpen}
+          >
+            <div className={`pt-4 transition-transform duration-300 ${isAdvancedOpen ? "translate-y-0" : "-translate-y-2"}`}>
+              <AdvancedControlsPanel
+                settings={advancedSettings}
+                onChange={onAdvancedSettingsChange}
+                onResetToTemplate={onResetAdvancedSettings}
+                disabled={disableAdvancedControls || !selectedTemplateId}
+                className="bg-white"
+              />
+            </div>
           </div>
         </div>
       )}

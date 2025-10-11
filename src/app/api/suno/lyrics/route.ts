@@ -1,4 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildLyricsRefinementPrompt } from '@/lib/utils/sunoLyricsPrompt';
+import { getTemplateById } from '@/templates/music-templates';
+import type { ExtractedContext } from '@/types/conversation';
+import {
+  getLyricsTask,
+  pruneLyricsCache,
+  setLyricsTaskComplete,
+  setLyricsTaskFailed,
+  setLyricsTaskGenerating,
+} from './cache';
 
 /**
  * Suno Lyrics Generation API Route
@@ -19,24 +29,104 @@ const SUNO_API_KEY = process.env.SUNO_API_KEY || "";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, previousLyrics, feedback, callBackUrl } = body;
+    const {
+      prompt: incomingPrompt,
+      previousLyrics,
+      feedback,
+      callBackUrl,
+      templateId,
+      context,
+    } = body;
 
-    // Task 3.5: Request validation
-    if (!prompt || typeof prompt !== 'string') {
+    const hasRawPrompt = typeof incomingPrompt === 'string' && incomingPrompt.trim().length > 0;
+
+    let normalizedPreviousLyrics: string | null = null;
+    if (previousLyrics !== undefined) {
+      if (typeof previousLyrics === 'string') {
+        normalizedPreviousLyrics = previousLyrics;
+      } else if (
+        previousLyrics &&
+        typeof previousLyrics === 'object' &&
+        typeof previousLyrics.lyrics === 'string'
+      ) {
+        normalizedPreviousLyrics = previousLyrics.lyrics;
+      } else {
+        return NextResponse.json(
+          { error: 'previousLyrics must be a string or an object containing a lyrics field' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const trimmedFeedback =
+      typeof feedback === 'string' ? feedback.trim() : feedback === undefined ? '' : null;
+
+    if (trimmedFeedback === null) {
       return NextResponse.json(
-        { error: 'Prompt is required and must be a string' },
+        { error: 'feedback must be a string when provided' },
         { status: 400 }
       );
     }
 
-    // Validate prompt length (Suno limits: ~200 words for fast results)
-    // Note: Suno docs mention character limits per model, we'll use a conservative limit
-    const MAX_PROMPT_LENGTH = 3000;
-    if (prompt.length > MAX_PROMPT_LENGTH) {
+    let finalPrompt: string | null = hasRawPrompt ? incomingPrompt : null;
+
+    if (normalizedPreviousLyrics && trimmedFeedback) {
+      if (!templateId || typeof templateId !== 'string') {
+        return NextResponse.json(
+          { error: 'templateId is required to refine lyrics' },
+          { status: 400 }
+        );
+      }
+
+      const template = getTemplateById(templateId);
+      if (!template) {
+        return NextResponse.json(
+          { error: `Template not found for id "${templateId}"` },
+          { status: 404 }
+        );
+      }
+
+      if (!context || typeof context !== 'object') {
+        return NextResponse.json(
+          { error: 'context is required to build refinement prompt' },
+          { status: 400 }
+        );
+      }
+
+      finalPrompt = buildLyricsRefinementPrompt(
+        normalizedPreviousLyrics,
+        trimmedFeedback,
+        context as ExtractedContext,
+        template
+      );
+    }
+
+    if (!finalPrompt) {
+      return NextResponse.json(
+        { error: 'Prompt is required to generate lyrics' },
+        { status: 400 }
+      );
+    }
+
+    const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '60');
+    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '200');
+    const promptLength = finalPrompt.length;
+
+    if (promptLength < minChars) {
       return NextResponse.json(
         {
-          error: `Prompt is too long. Maximum ${MAX_PROMPT_LENGTH} characters allowed.`,
-          promptLength: prompt.length,
+          error: `Prompt is too short. Minimum ${minChars} characters required.`,
+          promptLength,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (promptLength > maxChars) {
+      return NextResponse.json(
+        {
+          error: `Prompt is too long. Maximum ${maxChars} characters allowed.`,
+          promptLength,
         },
         { status: 400 }
       );
@@ -52,14 +142,14 @@ export async function POST(request: NextRequest) {
 
     // Task 3.13: Log request
     console.log('=== SUNO LYRICS GENERATION REQUEST ===');
-    console.log('Prompt length:', prompt.length);
-    console.log('Has previous lyrics:', !!previousLyrics);
-    console.log('Has feedback:', !!feedback);
+    console.log('Prompt length:', promptLength);
+    console.log('Has previous lyrics:', !!normalizedPreviousLyrics);
+    console.log('Has feedback:', !!trimmedFeedback);
     console.log('Callback URL:', callBackUrl || 'none');
 
     // Build request body
     const requestBody: Record<string, any> = {
-      prompt: prompt,
+      prompt: finalPrompt,
     };
 
     if (callBackUrl) {
@@ -149,6 +239,9 @@ export async function POST(request: NextRequest) {
     console.log('=== SUNO LYRICS GENERATION SUCCESS ===');
     console.log('Task ID:', taskId);
 
+    setLyricsTaskGenerating(taskId);
+    pruneLyricsCache();
+
     // Task 3.8: Return task_id and status to client
     return NextResponse.json({
       taskId,
@@ -196,57 +289,151 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Poll Suno API for lyrics status
-    const apiUrl = `${SUNO_API_BASE}/get-lyrics-generation-details?task_id=${taskId}`;
-    console.log('Polling Suno lyrics status:', apiUrl);
+    pruneLyricsCache();
+    const cached = getLyricsTask(taskId);
 
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${SUNO_API_KEY}`,
-      },
-    });
-
-    const responseText = await response.text();
-    console.log('Suno lyrics status response:', responseText);
-
-    if (!response.ok) {
-      console.error('Lyrics status check failed:', responseText);
-
-      if (response.status === 404) {
-        return NextResponse.json({ status: 'generating' });
-      }
-
-      return NextResponse.json(
-        { error: 'Failed to get lyrics status', details: responseText },
-        { status: response.status }
-      );
+    if (cached?.status === 'complete' && cached.lyrics?.length) {
+      return NextResponse.json({
+        status: 'complete',
+        lyrics: cached.lyrics.join('\n\n---\n\n'),
+        variants: cached.lyrics,
+        taskId,
+      });
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      return NextResponse.json(
-        { error: 'Invalid JSON response', details: responseText },
-        { status: 500 }
-      );
+    if (cached?.status === 'failed') {
+      return NextResponse.json({
+        status: 'failed',
+        error: cached.error || 'Lyrics generation failed',
+        taskId,
+      });
+    }
+
+    const endpoints = [
+      { method: 'POST', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskId } },
+      { method: 'POST', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskIdList: [taskId] } },
+      { method: 'GET', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?taskId=${taskId}` },
+      { method: 'GET', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?task_id=${taskId}` },
+      { method: 'POST', url: `${SUNO_API_BASE}/get-lyrics-generation-details`, body: { taskId } },
+      { method: 'POST', url: `${SUNO_API_BASE}/get-lyrics-generation-details`, body: { taskIdList: [taskId] } },
+      { method: 'GET', url: `${SUNO_API_BASE}/get-lyrics-generation-details?taskId=${taskId}` },
+      { method: 'GET', url: `${SUNO_API_BASE}/get-lyrics-generation-details?task_id=${taskId}` },
+      { method: 'GET', url: `${SUNO_API_BASE}/generate/get-lyrics-generation-details?taskId=${taskId}` },
+      { method: 'GET', url: `${SUNO_API_BASE}/generate/get-lyrics-generation-details?task_id=${taskId}` },
+      { method: 'GET', url: `${SUNO_API_BASE}/generate/record-info?task_id=${taskId}` },
+    ];
+
+    let data: any = null;
+    let lastStatus = 0;
+    let lastBody = '';
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log('Polling Suno lyrics status:', endpoint.method, endpoint.url);
+        const response = await fetch(endpoint.url, {
+          method: endpoint.method,
+          headers: {
+            Authorization: `Bearer ${SUNO_API_KEY}`,
+            ...(endpoint.body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          ...(endpoint.body ? { body: JSON.stringify(endpoint.body) } : {}),
+        });
+
+        lastStatus = response.status;
+        lastBody = await response.text();
+        console.log('Suno lyrics status response:', lastBody);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            continue; // Try next endpoint
+          }
+
+          return NextResponse.json(
+            { error: 'Failed to get lyrics status', details: lastBody },
+            { status: response.status }
+          );
+        }
+
+        try {
+          const parsed = JSON.parse(lastBody);
+          const numericCode =
+            typeof parsed.code !== 'undefined' && parsed.code !== null
+              ? Number(parsed.code)
+              : undefined;
+
+          if (numericCode && !Number.isNaN(numericCode) && ![0, 200].includes(numericCode)) {
+            const message = String(parsed.msg || parsed.message || '');
+            if (numericCode === 400 && message.includes('任务')) {
+              data = null;
+              continue;
+            }
+            if (numericCode === 404) {
+              data = null;
+              continue;
+            }
+          }
+
+          data = parsed;
+          break; // Successful parse
+        } catch (e) {
+          return NextResponse.json(
+            { error: 'Invalid JSON response', details: lastBody },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        console.error('Error polling Suno lyrics status:', error);
+      }
+    }
+
+    if (!data) {
+      console.warn('No lyrics status data found, assuming still generating');
+      return NextResponse.json({ status: 'generating', taskId });
     }
 
     // Check status
-    const status = data.status || data.data?.status;
-    const lyrics = data.lyrics || data.data?.lyrics;
+    const status =
+      data.status ||
+      data.state ||
+      data.data?.status ||
+      data.data?.state ||
+      data.data?.record?.status ||
+      data.data?.record?.state ||
+      data.data?.data?.status ||
+      (Array.isArray(data.data) ? data.data[0]?.status || data.data[0]?.state : null) ||
+      (Array.isArray(data.data?.data) ? data.data.data[0]?.status || data.data.data[0]?.state : null);
 
-    if (status === 'SUCCESS' && lyrics) {
+    const lyrics =
+      data.lyrics ||
+      data.data?.lyrics ||
+      data.data?.record?.lyrics ||
+      data.data?.data?.lyrics ||
+      (Array.isArray(data.data) ? data.data[0]?.lyrics : null) ||
+      (Array.isArray(data.data?.data) ? data.data.data[0]?.lyrics : null);
+
+    const successStates = ['SUCCESS', 'COMPLETE', 'DONE', 'COMPLETED'];
+    const normalizedStatus = String(status || '').toUpperCase();
+
+    if (successStates.includes(normalizedStatus) && lyrics) {
+      const lyricsArray = Array.isArray(lyrics)
+        ? lyrics.filter((item: any) => typeof item === 'string')
+        : [String(lyrics)];
+
+      setLyricsTaskComplete(taskId, lyricsArray);
+
       return NextResponse.json({
         status: 'complete',
-        lyrics,
+        lyrics: lyricsArray.join('\n\n---\n\n'),
+        variants: lyricsArray,
         taskId,
       });
-    } else if (status === 'FAILED' || status === 'CREATE_TASK_FAILED') {
+    } else if (['FAILED', 'FAIL', 'CREATE_TASK_FAILED', 'ERROR'].includes(normalizedStatus)) {
+      const errorMessage = data.message || data.msg || data.error || 'Lyrics generation failed';
+      setLyricsTaskFailed(taskId, errorMessage);
       return NextResponse.json({
         status: 'failed',
-        error: data.message || data.msg || 'Lyrics generation failed',
+        error: errorMessage,
+        taskId,
       });
     }
 

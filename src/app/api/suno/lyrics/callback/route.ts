@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/adminDb';
+import { setLyricsTaskComplete, setLyricsTaskFailed, pruneLyricsCache } from '../cache';
 
 /**
  * Suno Lyrics Callback Handler
@@ -34,6 +35,24 @@ export async function POST(request: NextRequest) {
     console.log('Status:', status);
     console.log('Has lyrics:', !!lyrics);
 
+    pruneLyricsCache();
+
+    const lyricVariants: string[] = Array.isArray(payload?.data?.data)
+      ? payload.data.data
+          .map((entry: any) => entry?.text)
+          .filter((entry: any) => typeof entry === 'string' && entry.trim().length > 0)
+      : lyrics
+      ? [String(lyrics)]
+      : [];
+
+    if (taskId) {
+      if (lyricVariants.length > 0) {
+        setLyricsTaskComplete(taskId, lyricVariants);
+      } else if (status && typeof status === 'string' && status.toUpperCase().includes('FAIL')) {
+        setLyricsTaskFailed(taskId, status);
+      }
+    }
+
     // Get admin DB for server-side operations
     const adminDb = getAdminDb();
 
@@ -47,12 +66,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 3.11: Update conversation or create lyrics entity in InstantDB
-    if (conversationId && lyrics) {
+    if (conversationId && lyricVariants.length > 0) {
       try {
         // Option 1: Store in conversation entity
         await adminDb.transact([
           adminDb.tx.conversations[conversationId].update({
-            generatedLyrics: lyrics,
+            generatedLyrics: lyricVariants[0],
             lyricsTaskId: taskId,
             lyricsStatus: status === 'SUCCESS' ? 'complete' : status,
             updatedAt: Date.now(),
@@ -66,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If no conversationId, try to find by taskId
-    if (!conversationId && taskId) {
+    if (!conversationId && taskId && lyricVariants.length > 0) {
       try {
         const { conversations } = await adminDb.query({
           conversations: {
@@ -78,7 +97,7 @@ export async function POST(request: NextRequest) {
           const conv = conversations[0];
           await adminDb.transact([
             adminDb.tx.conversations[conv.id].update({
-              generatedLyrics: lyrics,
+              generatedLyrics: lyricVariants[0],
               lyricsStatus: status === 'SUCCESS' ? 'complete' : status,
               updatedAt: Date.now(),
             }),
