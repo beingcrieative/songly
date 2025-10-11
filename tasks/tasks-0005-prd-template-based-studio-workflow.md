@@ -8,8 +8,8 @@ Based on: `0005-prd-template-based-studio-workflow.md`
 - ✅ `src/templates/music-templates.ts` - Template configurations with Suno parameters (CREATED)
 - ✅ `public/templates/.gitkeep` - Template assets directory (CREATED)
 - ✅ `genereermuziek.md` - Audio generation instructions (CREATED)
-- `src/components/TemplateSelector.tsx` - Template selection component (left pane)
-- `src/components/TemplateCard.tsx` - Individual template display card
+- ✅ `src/components/TemplateSelector.tsx` - Template selection component (left pane) (CREATED)
+- ✅ `src/components/TemplateCard.tsx` - Individual template display card (CREATED)
 - `src/components/AdvancedControlsPanel.tsx` - Advanced Suno parameters panel
 - `src/components/KaraokeLyrics.tsx` - Synchronized lyrics display component
 - `src/components/ErrorModal.tsx` - Error handling modal with recovery options
@@ -63,17 +63,17 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 1.7 Create template getter utility function `getTemplateById(id: string)`
   - [x] 1.8 Create template validation function to ensure all required fields present
 
-- [ ] 2.0 Build Template Selector UI Component
-  - [ ] 2.1 Create `src/components/TemplateCard.tsx` component
-  - [ ] 2.2 Add template name, description, and image display to TemplateCard
-  - [ ] 2.3 Add mini audio player to TemplateCard with play/pause button
-  - [ ] 2.4 Add visual selection state (highlight border when selected)
-  - [ ] 2.5 Create `src/components/TemplateSelector.tsx` parent component
-  - [ ] 2.6 Map all templates to TemplateCard components
-  - [ ] 2.7 Add "Verras Me" card with special styling (sparkle icon ✨)
-  - [ ] 2.8 Implement template selection handler with state update
-  - [ ] 2.9 Add responsive layout for template cards (stack on mobile)
-  - [ ] 2.10 Style with existing pink/romantic theme (pink-500 for selected state)
+- [x] 2.0 Build Template Selector UI Component
+  - [x] 2.1 Create `src/components/TemplateCard.tsx` component
+  - [x] 2.2 Add template name, description, and image display to TemplateCard
+  - [x] 2.3 Add mini audio player to TemplateCard with play/pause button
+  - [x] 2.4 Add visual selection state (highlight border when selected)
+  - [x] 2.5 Create `src/components/TemplateSelector.tsx` parent component
+  - [x] 2.6 Map all templates to TemplateCard components
+  - [x] 2.7 Add "Verras Me" card with special styling (sparkle icon ✨)
+  - [x] 2.8 Implement template selection handler with state update
+  - [x] 2.9 Add responsive layout for template cards (stack on mobile)
+  - [x] 2.10 Style with existing pink/romantic theme (pink-500 for selected state)
 
 - [ ] 3.0 Implement Suno Lyrics Generation API
   - [ ] 3.1 Create `src/lib/utils/sunoLyricsPrompt.ts` with `buildSunoLyricsPrompt()` function
