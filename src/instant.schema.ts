@@ -51,6 +51,9 @@ const _schema = i.schema({
       version: i.number().optional(),
       imageUrl: i.string().optional(),
       videoUrl: i.string().optional(),
+      // Task 5.1, 5.2: Template-related fields
+      templateId: i.string().indexed().optional(), // Selected template ID
+      lyricsTaskId: i.string().optional(), // Suno lyrics generation task ID
     }),
     sunoVariants: i.entity({
       songId: i.string().indexed(),
@@ -67,6 +70,9 @@ const _schema = i.schema({
       tags: i.string().optional(),
       createdAt: i.number().indexed().optional(),
       order: i.number().optional(),
+      // Task 5.3, 5.4: Progressive loading timestamps
+      streamAvailableAt: i.number().optional(), // Timestamp when streaming URL became available
+      downloadAvailableAt: i.number().optional(), // Timestamp when download URL became available
     }),
     todos: i.entity({
       createdAt: i.number().optional(),

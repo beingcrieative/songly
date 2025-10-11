@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
       model,
       makeInstrumental,
       instrumental,
+      // Task 5.6: Accept template configuration
+      templateConfig,
     } = await request.json();
 
     if (!lyrics) {
@@ -133,7 +135,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolvedModel = (model || DEFAULT_MODEL).toUpperCase();
+    // Task 5.7: Use template config to override model and tags
+    const resolvedModel = (templateConfig?.model || model || DEFAULT_MODEL).toUpperCase();
     const wantsInstrumental = Boolean(makeInstrumental ?? instrumental ?? false);
 
     // Build vocal description and tags from preferences
@@ -147,8 +150,8 @@ export async function POST(request: NextRequest) {
       console.log('Enhanced prompt with vocal description:', vocalDescription);
     }
 
-    // Enhance tags with vocal characteristics
-    let enhancedTags = musicStyle || 'romantic ballad';
+    // Task 5.8: Enhance tags with template config and vocal characteristics
+    let enhancedTags = templateConfig?.tags || musicStyle || 'romantic ballad';
     const extraTags: string[] = [];
     if (!wantsInstrumental) {
       if (vocalTags.length > 0) extraTags.push(...vocalTags);
@@ -160,7 +163,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare request body volgens Suno API docs
-    const requestBody = {
+    const requestBody: any = {
       custom_mode: true,
       prompt: enhancedPrompt,
       title: title || 'Untitled Love Song',
@@ -173,6 +176,17 @@ export async function POST(request: NextRequest) {
         ? `${SUNO_CALLBACK_URL}?songId=${encodeURIComponent(songId)}`
         : SUNO_CALLBACK_URL,
     };
+
+    // Task 5.9-5.11: Add advanced Suno parameters from template config
+    if (templateConfig?.styleWeight !== undefined) {
+      requestBody.style_weight = templateConfig.styleWeight;
+    }
+    if (templateConfig?.weirdnessConstraint !== undefined) {
+      requestBody.weirdness_constraint = templateConfig.weirdnessConstraint;
+    }
+    if (templateConfig?.audioWeight !== undefined) {
+      requestBody.audio_weight = templateConfig.audioWeight;
+    }
 
     console.log('Request Body:', JSON.stringify(requestBody, null, 2));
 

@@ -742,7 +742,12 @@ export default function StudioPage() {
     setCurrentSong({ songId, title, lyrics, musicStyle });
 
     try {
-      // Task 3.4: Call POST /api/suno
+      // Task 5.0: Get template config for music generation
+      const template = selectedTemplateId
+        ? getTemplateById(selectedTemplateId)
+        : getTemplateById('romantic-ballad');
+
+      // Task 3.4: Call POST /api/suno with template config
       const response = await fetch('/api/suno', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -752,6 +757,8 @@ export default function StudioPage() {
           lyrics,
           musicStyle,
           model: 'V4',
+          // Task 5.0: Pass template configuration
+          templateConfig: template?.sunoConfig,
         }),
       });
 
