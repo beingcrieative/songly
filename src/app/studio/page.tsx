@@ -129,6 +129,16 @@ export default function StudioPage() {
     }
   }, [messages]);
 
+  // Task 7.9: Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentSong?.songId || !songData?.songs) return;
 
@@ -807,6 +817,7 @@ export default function StudioPage() {
   /**
    * Poll Suno API for status updates
    * Task 3.9, 3.10, 3.11: Polling with timeout
+   * Task 7.2-7.8: Enhanced polling with progressive loading support
    */
   const startPolling = (songId: string, taskId: string) => {
     let pollCount = 0;
@@ -820,7 +831,7 @@ export default function StudioPage() {
     pollingIntervalRef.current = setInterval(async () => {
       pollCount++;
 
-      // Task 3.11: 120-second timeout
+      // Task 7.8: 120-second timeout
       if (pollCount > maxPolls) {
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
@@ -830,23 +841,61 @@ export default function StudioPage() {
         setGenerationStage(null);
         console.error('Music generation timed out');
 
-        // Task 6.8: Timeout error handling
         setGenerationError('Generatie duurt langer dan verwacht');
         return;
       }
 
       try {
+        // Task 7.4: Poll Suno API every 5 seconds
         const response = await fetch(`/api/suno?taskId=${taskId}`);
         const data = await response.json();
 
+        // Task 7.5, 7.6: Parse polling response and update InstantDB with URLs
+        if (data.tracks && data.tracks.length > 0) {
+          const hasStreamUrl = data.tracks.some((t: any) => t.streamAudioUrl);
+          const hasDownloadUrl = data.tracks.some((t: any) => t.audioUrl);
+
+          // Update InstantDB with progressive URLs if found
+          if (hasStreamUrl || hasDownloadUrl) {
+            const now = Date.now();
+            const updates = data.tracks.map((track: any, index: number) => {
+              const trackId = track.trackId;
+              const updateData: any = {
+                songId: songId,
+                trackId: trackId,
+                title: track.title || `Versie ${index + 1}`,
+                streamAudioUrl: track.streamAudioUrl || null,
+                audioUrl: track.audioUrl || null,
+                imageUrl: track.imageUrl || null,
+                durationSeconds: track.durationSeconds || null,
+                order: index,
+              };
+
+              // Set timestamps based on what URLs are available
+              if (track.streamAudioUrl && !track.audioUrl) {
+                updateData.streamAvailableAt = now;
+              } else if (track.audioUrl) {
+                updateData.downloadAvailableAt = now;
+              }
+
+              return db.tx.sunoVariants[trackId]
+                .update(updateData)
+                .link({ song: songId });
+            });
+
+            await db.transact(updates);
+            console.log('Updated variants from polling with progressive URLs');
+          }
+        }
+
+        // Task 7.7: Stop polling when status is complete or SUCCESS
         if (data.status === 'ready' || data.status === 'complete') {
-          // Task 3.10: Stop polling on completion
+          // Task 7.9: Clear polling interval
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
 
-          // Task 3.12: Show variant selector
           setIsGeneratingMusic(false);
           setGenerationStage(null);
           setShowVariantSelector(true);
@@ -871,7 +920,7 @@ export default function StudioPage() {
       } catch (error) {
         console.error('Polling error:', error);
       }
-    }, 5000);
+    }, 5000); // Task 7.4: Poll every 5 seconds
   };
 
   if (!DEV_MODE && user.isLoading) {

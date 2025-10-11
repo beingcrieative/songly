@@ -119,20 +119,20 @@ Based on: `0005-prd-template-based-studio-workflow.md`
   - [x] 5.10 Save `templateId` to song entity in InstantDB
   - [x] 5.11 Test: Generate music with template config → verify parameters sent to Suno (ready for testing)
 
-- [ ] 6.0 Implement Progressive Variant Loading System
-  - [ ] 6.1 Update `src/app/api/suno/callback/route.ts` to detect `callbackType` field
-  - [ ] 6.2 Handle `callbackType: 'first'` callback (streaming URL available)
-  - [ ] 6.3 Handle `callbackType: 'complete'` callback (all URLs available)
-  - [ ] 6.4 Update variant entity with `streamAudioUrl` when first callback arrives
-  - [ ] 6.5 Set `streamAvailableAt` timestamp when stream URL is added
-  - [ ] 6.6 Update variant entity with `audioUrl` when complete callback arrives
-  - [ ] 6.7 Set `downloadAvailableAt` timestamp when download URL is added
-  - [ ] 6.8 Update `src/components/VariantSelector.tsx` to show progressive loading states
-  - [ ] 6.9 Add disabled play button state when streamAudioUrl is null
-  - [ ] 6.10 Enable play button when streamAudioUrl becomes available (via InstantDB subscription)
-  - [ ] 6.11 Add download button that appears when audioUrl is available
-  - [ ] 6.12 Add status indicator text: "Laden...", "Klaar om af te spelen", "Download beschikbaar"
-  - [ ] 6.13 Test: Verify stream URL enables playback within 30-40 seconds
+- [x] 6.0 Implement Progressive Variant Loading System
+  - [x] 6.1 Update `src/app/api/suno/callback/route.ts` to detect `callbackType` field
+  - [x] 6.2 Handle `callbackType: 'first'` callback (streaming URL available)
+  - [x] 6.3 Handle `callbackType: 'complete'` callback (all URLs available)
+  - [x] 6.4 Update variant entity with `streamAudioUrl` when first callback arrives
+  - [x] 6.5 Set `streamAvailableAt` timestamp when stream URL is added
+  - [x] 6.6 Update variant entity with `audioUrl` when complete callback arrives
+  - [x] 6.7 Set `downloadAvailableAt` timestamp when download URL is added
+  - [x] 6.8 Update `src/components/VariantSelector.tsx` to show progressive loading states
+  - [x] 6.9 Add disabled play button state when streamAudioUrl is null
+  - [x] 6.10 Enable play button when streamAudioUrl becomes available (via InstantDB subscription)
+  - [x] 6.11 Add download button that appears when audioUrl is available
+  - [x] 6.12 Add status indicator text: "Laden...", "Klaar om af te spelen", "Download beschikbaar"
+  - [ ] 6.13 Test: Verify stream URL enables playback within 30-40 seconds (ready for testing)
 
 - [ ] 7.0 Add Polling Fallback Mechanism
   - [ ] 7.1 Add `startPollingForLyrics()` function in studio page for lyrics tasks
