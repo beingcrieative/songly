@@ -76,7 +76,7 @@ export default function SongDetailPage() {
   const mergedVariants = useMemo(() => {
     const map = new Map<string, any>();
     relationVariants.forEach((v) => map.set(v.trackId || v.key, v));
-    callbackVariants.forEach((t) => {
+    callbackVariants.forEach((t: any) => {
       const key = t.trackId || t.key;
       const ex = map.get(key) || t;
       map.set(key, {

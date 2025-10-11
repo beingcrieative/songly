@@ -4,7 +4,7 @@ import { id } from '@instantdb/admin';
 import crypto from 'crypto';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
 
 const LYRIC_VERSION_PROMPT = `Je bent een professionele liedjesschrijver. Genereer of verfijn song lyrics op basis van de conversatie.
 
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: LYRIC_VERSION_PROMPT },
           { role: 'user', content: prompt },
         ],
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 

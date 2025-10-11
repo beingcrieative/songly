@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         model: OPENROUTER_MODEL,
         messages: conversationHistory,
         temperature: 0.8, // Slightly higher for more natural conversation
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 

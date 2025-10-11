@@ -1,0 +1,17 @@
+# Template Assets Directory
+
+This directory contains:
+- Preview audio files for music templates (MP3)
+- Cover images for templates (JPG)
+
+## Files to add:
+- romantic-ballad-preview.mp3
+- romantic-ballad-cover.jpg
+- upbeat-pop-preview.mp3
+- upbeat-pop-cover.jpg
+- acoustic-intimate-preview.mp3
+- acoustic-intimate-cover.jpg
+- surprise-me-cover.jpg
+
+## Note:
+Preview audio files need to be generated via Suno API (see genereermuziek.md)

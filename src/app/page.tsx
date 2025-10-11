@@ -5,10 +5,19 @@ import Link from "next/link";
 import { InstaQLEntity, id } from "@instantdb/react";
 import { db } from "@/lib/db";
 import { type AppSchema } from "@/instant.schema";
+import { isReadyForLyrics } from "@/lib/utils/readinessScore";
+import { VocalPreferences, ExtractedContext } from "@/types/conversation";
+import { parseExtractedContext, stringifyExtractedContext } from "@/lib/utils/contextExtraction";
+import AudioPreferencesPanel from "@/components/AudioPreferencesPanel";
+import { parseLyricsJSON, formatLyricsText, isLyricsJSON } from "@/lib/utils/lyricsFormatter";
 
-type Conversation = InstaQLEntity<AppSchema, "conversations">;
+type Conversation = InstaQLEntity<AppSchema, "conversations", {
+  messages: {};
+  songs: { variants: {} };
+  user: {};
+}>;
 type Message = InstaQLEntity<AppSchema, "messages">;
-type Song = InstaQLEntity<AppSchema, "songs">;
+type Song = InstaQLEntity<AppSchema, "songs", { variants: {} }>;
 type LyricVersion = InstaQLEntity<AppSchema, "lyric_versions">;
 
 type StepConfig = {
@@ -194,6 +203,11 @@ type StoredGenerationParams = {
   tags?: string;
   model?: string;
   makeInstrumental?: boolean;
+  lyricsHistory?: any[];
+  language?: string;
+  vocalGender?: 'male' | 'female' | 'neutral';
+  vocalAge?: 'young' | 'mature' | 'deep';
+  vocalDescription?: string;
 };
 
 type SunoGenerationRequest = {
@@ -319,7 +333,135 @@ export default function Page() {
   );
 }
 
-function ConceptLyricsPanel({ draft, onGenerate, isGenerating }: { draft?: Song; onGenerate: () => void; isGenerating: boolean }) {
+function LyricsDisplay({ lyrics }: { lyrics?: string | null }) {
+  if (!lyrics) {
+    return (
+      <div className="text-[rgba(31,27,45,0.5)] text-sm italic">
+        No lyrics yet...
+      </div>
+    );
+  }
+
+  // Check if lyrics is JSON format
+  if (isLyricsJSON(lyrics)) {
+    const parsed = parseLyricsJSON(lyrics);
+
+    if (parsed) {
+      // Display formatted parsed lyrics
+      const formattedLyrics = formatLyricsText(parsed.lyrics);
+
+      return (
+        <div className="space-y-2">
+          {parsed.title && parsed.title !== 'Untitled' && (
+            <h4 className="font-semibold text-base text-[rgba(31,27,45,0.9)]">
+              {parsed.title}
+            </h4>
+          )}
+          {parsed.style && (
+            <p className="text-xs text-[rgba(31,27,45,0.55)] italic">
+              {parsed.style}
+            </p>
+          )}
+          <div className="lyrics-scroll max-h-[460px] overflow-y-auto leading-relaxed text-[rgba(31,27,45,0.85)]">
+            {formattedLyrics.split('\n').map((line, index) => {
+              // Check if line has bold markers
+              if (line.includes('__BOLD_START__')) {
+                const cleanedLine = line
+                  .replace('__BOLD_START__', '')
+                  .replace('__BOLD_END__', '');
+                return (
+                  <div key={index} className="font-bold mt-3 mb-1 text-[rgba(31,27,45,0.7)]">
+                    {cleanedLine}
+                  </div>
+                );
+              }
+              return (
+                <div key={index} className={line.trim() === '' ? 'h-2' : ''}>
+                  {line || '\u00A0'}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Display as plain text with preserved formatting
+  const formattedLyrics = formatLyricsText(lyrics);
+
+  return (
+    <div className="lyrics-scroll max-h-[460px] overflow-y-auto leading-relaxed text-[rgba(31,27,45,0.85)]">
+      {formattedLyrics.split('\n').map((line, index) => {
+        // Check if line has bold markers
+        if (line.includes('__BOLD_START__')) {
+          const cleanedLine = line
+            .replace('__BOLD_START__', '')
+            .replace('__BOLD_END__', '');
+          return (
+            <div key={index} className="font-bold mt-3 mb-1 text-[rgba(31,27,45,0.7)]">
+              {cleanedLine}
+            </div>
+          );
+        }
+        return (
+          <div key={index} className={line.trim() === '' ? 'h-2' : ''}>
+            {line || '\u00A0'}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConceptLyricsPanel({
+  draft,
+  onGenerate,
+  isGenerating,
+  canGenerate = true,
+  conversation
+}: {
+  draft?: Song;
+  onGenerate: () => void;
+  isGenerating: boolean;
+  canGenerate?: boolean;
+  conversation?: Conversation;
+}) {
+  // Parse vocal preferences from conversation's extractedContext
+  const extractedContext = conversation?.extractedContext
+    ? parseExtractedContext(conversation.extractedContext)
+    : null;
+
+  const vocalPreferences: VocalPreferences = {
+    language: extractedContext?.language,
+    vocalGender: extractedContext?.vocalGender,
+    vocalAge: extractedContext?.vocalAge,
+    vocalDescription: extractedContext?.vocalDescription,
+  };
+
+  const handlePreferencesChange = (newPrefs: VocalPreferences) => {
+    if (!conversation?.id) return;
+
+    // Merge new preferences into existing extractedContext
+    const updatedContext: ExtractedContext = {
+      ...extractedContext,
+      memories: extractedContext?.memories || [],
+      emotions: extractedContext?.emotions || [],
+      partnerTraits: extractedContext?.partnerTraits || [],
+      language: newPrefs.language,
+      vocalGender: newPrefs.vocalGender,
+      vocalAge: newPrefs.vocalAge,
+      vocalDescription: newPrefs.vocalDescription,
+    };
+
+    // Update conversation with new context
+    db.transact(
+      db.tx.conversations[conversation.id].update({
+        extractedContext: stringifyExtractedContext(updatedContext),
+      })
+    );
+  };
+
   return (
     <div className="rounded-2xl border border-white/60 bg-white/85 p-4">
       <div className="heading-subtle">Concept lyrics</div>
@@ -327,11 +469,34 @@ function ConceptLyricsPanel({ draft, onGenerate, isGenerating }: { draft?: Song;
         <>
           <h3 className="mt-2 text-xl font-semibold">{draft.title}</h3>
           <p className="text-xs text-[rgba(31,27,45,0.55)]">{draft.musicStyle} {typeof draft.version === 'number' ? `• v${draft.version}` : ''}</p>
+
+          {/* Audio Preferences Panel */}
+          <div className="mt-4">
+            <AudioPreferencesPanel
+              preferences={vocalPreferences}
+              onChange={handlePreferencesChange}
+              disabled={isGenerating}
+              aiDetectedPrefs={{
+                language: Boolean(extractedContext?.language),
+                vocalGender: Boolean(extractedContext?.vocalGender),
+                vocalAge: Boolean(extractedContext?.vocalAge),
+              }}
+              defaultCollapsed={false}
+            />
+          </div>
+
           <div className="mt-3 rounded-xl border border-white/50 bg-white/70 p-3 text-sm">
-            <div className="lyrics-scroll max-h-[460px] overflow-y-auto whitespace-pre-wrap leading-relaxed text-[rgba(31,27,45,0.85)]">{draft.lyrics}</div>
+            <LyricsDisplay lyrics={draft.lyrics} />
           </div>
           <div className="mt-4 flex items-center justify-end">
-            <button onClick={onGenerate} disabled={isGenerating} className="btn btn-primary">{isGenerating ? 'Bezig…' : 'Maak muziek van deze lyrics'}</button>
+            <button
+              onClick={onGenerate}
+              disabled={isGenerating || !canGenerate}
+              className="btn btn-primary"
+              title={!canGenerate ? 'Voltooi alle 6 rondes en bereik 100% gereedheid om muziek te genereren' : ''}
+            >
+              {isGenerating ? 'Bezig…' : 'Maak muziek van deze lyrics'}
+            </button>
           </div>
         </>
       ) : (
@@ -351,6 +516,7 @@ function AppExperience({ openAuthModal }: { openAuthModal: () => void }) {
   const [activeView, setActiveView] = useState<'studio' | 'library'>('studio');
   // Studio modes: composer or chat
   const [studioMode, setStudioMode] = useState<'composer' | 'chat'>('chat');
+  const [mobileActiveTab, setMobileActiveTab] = useState<'chat' | 'concept'>('chat');
   const [nowPlaying, setNowPlaying] = useState<{ title?: string; url?: string; imageUrl?: string } | null>(null);
   const [isMiniPlaying, setIsMiniPlaying] = useState(false);
   const miniAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -641,9 +807,33 @@ function AppExperience({ openAuthModal }: { openAuthModal: () => void }) {
       model: DEFAULT_SUNO_MODEL,
       makeInstrumental: Boolean(draftSong.instrumental || false),
     };
+
+    // Extract vocal preferences from conversation's extractedContext
+    const extractedContext = conversation?.extractedContext
+      ? parseExtractedContext(conversation.extractedContext)
+      : null;
+
+    const vocalPreferences: VocalPreferences = {
+      language: extractedContext?.language,
+      vocalGender: extractedContext?.vocalGender,
+      vocalAge: extractedContext?.vocalAge,
+      vocalDescription: extractedContext?.vocalDescription,
+    };
+
+    // Save vocal preferences to song's generationParams
+    const generationParams = JSON.stringify({
+      ...vocalPreferences,
+      model: requestPayload.model,
+      instrumental: requestPayload.makeInstrumental,
+    });
+
     try {
       await db.transact([
-        db.tx.songs[songId].update({ status: 'generating', errorMessage: null }),
+        db.tx.songs[songId].update({
+          status: 'generating',
+          errorMessage: null,
+          generationParams,
+        }),
         db.tx.conversations[activeConversationId].update({ status: 'generating_music' }),
       ]);
       const result = await submitSunoGeneration({ songId, requestPayload, conversationId: activeConversationId });
@@ -1038,28 +1228,76 @@ function AppExperience({ openAuthModal }: { openAuthModal: () => void }) {
                   isGenerating={isGenerating}
                 />
               ) : (
-                <div className="grid h-full grid-cols-1 gap-4 p-6 lg:grid-cols-2">
-                  <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/85">
-                    <ChatMessages messages={messages} isGenerating={isGenerating} />
-                    <div className="border-t border-white/40 bg-white/80 p-4">
-                      <PromptChips title={promptConfig.title} prompts={promptConfig.suggestions} onChoose={focusInput} />
-                      <div className="mt-3 rounded-2xl border border-white/60 bg-white/90 p-3">
-                        <textarea
-                          ref={inputRef}
-                          value={userInput}
-                          onChange={(e) => setUserInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                          placeholder={activeStepConfig.helper ?? 'Typ feedback of details...'}
-                          className="min-h-[92px] w-full resize-none bg-transparent text-base leading-relaxed text-[rgba(31,27,45,0.85)] focus:outline-none"
-                          disabled={isGenerating}
-                        />
-                        <div className="mt-3 flex items-center justify-end">
-                          <button onClick={sendMessage} disabled={isGenerating || !userInput.trim()} className="btn btn-primary">{isGenerating ? 'Bezig…' : 'Verstuur'}</button>
+                <div className="flex h-full flex-col p-6">
+                  {/* Mobile Tab Buttons */}
+                  <div className="mb-4 flex gap-2 border-b border-white/40 lg:hidden">
+                    <button
+                      onClick={() => setMobileActiveTab('chat')}
+                      className={`flex-1 pb-3 text-sm font-semibold transition-colors ${
+                        mobileActiveTab === 'chat'
+                          ? 'border-b-2 border-[#7f5af0] text-[#7f5af0]'
+                          : 'text-[rgba(31,27,45,0.5)]'
+                      }`}
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => setMobileActiveTab('concept')}
+                      className={`flex-1 pb-3 text-sm font-semibold transition-colors ${
+                        mobileActiveTab === 'concept'
+                          ? 'border-b-2 border-[#7f5af0] text-[#7f5af0]'
+                          : 'text-[rgba(31,27,45,0.5)]'
+                      }`}
+                    >
+                      Concept
+                    </button>
+                  </div>
+
+                  {/* Desktop: Two columns side by side | Mobile: Tabbed single column */}
+                  <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-2">
+                    {/* Chat Column */}
+                    <div className={`flex flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/85 ${
+                      mobileActiveTab === 'chat' ? 'block' : 'hidden'
+                    } lg:block lg:max-h-[calc(100vh-300px)]`}>
+                      <div className="flex-1 overflow-y-auto">
+                        <ChatMessages messages={messages} isGenerating={isGenerating} />
+                      </div>
+                      <div className="border-t border-white/40 bg-white/80 p-4">
+                        <PromptChips title={promptConfig.title} prompts={promptConfig.suggestions} onChoose={focusInput} />
+                        <div className="mt-3 rounded-2xl border border-white/60 bg-white/90 p-3">
+                          <textarea
+                            ref={inputRef}
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                            placeholder={activeStepConfig.helper ?? 'Typ feedback of details...'}
+                            className="min-h-[92px] w-full resize-none bg-transparent text-base leading-relaxed text-[rgba(31,27,45,0.85)] focus:outline-none"
+                            disabled={isGenerating}
+                          />
+                          <div className="mt-3 flex items-center justify-end">
+                            <button onClick={sendMessage} disabled={isGenerating || !userInput.trim()} className="btn btn-primary">{isGenerating ? 'Bezig…' : 'Verstuur'}</button>
+                          </div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Concept Panel Column */}
+                    <div className={`overflow-y-auto ${
+                      mobileActiveTab === 'concept' ? 'block' : 'hidden'
+                    } lg:block lg:sticky lg:top-6 lg:max-h-[calc(100vh-300px)]`}>
+                      <ConceptLyricsPanel
+                        draft={draftSong}
+                        onGenerate={generateFromDraft}
+                        isGenerating={isGenerating}
+                        canGenerate={
+                          // Require: 6 completed rounds AND draft lyrics exist
+                          (conversation?.currentStep ?? 0) >= 6 &&
+                          Boolean(draftSong?.lyrics && draftSong.lyrics.length > 100)
+                        }
+                        conversation={conversation}
+                      />
+                    </div>
                   </div>
-                  <ConceptLyricsPanel draft={draftSong} onGenerate={generateFromDraft} isGenerating={isGenerating} />
                 </div>
               )}
             </div>
@@ -1292,7 +1530,7 @@ function ChatMessages({ messages, isGenerating }: { messages: Message[]; isGener
 
 function ChatBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
-  const parsedContent = useMemo(() => formatMessage(message.content), [message.content]);
+  const parsedContent = useMemo(() => formatMessage(message.content || ''), [message.content]);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>

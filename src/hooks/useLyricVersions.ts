@@ -31,29 +31,31 @@ export function useLyricVersions({
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Build query based on available IDs
-  const queryConfig = conversationId
-    ? {
-        lyric_versions: {
-          $: {
-            where: { 'conversation.id': conversationId },
-            order: { createdAt: 'desc' },
-          },
+  let queryConfig = null;
+
+  if (conversationId) {
+    queryConfig = {
+      lyric_versions: {
+        $: {
+          where: { 'conversation.id': conversationId },
+          order: { createdAt: 'desc' as const },
         },
-      }
-    : songId
-    ? {
-        lyric_versions: {
-          $: {
-            where: { 'song.id': songId },
-            order: { createdAt: 'desc' },
-          },
+      },
+    };
+  } else if (songId) {
+    queryConfig = {
+      lyric_versions: {
+        $: {
+          where: { 'song.id': songId },
+          order: { createdAt: 'desc' as const },
         },
-      }
-    : null;
+      },
+    };
+  }
 
   // Use InstantDB query
   const { data, isLoading, error } = db.useQuery(
-    enabled && queryConfig ? queryConfig : { lyric_versions: {} }
+    enabled && queryConfig ? queryConfig : null
   );
 
   const versions = (data?.lyric_versions || []) as LyricVersion[];

@@ -3,7 +3,7 @@ import { LYRICS_AGENT_SYSTEM_PROMPT } from '@/lib/prompts/lyricsAgent';
 import { ExtractedContext, LyricsGenerationResponse, UserPreferences } from '@/types/conversation';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
           { role: 'user', content: generationPrompt },
         ],
         temperature: 0.9, // Higher creativity for lyrics
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 
@@ -138,6 +139,13 @@ function buildLyricsGenerationPrompt(
     ? `\n**Relatieduur**: ${context.relationshipLength}`
     : '';
 
+  // User-selected settings (explicit overrides)
+  const preferredLanguage = preferences.language || context.language || 'Nederlands';
+  const preferredVocal = preferences.vocalGender || context.vocalGender || 'neutral';
+  const moodTags = (preferences.mood && preferences.mood.length > 0)
+    ? `\n**Gewenste sfeer**: ${preferences.mood.join(', ')}`
+    : '';
+
   return `Schrijf een persoonlijk liefdesliedje gebaseerd op het volgende gesprek en de geëxtraheerde context.
 
 ## Conversatie Transcript
@@ -146,19 +154,24 @@ ${transcript}
 ## Geëxtraheerde Context
 ${memories}${emotions}${traits}${musicStyle}${specialMoments}${relationshipLength}
 
+## Gebruikersinstellingen (altijd respecteren)
+- Taal: ${preferredLanguage}
+- Stem: ${preferredVocal}
+${moodTags}
+
 ## Instructies
 1. Gebruik de specifieke details en herinneringen uit de conversatie
-2. Weerspiegelook de unieke eigenschappen van de partner
+2. Weerspiegel ook de unieke eigenschappen van de partner
 3. Volg de exacte Suno-structuur: [Couplet 1], [Refrein], [Couplet 2], [Refrein], [Bridge], [Refrein]
-4. Schrijf in natuurlijk, modern Nederlands
-5. Vermijd clichés, gebruik concrete beelden
-6. Zorg voor goede flow en muzikaliteit
+4. Schrijf ALLES in de geselecteerde taal (${preferredLanguage})
+5. Pas de toon/sfeer aan de gekozen mood tags aan (indien gegeven)
+6. Vermijd clichés, gebruik concrete beelden; zorg voor goede flow en muzikaliteit
 
 Retourneer ALLEEN een JSON object met deze exacte structuur:
 {
   "title": "Korte titel (2-5 woorden)",
   "lyrics": "Volledige lyrics met [Couplet], [Refrein], [Bridge] labels",
-  "style": "Suno style description (instrumentatie, vocals, mood)",
+  "style": "Suno style description (instrumentatie, vocals, mood) – neem expliciet de stem (${preferredVocal}), taal (${preferredLanguage}) en eventuele mood tags op",
   "reasoning": "Korte uitleg van je keuzes"
 }`;
 }
@@ -284,6 +297,7 @@ Retourneer als JSON: {"title": "...", "lyrics": "...", "style": "..."}`;
           { role: 'user', content: fallbackPrompt },
         ],
         temperature: 0.8,
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 

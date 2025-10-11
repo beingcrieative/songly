@@ -164,8 +164,8 @@ export function isReadyForLyrics(
   roundNumber: number,
   minRounds: number = 6
 ): boolean {
-  // Must meet minimum rounds AND have sufficient score
-  return roundNumber >= minRounds && score >= 0.7;
+  // Must meet minimum rounds AND have perfect score (100%)
+  return roundNumber >= minRounds && score >= 1.0;
 }
 
 /**

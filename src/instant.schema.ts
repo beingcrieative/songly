@@ -20,6 +20,7 @@ const _schema = i.schema({
       conversationPhase: i.string().indexed().optional(), // 'gathering' | 'generating' | 'refining' | 'complete'
       roundNumber: i.number().optional(), // Current conversation round counter
       readinessScore: i.number().optional(), // 0-1 score indicating readiness for lyrics generation
+      songSettings: i.string().optional(), // JSON of UserPreferences (language, vocalGender, mood)
     }),
     messages: i.entity({
       content: i.string().optional(),

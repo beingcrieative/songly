@@ -6,6 +6,8 @@ import { InstaQLEntity } from "@instantdb/react";
 import { type AppSchema } from "@/instant.schema";
 import { ConversationPhase, ExtractedContext, ConceptLyrics } from "@/types/conversation";
 import { MusicPlayer } from "@/components/MusicPlayer";
+import { SongSettingsPanel } from "@/components/SongSettingsPanel";
+import { UserPreferences } from "@/types/conversation";
 
 type LyricVersion = InstaQLEntity<AppSchema, "lyric_versions">;
 
@@ -46,6 +48,9 @@ interface LyricsPanelProps {
   generationError?: string | null;
   onRetryGeneration?: () => void;
   onAdjustLyrics?: () => void;
+  // Song settings
+  preferences?: UserPreferences;
+  onChangePreferences?: (next: UserPreferences) => void;
 }
 
 export function LyricsPanel({
@@ -67,6 +72,8 @@ export function LyricsPanel({
   generationError,
   onRetryGeneration,
   onAdjustLyrics,
+  preferences,
+  onChangePreferences,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -124,6 +131,16 @@ export function LyricsPanel({
               style={{ width: `${Math.min(100, (readinessScore * 100))}%` }}
             ></div>
           </div>
+        </div>
+
+        {/* Settings (user-selectable) */}
+        <div className="px-6 pb-2">
+          {preferences && onChangePreferences && (
+            <SongSettingsPanel
+              preferences={preferences}
+              onChange={onChangePreferences}
+            />
+          )}
         </div>
 
         {/* Extracted context display */}
@@ -368,6 +385,15 @@ export function LyricsPanel({
       {/* Latest lyrics content */}
       <div className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-pink-50 p-6">
         <div className="mx-auto max-w-2xl">
+          {/* Settings (editable after first generation) */}
+          {preferences && onChangePreferences && (
+            <div className="mb-6">
+              <SongSettingsPanel
+                preferences={preferences}
+                onChange={onChangePreferences}
+              />
+            </div>
+          )}
           {/* Task 5.9, 5.10: Show MusicPlayer at top when song is ready, keep lyrics visible below */}
           {selectedSong && (
             <div className="mb-8">
@@ -391,7 +417,7 @@ export function LyricsPanel({
 
           {/* Lyrics text with section formatting */}
           <div className="whitespace-pre-wrap font-serif text-lg leading-relaxed text-gray-800">
-            {displayLyrics?.lyrics?.split('\n').map((line, idx) => {
+            {displayLyrics?.lyrics?.split('\n').map((line: string, idx: number) => {
               // Highlight section markers like [Couplet 1], [Refrein], [Bridge]
               if (line.match(/^\[.*\]$/)) {
                 return (

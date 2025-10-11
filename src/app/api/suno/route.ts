@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminDb } from '@/lib/adminDb';
+import { parseExtractedContext } from '@/lib/utils/contextExtraction';
+import { buildVocalDescription, buildVocalTags, mergeVocalPreferences } from '@/lib/utils/vocalDescriptionBuilder';
+import { VocalPreferences } from '@/types/conversation';
 
 const SUNO_API_BASE = "https://api.sunoapi.org/api/v1";
 const SUNO_API_KEY = process.env.SUNO_API_KEY || "";
@@ -24,10 +28,90 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch vocal preferences and user mood/language from database if songId is provided
+    let vocalPreferences: VocalPreferences = {};
+    let userMoodTags: string[] = [];
+
+    if (songId) {
+      try {
+        const admin = getAdminDb();
+        if (admin) {
+          // Fetch song with its conversation relationship
+          const songQuery = await admin.query({
+            songs: {
+              $: { where: { id: songId } },
+              conversation: {},
+            },
+          });
+
+          const song = songQuery.songs?.[0];
+
+          if (song) {
+            // Try to get preferences from song's generationParams
+            let songPrefs: VocalPreferences = {};
+            if (song.generationParams) {
+              try {
+                const parsed = JSON.parse(song.generationParams);
+                songPrefs = {
+                  language: parsed.language,
+                  vocalGender: parsed.vocalGender,
+                  vocalAge: parsed.vocalAge,
+                  vocalDescription: parsed.vocalDescription,
+                };
+              } catch (e) {
+                console.warn('Failed to parse song generationParams:', e);
+              }
+            }
+
+            // Try to get preferences from conversation's extractedContext
+            let conversationPrefs: VocalPreferences = {};
+            const conversation = Array.isArray(song.conversation) ? song.conversation[0] : song.conversation;
+            if (conversation?.extractedContext) {
+              const context = parseExtractedContext(conversation.extractedContext);
+              if (context) {
+                conversationPrefs = {
+                  language: context.language,
+                  vocalGender: context.vocalGender,
+                  vocalAge: context.vocalAge,
+                  vocalDescription: context.vocalDescription,
+                };
+              }
+            }
+
+            // Try to get explicit song settings from conversation.songSettings
+            if (conversation?.songSettings) {
+              try {
+                const s = JSON.parse(conversation.songSettings);
+                conversationPrefs = {
+                  language: s.language ?? conversationPrefs.language,
+                  vocalGender: s.vocalGender ?? conversationPrefs.vocalGender,
+                  vocalAge: s.vocalAge ?? conversationPrefs.vocalAge,
+                  vocalDescription: s.vocalDescription ?? conversationPrefs.vocalDescription,
+                };
+                if (Array.isArray(s.mood)) {
+                  userMoodTags = s.mood.filter((x: any) => typeof x === 'string');
+                }
+              } catch (e) {
+                console.warn('Failed to parse conversation.songSettings:', e);
+              }
+            }
+
+            // Merge preferences (song-level takes precedence)
+            vocalPreferences = mergeVocalPreferences(conversationPrefs, songPrefs);
+            console.log('Merged vocal preferences:', vocalPreferences);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching vocal preferences:', error);
+        // Continue with empty preferences rather than failing
+      }
+    }
+
     console.log('=== SUNO API REQUEST DEBUG ===');
     console.log('Title:', title);
     console.log('Music Style:', musicStyle);
     console.log('Lyrics length:', lyrics?.length);
+    console.log('Vocal Preferences:', vocalPreferences);
     console.log('API Key present:', !!SUNO_API_KEY);
     console.log('API Key (first 10 chars):', SUNO_API_KEY.substring(0, 10));
     console.log('Requested Model:', model || DEFAULT_MODEL);
@@ -52,12 +136,35 @@ export async function POST(request: NextRequest) {
     const resolvedModel = (model || DEFAULT_MODEL).toUpperCase();
     const wantsInstrumental = Boolean(makeInstrumental ?? instrumental ?? false);
 
+    // Build vocal description and tags from preferences
+    const vocalDescription = buildVocalDescription(vocalPreferences);
+    const vocalTags = buildVocalTags(vocalPreferences);
+
+    // Enhance prompt with vocal description
+    let enhancedPrompt = lyrics;
+    if (vocalDescription && !wantsInstrumental) {
+      enhancedPrompt = `${lyrics}\n\n${vocalDescription}`;
+      console.log('Enhanced prompt with vocal description:', vocalDescription);
+    }
+
+    // Enhance tags with vocal characteristics
+    let enhancedTags = musicStyle || 'romantic ballad';
+    const extraTags: string[] = [];
+    if (!wantsInstrumental) {
+      if (vocalTags.length > 0) extraTags.push(...vocalTags);
+      if (userMoodTags.length > 0) extraTags.push(...userMoodTags);
+    }
+    if (extraTags.length > 0) {
+      enhancedTags = `${enhancedTags}, ${extraTags.join(', ')}`;
+      console.log('Enhanced tags with extras:', extraTags);
+    }
+
     // Prepare request body volgens Suno API docs
     const requestBody = {
       custom_mode: true,
-      prompt: lyrics,
+      prompt: enhancedPrompt,
       title: title || 'Untitled Love Song',
-      tags: musicStyle || 'romantic ballad',
+      tags: enhancedTags,
       model: resolvedModel,
       mv: resolvedModel, // compat voor oudere API versies
       make_instrumental: wantsInstrumental,

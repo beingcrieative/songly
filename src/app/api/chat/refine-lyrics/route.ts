@@ -3,7 +3,7 @@ import { LYRICS_AGENT_SYSTEM_PROMPT } from '@/lib/prompts/lyricsAgent';
 import { ExtractedContext, LyricsGenerationResponse } from '@/types/conversation';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
 
 interface RefineRequest {
   previousLyrics: {
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
           { role: 'user', content: refinementPrompt },
         ],
         temperature: 0.9,
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 

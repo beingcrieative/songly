@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3.1:free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
 
 // Configureerbaar: maximum aantal conversatie rondes voordat lyrics gegenereerd worden
 const MAX_CONVERSATION_ROUNDS = parseInt(process.env.MAX_CONVERSATION_ROUNDS || '8');
@@ -74,6 +74,7 @@ async function generateComposerContext(messages: any[]): Promise<string | null> 
           { role: 'system', content: COMPOSER_CONTEXT_PROMPT },
           { role: 'user', content: `Conversatie:\n${conversationSummary}` },
         ],
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 
@@ -169,6 +170,7 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
         messages: conversationHistory,
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 
@@ -301,6 +303,7 @@ Formatteer je antwoord EXACT als dit JSON object (geen andere tekst):
           content: lyricsPrompt,
         },
       ],
+      route: 'fallback', // Allow fallback to paid models if free model unavailable
     }),
   });
 
@@ -368,6 +371,7 @@ Leveringsprotocol (zichtbaar + verborgen):
       messages: [
         { role: 'user', content: prompt },
       ],
+      route: 'fallback', // Allow fallback to paid models if free model unavailable
     }),
   });
 

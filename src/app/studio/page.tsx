@@ -8,7 +8,7 @@ import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
-import { ConversationPhase, ExtractedContext, ConceptLyrics } from "@/types/conversation";
+import { ConversationPhase, ExtractedContext, ConceptLyrics, UserPreferences } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
@@ -38,6 +38,12 @@ export default function StudioPage() {
   const [readinessScore, setReadinessScore] = useState(0);
   const [latestLyrics, setLatestLyrics] = useState<any | null>(null);
   const [conceptLyrics, setConceptLyrics] = useState<ConceptLyrics | null>(null);
+  // Song settings (user-controlled)
+  const [songSettings, setSongSettings] = useState<UserPreferences>({
+    language: 'Nederlands',
+    vocalGender: 'neutral',
+    mood: ['romantisch'],
+  });
 
   // Music generation state
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
@@ -61,7 +67,16 @@ export default function StudioPage() {
               id: currentSong.songId,
             },
           },
-          sunoVariants: {},
+          variants: {},
+        }
+      : {},
+  });
+
+  // Subscribe to conversation to hydrate settings on reload
+  const { data: convData } = db.useQuery({
+    conversations: conversationId
+      ? {
+          $: { where: { id: conversationId } },
         }
       : {},
   });
@@ -90,6 +105,7 @@ export default function StudioPage() {
             conversationPhase: "gathering",
             roundNumber: 0,
             readinessScore: 0,
+            songSettings: JSON.stringify(songSettings),
           })
           .link({ user: currentUser.id }),
       ]);
@@ -126,6 +142,41 @@ export default function StudioPage() {
       setShowVariantSelector(true);
     }
   }, [songData, currentSong?.songId]);
+
+  // Hydrate local state from DB when available
+  useEffect(() => {
+    try {
+      const conv = convData?.conversations?.[0];
+      if (conv?.songSettings) {
+        const parsed = JSON.parse(conv.songSettings);
+        // Only update if different to avoid loops
+        const current = JSON.stringify(songSettings);
+        const incoming = JSON.stringify(parsed);
+        if (incoming !== current) {
+          setSongSettings(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse songSettings from DB:', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convData?.conversations]);
+
+  // Persist settings to DB when they change
+  useEffect(() => {
+    if (DEV_MODE || !conversationId) return;
+    (async () => {
+      try {
+        await db.transact([
+          db.tx.conversations[conversationId].update({
+            songSettings: JSON.stringify(songSettings),
+          }),
+        ]);
+      } catch (e) {
+        console.warn('Failed to persist songSettings:', e);
+      }
+    })();
+  }, [songSettings, conversationId]);
 
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue((prev) => {
@@ -207,7 +258,7 @@ export default function StudioPage() {
             content: userInput,
             createdAt: Date.now(),
           })
-          .link({ conversation: conversationId }),
+          .link({ conversation: conversationId || undefined }),
       ]);
     }
 
@@ -294,7 +345,7 @@ export default function StudioPage() {
             content: data.message,
             createdAt: Date.now(),
           })
-          .link({ conversation: conversationId }),
+          .link({ conversation: conversationId || undefined }),
         db.tx.conversations[conversationId!].update({
           roundNumber: currentRound,
           readinessScore: data.readinessScore,
@@ -351,7 +402,7 @@ export default function StudioPage() {
         body: JSON.stringify({
           conversationTranscript: transcript,
           extractedContext: extractedContext,
-          userPreferences: {},
+          userPreferences: songSettings,
         }),
       });
 
@@ -361,14 +412,15 @@ export default function StudioPage() {
         throw new Error(data.error);
       }
 
-      // Create lyrics message
-      const lyricsMessage = {
+      // Do not dump full lyrics into the chat stream.
+      // Instead, post a short notice and render lyrics exclusively in the right panel.
+      const noticeMessage = {
         role: "assistant" as const,
-        content: `🎵 **${data.title}**\n\n${data.lyrics}\n\n*${data.style}*`,
-        lyrics: data,
+        content:
+          "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨",
       };
 
-      setMessages((prev) => [...prev, lyricsMessage]);
+      setMessages((prev) => [...prev, noticeMessage]);
       setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
       setConversationPhase('complete');
 
@@ -441,7 +493,7 @@ export default function StudioPage() {
             createdAt: Date.now(),
             composerContext: data.composerContext || "",
           })
-          .link({ conversation: conversationId }),
+          .link({ conversation: conversationId || undefined }),
       ]);
     }
 
@@ -487,9 +539,8 @@ export default function StudioPage() {
     setConversationPhase('generating');
 
     try {
-      // Get latest lyrics from messages
-      const latestLyricsMessage = messages.slice().reverse().find((m) => m.lyrics);
-      if (!latestLyricsMessage) {
+      // Use latestLyrics state instead of scanning chat messages
+      if (!latestLyrics) {
         throw new Error('No lyrics to refine');
       }
 
@@ -503,7 +554,7 @@ export default function StudioPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          previousLyrics: latestLyricsMessage.lyrics,
+          previousLyrics: latestLyrics,
           feedback: feedback,
           conversationTranscript: transcript,
           extractedContext: extractedContext,
@@ -516,14 +567,14 @@ export default function StudioPage() {
         throw new Error(data.error);
       }
 
-      // Add refined lyrics message
-      const refinedMessage = {
+      // Post a short notice only; keep full refined lyrics in the right panel
+      const refineNotice = {
         role: "assistant" as const,
-        content: `🎵 **${data.title}** (verfijnd)\n\n${data.lyrics}\n\n*${data.style}*${data.reasoning ? `\n\n_${data.reasoning}_` : ''}`,
-        lyrics: data,
+        content:
+          "Ik heb de lyrics aangepast op basis van je feedback. Bekijk de bijgewerkte versie rechts. 💕",
       };
 
-      setMessages((prev) => [...prev, refinedMessage]);
+      setMessages((prev) => [...prev, refineNotice]);
       setLatestLyrics(data);  // Update latestLyrics state for lyrics panel
       setConversationPhase('refining');
 
@@ -590,6 +641,7 @@ export default function StudioPage() {
               title,
               lyrics,
               musicStyle,
+              generationParams: JSON.stringify(songSettings),
               status: 'generating',
               createdAt: Date.now(),
             })
@@ -629,7 +681,7 @@ export default function StudioPage() {
       console.log('Music generation started:', data);
 
       // Store taskId in currentSong
-      setCurrentSong((prev) => prev ? { ...prev, taskId: data.taskId } : null);
+      setCurrentSong((prev: any) => prev ? { ...prev, taskId: data.taskId } : null);
 
       // Task 3.8: Stage transitions (20s, 40s)
       setTimeout(() => setGenerationStage(2), 20000);
@@ -866,7 +918,7 @@ export default function StudioPage() {
 
   // Get current song and variants from query
   const currentSongData = songData?.songs?.find((s: any) => s.id === currentSong?.songId);
-  const variants = currentSongData?.sunoVariants || [];
+  const variants = currentSongData?.variants || [];
 
   // Get selected song data for music player
   const selectedSongData = selectedVariantId && currentSongData
@@ -906,6 +958,8 @@ export default function StudioPage() {
         setGenerationError(null);
         setConversationPhase('refining');
       }}
+      preferences={songSettings}
+      onChangePreferences={setSongSettings}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">

@@ -30,18 +30,30 @@ Identificeer en categoriseer:
 3. **Partner Traits**: Eigenschappen van de partner (bijv. "geduld", "positiviteit", "zorgzaamheid", "humor")
 4. **Music Style**: Gewenste muziekstijl of sfeer (bijv. "rustig akoestisch", "upbeat", "romantisch", "melancholisch")
 5. **Special Moments**: Bijzondere momenten zoals verjaardagen, jubilea, mijlpalen
+6. **Language**: Voorkeurstaal voor het liedje - detecteer uit de conversatietaal of expliciete vermelding (Nederlands, English, Français, Español, etc.)
+7. **Vocal Gender**: Voorkeur voor stem geslacht indien vermeld ("male" voor mannenstem, "female" voor vrouwenstem, "neutral" als geen voorkeur)
+8. **Vocal Age/Tone**: Leeftijdscategorie of toonkarakteristieken van de stem ("young" voor jong & helder 20-30 jaar, "mature" voor warm & volwassen 30-40 jaar, "deep" voor diep & soulvol 40+ jaar)
 
 Retourneer een JSON object in dit exacte format:
 {
   "memories": ["string array van specifieke herinneringen"],
   "emotions": ["string array van emotionele thema's"],
   "partnerTraits": ["string array van eigenschappen"],
-  "musicStyle": "string met muziekstijl of undefined",
-  "specialMoments": ["string array van bijzondere momenten of undefined"],
-  "relationshipLength": "string met duur relatie of undefined"
+  "musicStyle": "string met muziekstijl of null",
+  "specialMoments": ["string array van bijzondere momenten of null"],
+  "relationshipLength": "string met duur relatie of null",
+  "language": "string met voorkeurstaal (bijv. 'English', 'Nederlands') of null",
+  "vocalGender": "string met 'male', 'female', of 'neutral', of null",
+  "vocalAge": "string met 'young', 'mature', of 'deep', of null",
+  "vocalDescription": "string met beschrijving zoals 'warm and soulful', 'powerful', 'raspy', of null"
 }
 
-BELANGRIJK: Retourneer ALLEEN het JSON object, geen andere tekst.`;
+BELANGRIJK:
+- Retourneer ALLEEN het JSON object, geen andere tekst
+- Gebruik null voor ontbrekende waarden, NIET undefined
+- Detecteer language automatisch uit de taal waarin de gebruiker schrijft
+- Voor vocalGender: detecteer uit hints zoals "voor mijn vriendin" (female) of "voor mijn vriend" (male)
+- Voor vocalDescription: combineer alle genoemde stemkenmerken (bijv. "donker", "krachtig", "zacht")`;
 
   const conversationText = messages
     .map((m) => `${m.role}: ${m.content}`)
@@ -63,6 +75,7 @@ BELANGRIJK: Retourneer ALLEEN het JSON object, geen andere tekst.`;
           { role: 'user', content: `Conversatie:\n${conversationText}` },
         ],
         temperature: 0.3, // Lower temperature for more consistent extraction
+        route: 'fallback', // Allow fallback to paid models if free model unavailable
       }),
     });
 
@@ -81,17 +94,30 @@ BELANGRIJK: Retourneer ALLEEN het JSON object, geen andere tekst.`;
     // Try to parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const extracted = JSON.parse(jsonMatch[0]);
+      // Sanitize JSON by replacing undefined with null
+      const sanitizedJson = jsonMatch[0].replace(/:\s*undefined/g, ': null');
+      const extracted = JSON.parse(sanitizedJson);
 
       // Validate and ensure all required fields exist
-      return {
+      const extractedContext = {
         memories: Array.isArray(extracted.memories) ? extracted.memories : [],
         emotions: Array.isArray(extracted.emotions) ? extracted.emotions : [],
         partnerTraits: Array.isArray(extracted.partnerTraits) ? extracted.partnerTraits : [],
-        relationshipLength: extracted.relationshipLength,
-        musicStyle: extracted.musicStyle,
+        relationshipLength: extracted.relationshipLength || undefined,
+        musicStyle: extracted.musicStyle || undefined,
         specialMoments: Array.isArray(extracted.specialMoments) ? extracted.specialMoments : undefined,
+        language: extracted.language || undefined,
+        vocalGender: extracted.vocalGender || undefined,
+        vocalAge: extracted.vocalAge || undefined,
+        vocalDescription: extracted.vocalDescription || undefined,
       };
+
+      // If language was not detected by AI, infer it from conversation
+      if (!extractedContext.language) {
+        extractedContext.language = inferLanguageFromMessages(messages);
+      }
+
+      return extractedContext;
     }
 
     // Fallback: return empty context if parsing fails
@@ -125,6 +151,10 @@ export function mergeContext(
     relationshipLength: newContext.relationshipLength || existing.relationshipLength,
     musicStyle: newContext.musicStyle || existing.musicStyle,
     specialMoments: mergeArrays(existing.specialMoments || [], newContext.specialMoments || []),
+    language: newContext.language || existing.language,
+    vocalGender: newContext.vocalGender || existing.vocalGender,
+    vocalAge: newContext.vocalAge || existing.vocalAge,
+    vocalDescription: newContext.vocalDescription || existing.vocalDescription,
   };
 }
 
@@ -151,6 +181,10 @@ export function parseExtractedContext(jsonString: string | null | undefined): Ex
         relationshipLength: parsed.relationshipLength,
         musicStyle: parsed.musicStyle,
         specialMoments: Array.isArray(parsed.specialMoments) ? parsed.specialMoments : undefined,
+        language: parsed.language,
+        vocalGender: parsed.vocalGender,
+        vocalAge: parsed.vocalAge,
+        vocalDescription: parsed.vocalDescription,
       };
     }
 
@@ -179,6 +213,50 @@ function createEmptyContext(): ExtractedContext {
     emotions: [],
     partnerTraits: [],
   };
+}
+
+/**
+ * Infers the language from conversation messages.
+ * Detects common words in Dutch, English, French, and Spanish.
+ */
+function inferLanguageFromMessages(messages: Array<{ role: string; content: string }>): string | undefined {
+  const userMessages = messages
+    .filter((m) => m.role === 'user')
+    .map((m) => m.content.toLowerCase())
+    .join(' ');
+
+  // Dutch indicators (most common words)
+  const dutchPatterns = /\b(het|de|een|is|van|voor|met|op|dat|in|ik|je|mijn|zijn|hebben|maar|ook)\b/gi;
+  const dutchMatches = userMessages.match(dutchPatterns)?.length || 0;
+
+  // English indicators
+  const englishPatterns = /\b(the|is|a|an|of|for|with|on|that|in|i|you|my|his|her|have|but|also)\b/gi;
+  const englishMatches = userMessages.match(englishPatterns)?.length || 0;
+
+  // French indicators
+  const frenchPatterns = /\b(le|la|les|un|une|est|de|pour|avec|sur|que|dans|je|tu|mon|son|avoir|mais|aussi)\b/gi;
+  const frenchMatches = userMessages.match(frenchPatterns)?.length || 0;
+
+  // Spanish indicators
+  const spanishPatterns = /\b(el|la|los|las|un|una|es|de|para|con|en|que|yo|tu|mi|su|tener|pero|también)\b/gi;
+  const spanishMatches = userMessages.match(spanishPatterns)?.length || 0;
+
+  // Find the language with the most matches
+  const scores = {
+    'Nederlands': dutchMatches,
+    'English': englishMatches,
+    'Français': frenchMatches,
+    'Español': spanishMatches,
+  };
+
+  const maxScore = Math.max(...Object.values(scores));
+
+  // Only return a language if we have enough confidence (at least 3 matches)
+  if (maxScore >= 3) {
+    return Object.keys(scores).find(lang => scores[lang as keyof typeof scores] === maxScore);
+  }
+
+  return undefined;
 }
 
 function mergeArrays(arr1: string[], arr2: string[]): string[] {
