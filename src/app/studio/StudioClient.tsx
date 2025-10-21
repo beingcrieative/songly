@@ -713,10 +713,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     setConversationId(convId);
 
     if (!DEV_MODE) {
+      const now = Date.now();
       db.transact([
         db.tx.conversations[convId]
           .update({
-            createdAt: Date.now(),
+            createdAt: now,
+            updatedAt: now,
             currentStep: 0,
             status: "active",
             conversationPhase: "gathering",

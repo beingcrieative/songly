@@ -53,10 +53,15 @@ export function useLibrarySongs(
   userId: string | undefined,
   options: LibrarySongsOptions
 ) {
-  const effectiveUserId = userId ?? "__none__";
   const limit = options.limit ?? 24;
   const offset = options.offset ?? 0;
-  const whereClauses: Record<string, unknown>[] = [{ "user.id": effectiveUserId }];
+
+  // Build where clauses only if userId exists
+  const whereClauses: Record<string, unknown>[] = [];
+
+  if (userId) {
+    whereClauses.push({ "user.id": userId });
+  }
 
   if (options.status && options.status !== "all") {
     whereClauses.push({ status: options.status });
@@ -85,25 +90,27 @@ export function useLibrarySongs(
           order: { order: "asc" as const },
         },
       },
-      conversation: {
-        id: true,
-      },
     },
   } as const;
 
-  return userId
-    ? db.useQuery(query)
-    : { data: undefined, isLoading: false, error: undefined };
+  // Always call the hook (Rules of Hooks)
+  // If no userId, query will have no user filter and return empty results
+  return db.useQuery(userId ? query : { songs: {} });
 }
 
 export function useLibraryConversations(
   userId: string | undefined,
   options: LibraryConversationsOptions
 ) {
-  const effectiveUserId = userId ?? "__none__";
   const limit = options.limit ?? 20;
   const offset = options.offset ?? 0;
-  const whereClauses: Record<string, unknown>[] = [{ "user.id": effectiveUserId }];
+
+  // Build where clauses only if userId exists
+  const whereClauses: Record<string, unknown>[] = [];
+
+  if (userId) {
+    whereClauses.push({ "user.id": userId });
+  }
 
   if (options.status && options.status !== "all") {
     whereClauses.push({ conversationPhase: options.status });
@@ -130,7 +137,7 @@ export function useLibraryConversations(
     },
   } as const;
 
-  return userId
-    ? db.useQuery(query)
-    : { data: undefined, isLoading: false, error: undefined };
+  // Always call the hook (Rules of Hooks)
+  // If no userId, query will have no user filter and return empty results
+  return db.useQuery(userId ? query : { conversations: {} });
 }
