@@ -4,10 +4,20 @@
  */
 
 export enum LyricsAnalyticsEvent {
+  LYRICS_GENERATION_STARTED = 'lyrics_generation_started',
   LYRICS_OPTIONS_SHOWN = 'lyrics_options_shown',
   LYRICS_OPTION_SELECTED = 'lyrics_option_selected',
   LYRICS_REGENERATED = 'lyrics_regenerated',
   LYRICS_REFINED = 'lyrics_refined',
+  LYRICS_MANUALLY_EDITED = 'lyrics_manually_edited',
+  LYRICS_PROCEEDED_TO_MUSIC = 'lyrics_proceeded_to_music',
+}
+
+interface LyricsGenerationStartedPayload {
+  conversationId?: string;
+  conversationRounds?: number;
+  readinessScore?: number;
+  templateId?: string;
 }
 
 interface LyricsOptionsShownPayload {
@@ -31,6 +41,31 @@ interface LyricsRefinedPayload {
   conversationId?: string;
   refinementType: 'auto' | 'manual_edit';
   hasUsedRefineBefore: boolean;
+}
+
+interface LyricsManuallyEditedPayload {
+  conversationId?: string;
+  lyricsLength: number;
+  hadPreviousVersion: boolean;
+}
+
+interface LyricsProceededToMusicPayload {
+  conversationId?: string;
+  lyricsSource: 'suno' | 'suno-refine' | 'manual-edit';
+  wasRefined: boolean;
+  wasManuallyEdited: boolean;
+}
+
+/**
+ * Task 6.0: Track when lyrics generation starts
+ */
+export function trackLyricsGenerationStarted(payload: LyricsGenerationStartedPayload) {
+  if (typeof window === 'undefined') return;
+
+  console.log('[Analytics]', LyricsAnalyticsEvent.LYRICS_GENERATION_STARTED, payload);
+
+  // TODO: Integrate with your analytics provider
+  // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_GENERATION_STARTED, payload);
 }
 
 /**
@@ -80,6 +115,30 @@ export function trackLyricsRefined(payload: LyricsRefinedPayload) {
 
   // TODO: Integrate with your analytics provider
   // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_REFINED, payload);
+}
+
+/**
+ * Task 6.0: Track when lyrics are manually edited
+ */
+export function trackLyricsManuallyEdited(payload: LyricsManuallyEditedPayload) {
+  if (typeof window === 'undefined') return;
+
+  console.log('[Analytics]', LyricsAnalyticsEvent.LYRICS_MANUALLY_EDITED, payload);
+
+  // TODO: Integrate with your analytics provider
+  // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_MANUALLY_EDITED, payload);
+}
+
+/**
+ * Task 6.0: Track when user proceeds from lyrics to music generation
+ */
+export function trackLyricsProceededToMusic(payload: LyricsProceededToMusicPayload) {
+  if (typeof window === 'undefined') return;
+
+  console.log('[Analytics]', LyricsAnalyticsEvent.LYRICS_PROCEEDED_TO_MUSIC, payload);
+
+  // TODO: Integrate with your analytics provider
+  // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_PROCEEDED_TO_MUSIC, payload);
 }
 
 // Library analytics

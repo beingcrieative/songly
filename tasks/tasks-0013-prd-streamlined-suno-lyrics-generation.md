@@ -81,16 +81,16 @@ Based on PRD: `0013-prd-streamlined-suno-lyrics-generation.md`
   - [x] 5.5 Verify activeLyrics are used in music generation request (latestLyrics used)
   - [x] 5.6 Test end-to-end flow: Conversation → Lyrics → Selection → Parameters → Music (manual testing required)
 
-- [ ] 6.0 Add Analytics Tracking and Error Handling
-  - [ ] 6.1 Add LYRICS_GENERATION_STARTED event to analytics/events.ts
-  - [ ] 6.2 Add LYRICS_MANUALLY_EDITED event to analytics/events.ts
-  - [ ] 6.3 Add LYRICS_PROCEEDED_TO_MUSIC event to analytics/events.ts
-  - [ ] 6.4 Implement trackLyricsGenerationStarted() function
-  - [ ] 6.5 Implement trackLyricsManuallyEdited() function
-  - [ ] 6.6 Implement trackLyricsProceededToMusic() function
-  - [ ] 6.7 Add error modal for timeouts and API failures
-  - [ ] 6.8 Implement retry logic with "Probeer opnieuw" and "Terug naar gesprek" options
-  - [ ] 6.9 Add comprehensive error logging for debugging
+- [x] 6.0 Add Analytics Tracking and Error Handling
+  - [x] 6.1 Add LYRICS_GENERATION_STARTED event to analytics/events.ts
+  - [x] 6.2 Add LYRICS_MANUALLY_EDITED event to analytics/events.ts
+  - [x] 6.3 Add LYRICS_PROCEEDED_TO_MUSIC event to analytics/events.ts
+  - [x] 6.4 Implement trackLyricsGenerationStarted() function
+  - [x] 6.5 Implement trackLyricsManuallyEdited() function
+  - [x] 6.6 Implement trackLyricsProceededToMusic() function
+  - [x] 6.7 Add error modal for timeouts and API failures (already in LyricsPanel)
+  - [x] 6.8 Implement retry logic with "Probeer opnieuw" and "Terug naar gesprek" options (already implemented)
+  - [x] 6.9 Add comprehensive error logging for debugging (console.log/error throughout)
 
 - [ ] 7.0 Testing and Documentation
   - [ ] 7.1 Run all existing unit tests and fix any broken tests
