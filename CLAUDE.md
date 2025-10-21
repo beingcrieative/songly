@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Next.js 15 app called "Liefdesliedje Maker" (Love Song Maker) - a Progressive Web App (PWA) that generates personalized love songs through an AI-powered conversational interface. The app combines:
 
 - **AI Conversational Agent**: Multi-turn chat that gathers relationship context
-- **Lyrics Generation**: OpenRouter-based AI lyrics generation with refinement capabilities
+- **Lyrics Generation**: Suno AI API lyrics generation with 2-variant comparison and one-time refinement
 - **Music Generation**: Suno AI API (v4) integration with variant management
 - **Realtime Database**: InstantDB for storing conversations, messages, songs, and lyrics versions
 - **PWA Features**: Mobile-optimized UI, offline support, push notifications, installable
@@ -24,8 +24,7 @@ This is a Next.js 15 app called "Liefdesliedje Maker" (Love Song Maker) - a Prog
 - **TypeScript 5** with strict mode
 - **Tailwind CSS 4** for styling
 - **InstantDB** for realtime database with type-safe queries
-- **OpenRouter API** (configurable model, default: `openai/gpt-oss-20b:free`)
-- **Suno AI API** (v4 - music generation)
+- **Suno AI API** (v4 - lyrics and music generation)
 - **Vitest** for unit/integration tests
 - **Playwright** for E2E tests
 - **npm 11.5.1** as package manager
@@ -68,9 +67,7 @@ SESSION_SECRET=<random-string>  # Primary session secret
 NEXTAUTH_SECRET=<random-string> # Fallback if SESSION_SECRET not set
 
 # AI Services
-OPENROUTER_API_KEY=sk-or-v1-...  # For lyrics generation via OpenRouter
-OPENROUTER_MODEL=openai/gpt-oss-20b:free  # Optional override
-SUNO_API_KEY=<key>                # For music generation
+SUNO_API_KEY=<key>                # For lyrics and music generation
 
 # Suno Webhook (for local dev, use ngrok)
 SUNO_CALLBACK_URL=https://<domain>/api/suno/callback
@@ -181,8 +178,6 @@ Session bridging: `src/components/auth/SessionBridge.tsx` syncs InstantDB auth t
 - Returns: `{ type: 'message' | 'message_lyrics', content, lyrics?, round }`
 
 **`/api/chat/conversation` (POST)** - Create new conversation
-**`/api/chat/generate-lyrics` (POST)** - Generate lyrics from conversation context
-**`/api/chat/refine-lyrics` (POST)** - Refine existing lyrics with user feedback
 
 #### Suno Music Generation APIs
 
@@ -310,11 +305,10 @@ All mobile routes use session cookies instead of InstantDB auth.
 - `sunoLyricsPrompt.ts` - Build Suno lyrics generation prompts
 - `vocalDescriptionBuilder.ts` - Generate vocal style descriptions
 - `audioHelpers.ts` - Audio utility functions
-- `openrouterClient.ts` - OpenRouter API client wrapper
+- `sunoLyricsPrompt.ts` - Suno lyrics prompt builder
 
 **`src/lib/prompts/`:**
 - `conversationAgent.ts` - Conversation agent system prompts
-- `lyricsAgent.ts` - Lyrics generation agent prompts
 
 **`src/lib/analytics/`:**
 - `events.ts` - Analytics event definitions
@@ -433,13 +427,23 @@ type ConversationWithRelations = InstaQLEntity<
 
 See `prompts/sunomanual.md` for full API documentation.
 
-## OpenRouter Integration
+## Suno Lyrics Integration
 
-Uses OpenRouter with configurable model (default: `openai/gpt-oss-20b:free`) for lyrics generation.
+The app uses Suno's native lyrics generation API to create 2 lyric variants from conversation context. After the conversation reaches a readiness score ≥ 70%, the system:
 
-Key prompts located in `src/lib/prompts/`:
-- `conversationAgent.ts`: Guides conversational flow with context extraction
-- `lyricsAgent.ts`: Lyrics generation and refinement
+1. **Generates 2 Variants**: Calls `/api/suno/lyrics` with context-based prompt
+2. **Shows Progress**: `LyricsGenerationProgress` modal displays during generation (~30-45s)
+3. **Compares Variants**: `LyricsCompare` component shows both variants side-by-side
+4. **User Selects**: User must choose one variant before proceeding
+5. **One-Time Refinement**: Optional feedback-based refinement via same API
+6. **Manual Editing**: Users can manually edit selected lyrics
+7. **Music Generation**: Selected lyrics flow to music generation via ParameterSheet
+
+Key implementation files:
+- `src/lib/utils/sunoLyricsPrompt.ts`: Builds Suno-optimized prompts with context
+- `src/components/LyricsGenerationProgress.tsx`: Progress modal during generation
+- `src/components/LyricsCompare.tsx`: 2-variant comparison UI
+- `src/app/api/suno/lyrics/`: Suno lyrics API routes with callback support
 
 Context extraction pattern in `src/lib/utils/contextExtraction.ts`:
 - Extracts relationship details from conversation
@@ -528,9 +532,7 @@ src/
 │   └── api/
 │       ├── chat/                 # Chat & conversation APIs
 │       │   ├── route.ts          # Legacy chat endpoint
-│       │   ├── conversation/route.ts
-│       │   ├── generate-lyrics/route.ts
-│       │   └── refine-lyrics/route.ts
+│       │   └── conversation/route.ts
 │       ├── suno/                 # Suno music generation APIs
 │       │   ├── route.ts
 │       │   ├── callback/route.ts
@@ -591,8 +593,7 @@ src/
 │   ├── session.ts                # Session management
 │   ├── push.ts                   # Push notification utilities
 │   ├── prompts/                  # AI agent prompts
-│   │   ├── conversationAgent.ts
-│   │   └── lyricsAgent.ts
+│   │   └── conversationAgent.ts
 │   ├── utils/                    # Utility functions
 │   │   ├── contextExtraction.ts
 │   │   ├── readinessScore.ts
@@ -632,8 +633,7 @@ tasks/                            # Product requirement docs (PRDs)
 
 prompts/                          # API documentation
 ├── sunomanual.md                 # Suno API docs
-├── openrouter.md                 # OpenRouter API docs
-└── sunoapi.md                    # Additional Suno docs
+└── sunoapi.md                    # Suno API parameters reference
 
 instant-rules.md                  # Critical InstantDB usage rules (READ FIRST)
 AGENTS.md                         # Repository coding guidelines (READ FIRST)
@@ -655,8 +655,7 @@ AGENTS.md                         # Repository coding guidelines (READ FIRST)
 ## Reference Documentation
 
 - InstantDB: https://instantdb.com/docs (read `instant-rules.md` first)
-- Suno API: https://docs.sunoapi.com (see `prompts/sunomanual.md`)
-- OpenRouter: https://openrouter.ai/docs (see `prompts/openrouter.md`)
+- Suno API: https://docs.sunoapi.com (see `prompts/sunomanual.md` and `sunoapi.md`)
 - Next.js 15: https://nextjs.org/docs
 - Vitest: https://vitest.dev/
 - Playwright: https://playwright.dev/
