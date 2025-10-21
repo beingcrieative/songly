@@ -15,8 +15,7 @@ async function loadSong(
           id: songId,
           "user.id": userId,
         },
-        limit: 1,
-      },
+      } as any,
       variants: {},
     },
   });

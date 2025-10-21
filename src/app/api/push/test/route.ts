@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const admin = getAdminDb();
     if (!admin) return NextResponse.json({ error: 'Admin not configured' }, { status: 500 });
-    const { $users } = await admin.query({ $users: { $: { limit: 1 } } });
+    const { $users } = await admin.query({ $users: {} });
     const user = $users?.[0];
     if (!user) return NextResponse.json({ error: 'no user' }, { status: 404 });
     const { push_subscriptions } = await admin.query({

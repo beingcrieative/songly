@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (!targetSongId && taskId) {
       const { songs } = await adminDb.query({
         songs: {
-          $: { where: { sunoTaskId: taskId } },
+          $: { where: { sunoTaskId: taskId } } as any,
         },
       });
       targetSongId = songs?.[0]?.id ?? null;
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     // Attempt push notification to owner of the song
     try {
       const { songs } = await adminDb.query({
-        songs: { $: { where: { id: targetSongId } }, conversation: { user: {} } },
+        songs: { $: { where: { id: targetSongId } } as any, conversation: { user: {} } },
       });
       const ownerId = songs?.[0]?.conversation?.[0]?.user?.[0]?.id;
       if (ownerId) {
@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
           const payload = { title: 'Je liedje is klaar', body: 'Klik om te luisteren', url: `/studio?songId=${targetSongId}` };
           try {
             const { sendWebPush } = await import('@/lib/push');
-            await Promise.all(subs.map((sub) => sendWebPush(sub as any, payload)));
+            await Promise.all(subs.map((sub) => sendWebPush(sub, payload)));
           } catch (_) {
             // ignore if push not available
           }

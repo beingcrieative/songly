@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     let data: any;
     try {
       data = await openrouterChatCompletion({
-        messages: conversationHistory as any,
+        messages: conversationHistory,
         temperature: 0.8,
         title: 'Liefdesliedje Maker - Conversation',
         // Allow enough room for short chat + optional hidden concept block

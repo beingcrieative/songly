@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin not configured' }, { status: 500 });
     }
 
-    const where = userId ? { id: userId } : { email };
-    const { $users } = await admin.query({ $users: { $: { where } } });
+    const { $users } = userId
+      ? await admin.query({ $users: { $: { where: { id: userId } } } })
+      : await admin.query({ $users: { $: { where: { email: email as string } } } });
     const user = $users?.[0];
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 401 });

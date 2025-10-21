@@ -30,8 +30,7 @@ export async function DELETE(
             id: conversationId,
             "user.id": session.userId,
           },
-          limit: 1,
-        },
+        } as any,
       },
     });
 
@@ -45,7 +44,7 @@ export async function DELETE(
           where: {
             "conversation.id": conversationId,
           },
-        },
+        } as any,
       },
     });
 

@@ -9,7 +9,7 @@ import {
   setLyricsTaskComplete,
 } from "@/app/api/suno/lyrics/cache";
 
-const getAdminDbMock = vi.fn(() => null as any);
+const getAdminDbMock = vi.fn(() => null);
 
 vi.mock("@/lib/adminDb", () => ({
   getAdminDb: () => getAdminDbMock(),

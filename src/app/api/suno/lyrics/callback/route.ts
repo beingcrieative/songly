@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       try {
         const { conversations } = await adminDb.query({
           conversations: {
-            $: { where: { lyricsTaskId: taskId } },
+            $: { where: { lyricsTaskId: taskId } } as any,
           },
         });
 

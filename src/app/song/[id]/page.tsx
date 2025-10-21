@@ -48,7 +48,7 @@ export default function SongDetailPage() {
 
   const { data, isLoading, error } = db.useQuery({
     songs: {
-      $: { where: { id: songId }, limit: 1 },
+      $: { where: { id: songId }, limit: 1 } as any,
       variants: { $: { order: { order: 'asc' } } },
     },
   });

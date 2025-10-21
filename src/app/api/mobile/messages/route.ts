@@ -39,8 +39,7 @@ export async function POST(request: NextRequest) {
           id: conversationId,
           "user.id": session.userId,
         },
-        limit: 1,
-      },
+      } as any,
     },
   });
 

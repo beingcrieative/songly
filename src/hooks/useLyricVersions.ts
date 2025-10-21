@@ -39,7 +39,7 @@ export function useLyricVersions({
         $: {
           where: { 'conversation.id': conversationId },
           order: { createdAt: 'desc' as const },
-        },
+        } as any,
       },
     };
   } else if (songId) {
@@ -48,7 +48,7 @@ export function useLyricVersions({
         $: {
           where: { 'song.id': songId },
           order: { createdAt: 'desc' as const },
-        },
+        } as any,
       },
     };
   }

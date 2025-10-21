@@ -47,8 +47,7 @@ export async function PATCH(
           id: songId,
           "user.id": session.userId,
         },
-        limit: 1,
-      },
+      } as any,
     },
   });
 

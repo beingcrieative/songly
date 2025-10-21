@@ -84,11 +84,11 @@ export function useLibrarySongs(
         order: buildOrder(options.sort),
         limit,
         offset,
-      },
+      } as any,
       variants: {
         $: {
           order: { order: "asc" as const },
-        },
+        } as any,
       },
     },
   } as const;
@@ -133,7 +133,7 @@ export function useLibraryConversations(
         order: buildConversationOrder(options.sort),
         limit,
         offset,
-      },
+      } as any,
     },
   } as const;
 

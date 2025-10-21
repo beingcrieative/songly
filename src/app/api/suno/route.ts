@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
           // Fetch song with its conversation relationship
           const songQuery = await admin.query({
             songs: {
-              $: { where: { id: songId } },
+              $: { where: { id: songId } } as any,
               conversation: {},
             },
           });

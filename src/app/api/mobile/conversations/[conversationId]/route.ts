@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/adminDb";
 import { parseSessionFromRequest } from "@/lib/session";
-import { serializeConversation, type RawConversation } from "../route";
+import { serializeConversation, type RawConversation } from "../utils";
 
 async function fetchConversation(
   admin: NonNullable<ReturnType<typeof getAdminDb>>,
@@ -15,8 +15,7 @@ async function fetchConversation(
           id: conversationId,
           "user.id": userId,
         },
-        limit: 1,
-      },
+      } as any,
     },
   });
 

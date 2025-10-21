@@ -237,7 +237,7 @@ function useConversationData(conversationId: string | null, isMobile: boolean) {
   return db.useQuery({
     conversations: conversationId
       ? {
-          $: { where: { id: conversationId } },
+          $: { where: { id: conversationId } } as any,
         }
       : {},
   });
@@ -255,7 +255,7 @@ function useSongData(currentSong: { songId?: string | null } | null, isMobile: b
             where: {
               id: currentSong.songId,
             },
-          },
+          } as any,
           variants: {},
         }
       : {},
@@ -2532,7 +2532,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
   const handleManualEditSave = (text: string) => {
     if (!text.trim()) return;
-    setLatestLyrics((prev) =>
+    setLatestLyrics((prev: any) =>
       prev
         ? { ...prev, lyrics: text }
         : { title: 'Gekozen Lyrics', lyrics: text, style: templateConfig?.style || '' }

@@ -20,12 +20,12 @@ export default async function ShareSongPage({ params }: SharePageProps) {
           publicId,
           isPublic: true,
         },
-        limit: 1,
-      },
+
+      } as any,
       variants: {
         $: {
           order: { order: "asc" as const },
-        },
+        } as any,
       },
     },
   });

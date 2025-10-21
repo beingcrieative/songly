@@ -93,7 +93,7 @@ export function buildSunoLyricsPrompt(
   template: MusicTemplate,
   language: string = "Nederlands"
 ): string {
-  const { partnerName, memories = [], emotions = [], partnerTraits = [] } = context;
+  const { memories = [], emotions = [], partnerTraits = [] } = context;
 
   if (template.id === "surprise-me") {
     return composePrompt(
@@ -111,7 +111,6 @@ export function buildSunoLyricsPrompt(
   return composePrompt(
     [
       `Schrijf een ${template.name.toLowerCase()} liefdeslied in ${language}.`,
-      partnerName ? `Voor ${partnerName}.` : null,
       memories[0] ? `Belangrijke herinnering: ${shorten(memories[0], 40)}.` : null,
       emotions[0] ? `Dominante emotie: ${shorten(emotions[0], 30)}.` : null,
       partnerTraits[0] ? `Eigenschap: ${shorten(partnerTraits[0], 25)}.` : null,

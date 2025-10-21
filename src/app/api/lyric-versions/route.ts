@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         messages: [
           { role: 'system', content: LYRIC_VERSION_PROMPT },
           { role: 'user', content: prompt },
-        ] as any,
+        ],
         temperature: 0.9,
         title: 'Liefdesliedje Maker - Lyric Version',
       });

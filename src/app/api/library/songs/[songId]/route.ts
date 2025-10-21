@@ -30,8 +30,7 @@ export async function DELETE(
             id: songId,
             "user.id": session.userId,
           },
-          limit: 1,
-        },
+        } as any,
         variants: {},
       },
     });
