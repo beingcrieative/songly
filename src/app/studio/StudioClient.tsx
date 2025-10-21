@@ -7,6 +7,7 @@ import { ConversationalStudioLayout } from "@/components/ConversationalStudioLay
 import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { LyricsCompare } from "@/components/LyricsCompare";
+import { LyricsGenerationProgress } from "@/components/LyricsGenerationProgress";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
 import { TemplateSelector } from "@/components/TemplateSelector";
@@ -304,6 +305,9 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const [pendingLyricVariants, setPendingLyricVariants] = useState<string[]>([]);
   const [isSavingLyricSelection, setIsSavingLyricSelection] = useState(false);
   const [pendingLyricSource, setPendingLyricSource] = useState<'suno' | 'suno-refine'>('suno');
+  // Task 3.0: Lyrics generation progress tracking
+  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
+  const [lyricsPollingAttempts, setLyricsPollingAttempts] = useState(0);
   const [isParameterSheetOpen, setIsParameterSheetOpen] = useState(false);
   const [isMobileLyricsOpen, setIsMobileLyricsOpen] = useState(false);
   // Task 6.1: Error state
@@ -1195,6 +1199,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
    */
   const generateLyrics = async () => {
     try {
+      // Task 3.0: Show generation progress
+      setIsGeneratingLyrics(true);
+      setLyricsPollingAttempts(0);
+
       // Task 4.6: Get selected template or use default
       const template = selectedTemplateId
         ? getTemplateById(selectedTemplateId)
@@ -1266,6 +1274,9 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }
     } catch (error: any) {
       console.error("Lyrics generation error:", error);
+      // Task 3.0: Hide generation progress on error
+      setIsGeneratingLyrics(false);
+      setLyricsPollingAttempts(0);
       setGenerationError(error.message || 'Er ging iets mis bij het genereren van de lyrics.');
       setMessages((prev) => [
         ...prev,
@@ -1290,8 +1301,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
     const poll = async (): Promise<void> => {
       attempts++;
+      // Task 3.0: Update polling attempts in state
+      setLyricsPollingAttempts(attempts);
 
       if (attempts > maxAttempts) {
+        // Task 3.0: Hide progress on timeout
+        setIsGeneratingLyrics(false);
+        setLyricsPollingAttempts(0);
         setLyricsTaskId(null);
         void syncLyricsTaskId(null);
         setPendingLyricVariants([]);
@@ -1390,8 +1406,15 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }
         }
 
+        // Task 3.0: Hide generation progress on success
+        setIsGeneratingLyrics(false);
+        setLyricsPollingAttempts(0);
+
         return; // Exit polling
       } else if (data.status === 'failed') {
+        // Task 3.0: Hide generation progress on failure
+        setIsGeneratingLyrics(false);
+        setLyricsPollingAttempts(0);
         setLyricsTaskId(null);
         void syncLyricsTaskId(null);
         setPendingLyricVariants([]);
@@ -1406,6 +1429,29 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     // Allow a short grace period before the first poll to avoid hammering the API
     await new Promise((resolve) => setTimeout(resolve, 4000));
     await poll();
+  };
+
+  /**
+   * Task 3.0: Cancel lyrics generation
+   */
+  const handleCancelLyricsGeneration = () => {
+    setIsGeneratingLyrics(false);
+    setLyricsPollingAttempts(0);
+    setLyricsTaskId(null);
+    void syncLyricsTaskId(null);
+    setPendingLyricVariants([]);
+
+    // Show cancellation message
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: "Lyrics generatie is geannuleerd. Laten we verdergaan met ons gesprek.",
+      },
+    ]);
+
+    // Return to gathering phase
+    setConversationPhase('gathering');
   };
 
   /**
@@ -2700,6 +2746,14 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           </div>
         </div>
       )}
+
+      {/* Task 3.0: Lyrics generation progress overlay */}
+      <LyricsGenerationProgress
+        isGenerating={isGeneratingLyrics}
+        isRefining={isRefiningLyrics}
+        pollingAttempts={lyricsPollingAttempts}
+        onCancel={handleCancelLyricsGeneration}
+      />
 
       {/* Variant selector modal */}
       {showVariantSelector && variants.length > 0 && (

@@ -53,15 +53,15 @@ Based on PRD: `0013-prd-streamlined-suno-lyrics-generation.md`
   - [x] 2.4 Add estimated time display and cancel button (after timeout)
   - [x] 2.5 Create unit tests in `LyricsGenerationProgress.test.tsx`
 
-- [ ] 3.0 Enhance Lyrics Comparison and Selection Flow
-  - [ ] 3.1 Update StudioClient to call Suno lyrics API after conversation readiness
-  - [ ] 3.2 Implement state management for 2 lyrics variants (variantA, variantB)
-  - [ ] 3.3 Show LyricsGenerationProgress modal during generation
-  - [ ] 3.4 Implement callback + polling mechanism for lyrics (10s callback wait, then 5s polling)
-  - [ ] 3.5 Update LyricsCompare to handle 2 variants from Suno response
-  - [ ] 3.6 Ensure "Gebruik geselecteerde lyrics" button is disabled until selection
-  - [ ] 3.7 Store selected variant in state and InstantDB (conceptLyrics)
-  - [ ] 3.8 Update LyricsCompare tests for new selection flow
+- [x] 3.0 Enhance Lyrics Comparison and Selection Flow
+  - [x] 3.1 Update StudioClient to call Suno lyrics API after conversation readiness
+  - [x] 3.2 Implement state management for 2 lyrics variants (variantA, variantB)
+  - [x] 3.3 Show LyricsGenerationProgress modal during generation
+  - [x] 3.4 Implement callback + polling mechanism for lyrics (10s callback wait, then 5s polling)
+  - [x] 3.5 Update LyricsCompare to handle 2 variants from Suno response
+  - [x] 3.6 Ensure "Gebruik geselecteerde lyrics" button is disabled until selection
+  - [x] 3.7 Store selected variant in state and InstantDB (conceptLyrics)
+  - [x] 3.8 Update LyricsCompare tests for new selection flow
 
 - [ ] 4.0 Implement Refinement and Manual Editing
   - [ ] 4.1 Create `src/components/RefinementOptions.tsx` component
