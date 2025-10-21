@@ -2,7 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ENFORCE_SESSION = (process.env.APP_ENFORCE_SESSION || 'false').toLowerCase() === 'true';
 const PROTECTED_PREFIXES = ['/api/suno', '/api/push', '/api/lyric-versions'];
-const EXEMPT_PATHS = ['/api/suno/lyrics/callback'];
+const EXEMPT_PATHS = ['/api/suno/lyrics/callback', '/api/suno/callback'];
+
+// Validate environment on first request (cached)
+let envValidated = false;
+function validateEnvironmentOnce() {
+  if (envValidated) return;
+  envValidated = true;
+
+  // Only validate in production
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const missing: string[] = [];
+
+  // Check critical env vars
+  if (!process.env.NEXT_PUBLIC_INSTANT_APP_ID) missing.push('NEXT_PUBLIC_INSTANT_APP_ID');
+  if (!process.env.INSTANT_APP_ADMIN_TOKEN) missing.push('INSTANT_APP_ADMIN_TOKEN');
+  if (!process.env.SUNO_API_KEY) missing.push('SUNO_API_KEY');
+
+  if (missing.length > 0) {
+    console.error('❌ Missing required environment variables:', missing.join(', '));
+    console.error('Configure these in Vercel Dashboard → Settings → Environment Variables');
+  } else {
+    console.log('✅ Required environment variables validated');
+  }
+
+  // Warn about callback URLs if not set
+  if (!process.env.SUNO_CALLBACK_URL && !process.env.VERCEL_URL) {
+    console.warn('⚠️  SUNO_CALLBACK_URL not set and cannot auto-detect. Suno callbacks may fail.');
+  }
+}
 
 function isProtectedPath(path: string) {
   return PROTECTED_PREFIXES.some((p) => path.startsWith(p));
@@ -13,6 +42,9 @@ function isMobileUA(ua: string) {
 }
 
 export function middleware(req: NextRequest) {
+  // Validate environment variables once on first request
+  validateEnvironmentOnce();
+
   const url = new URL(req.url);
   const headers = new Headers(req.headers);
   const isDev = process.env.NODE_ENV !== 'production';

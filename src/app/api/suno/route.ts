@@ -3,10 +3,10 @@ import { getAdminDb } from '@/lib/adminDb';
 import { parseExtractedContext } from '@/lib/utils/contextExtraction';
 import { buildVocalDescription, buildVocalTags, mergeVocalPreferences } from '@/lib/utils/vocalDescriptionBuilder';
 import { VocalPreferences } from '@/types/conversation';
+import { getSunoCallbackUrl } from '@/lib/utils/getDeploymentUrl';
 
 const SUNO_API_BASE = "https://api.sunoapi.org/api/v1";
 const SUNO_API_KEY = process.env.SUNO_API_KEY || "";
-const SUNO_CALLBACK_URL = process.env.SUNO_CALLBACK_URL || "";
 const DEFAULT_MODEL = "V5";
 
 export async function POST(request: NextRequest) {
@@ -154,13 +154,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!SUNO_CALLBACK_URL) {
-      return NextResponse.json(
-        {
-          error: "SUNO_CALLBACK_URL is not set. Configure it to a publicly reachable endpoint to receive Suno callbacks.",
-        },
-        { status: 500 }
-      );
+    // Get callback URL - supports both explicit env var and auto-detection on Vercel
+    const callbackUrl = getSunoCallbackUrl(songId);
+
+    // Validate that we have a callback URL
+    if (!callbackUrl || callbackUrl.includes('localhost') && !process.env.SUNO_CALLBACK_URL) {
+      console.warn('No production callback URL configured. Suno callbacks may not work.');
+      // Don't block in development, but warn
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json(
+          {
+            error: "SUNO_CALLBACK_URL not configured. Set this to your deployment URL (e.g., https://songly.vercel.app/api/suno/callback)",
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Task 5.7: Use template config to override model and tags
@@ -201,14 +209,13 @@ export async function POST(request: NextRequest) {
       make_instrumental: wantsInstrumental,
       instrumental: wantsInstrumental,
     };
-    const resolvedCallback = songId
-      ? `${SUNO_CALLBACK_URL}?songId=${encodeURIComponent(songId)}`
-      : SUNO_CALLBACK_URL;
-    if (resolvedCallback) {
-      // Send multiple casings to maximize compatibility
-      requestBody.callBackUrl = resolvedCallback;
-      requestBody.callbackUrl = resolvedCallback;
-      requestBody.callback_url = resolvedCallback;
+    // Add callback URL (already includes songId if provided)
+    if (callbackUrl) {
+      // Send multiple casings to maximize compatibility with different Suno API versions
+      requestBody.callBackUrl = callbackUrl;
+      requestBody.callbackUrl = callbackUrl;
+      requestBody.callback_url = callbackUrl;
+      console.log('Callback URL configured:', callbackUrl);
     }
 
     // Task 5.9-5.11: Add advanced Suno parameters from template config

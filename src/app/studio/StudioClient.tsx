@@ -20,6 +20,7 @@ import {
   SURPRISE_ME_TEMPLATE,
 } from "@/templates/music-templates";
 import { buildSunoLyricsPrompt } from "@/lib/utils/sunoLyricsPrompt";
+import { getLyricsCallbackUrl } from "@/lib/utils/getDeploymentUrl";
 import NavTabs from "@/components/mobile/NavTabs";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import ChatHeader from "@/components/mobile/ChatHeader";
@@ -1227,11 +1228,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
       // Task 4.7: Call Suno lyrics API
       const sunoLyricsPayload: any = { prompt };
-      {
-        const callbackBase = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SUNO_CALLBACK_ORIGIN || '';
-        if (callbackBase) {
-          sunoLyricsPayload.callBackUrl = `${callbackBase}/api/suno/lyrics/callback` + (conversationId ? `?conversationId=${conversationId}` : '');
-        }
+      // Use helper to get callback URL with auto-detection on Vercel
+      const lyricsCallback = getLyricsCallbackUrl(conversationId ?? undefined);
+      if (lyricsCallback) {
+        sunoLyricsPayload.callBackUrl = lyricsCallback;
       }
 
       const response = await fetch("/api/suno/lyrics", {
@@ -1637,10 +1637,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           ? latestLyrics
           : latestLyrics;
 
-      const callbackBase = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SUNO_CALLBACK_ORIGIN || '';
-      if (!callbackBase) {
-        throw new Error('NEXT_PUBLIC_BASE_URL (public callback origin) is not configured');
-      }
+      // Callback URL is automatically handled by helper function
+      // No need to check - will auto-detect on Vercel or use localhost in dev
 
       const sunoRefinePayload: any = {
         previousLyrics: previousLyricsPayload,
@@ -1648,11 +1646,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         templateId: template.id,
         context: extractedContext,
       };
-      {
-        const callbackBase2 = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SUNO_CALLBACK_ORIGIN || '';
-        if (callbackBase2) {
-          sunoRefinePayload.callBackUrl = `${callbackBase2}/api/suno/lyrics/callback` + (conversationId ? `?conversationId=${conversationId}` : '');
-        }
+      // Use helper to get callback URL with auto-detection
+      const refineCallback = getLyricsCallbackUrl(conversationId ?? undefined);
+      if (refineCallback) {
+        sunoRefinePayload.callBackUrl = refineCallback;
       }
 
       const response = await fetch("/api/suno/lyrics", {

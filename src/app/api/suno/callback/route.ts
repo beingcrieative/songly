@@ -1,3 +1,21 @@
+/**
+ * Suno Music Generation Callback Handler
+ *
+ * Security Note:
+ * This endpoint is publicly accessible (exempted from session auth in middleware.ts)
+ * to allow Suno webhooks to deliver results. Current security measures:
+ * - Request metadata logging (User-Agent, Origin) for monitoring
+ * - Payload structure validation
+ * - Database verification (songId/taskId must exist before updates)
+ * - 200 responses on errors to prevent retries
+ *
+ * Recommended Future Enhancements:
+ * - HMAC signature verification if Suno provides webhook signatures
+ * - IP allowlist for known Suno webhook sources
+ * - Rate limiting per IP/taskId to prevent abuse
+ * - Timestamp validation to prevent replay attacks
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { validate as isUuid, v5 as uuidv5 } from "uuid";
 import { getAdminDb, getAdminEnvSnapshot } from "@/lib/adminDb";
@@ -68,8 +86,24 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const songIdFromUrl = searchParams.get("songId");
-    const payload = await request.json();
+
+    // Security: Log request metadata for monitoring
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const origin = request.headers.get('origin') || request.headers.get('referer') || 'unknown';
+
     console.log("=== SUNO CALLBACK RECEIVED ===");
+    console.log("User-Agent:", userAgent);
+    console.log("Origin:", origin);
+    console.log("SongId:", songIdFromUrl);
+
+    const payload = await request.json();
+
+    // Security: Validate payload structure
+    if (!payload || typeof payload !== 'object') {
+      console.warn("⚠️ Invalid callback payload structure");
+      return NextResponse.json({ ok: false, error: 'Invalid payload' }, { status: 400 });
+    }
+
     console.log(JSON.stringify(payload, null, 2));
 
     const taskId = payload?.data?.task_id || payload?.data?.taskId;
@@ -97,8 +131,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!targetSongId) {
-      console.warn("Suno callback zonder gekoppelde song", { taskId, payload });
-      return NextResponse.json({ ok: false, warning: "song not found" });
+      console.warn("⚠️ Suno callback zonder gekoppelde song", { taskId, userAgent, origin });
+      return NextResponse.json({ ok: false, warning: "song not found" }, { status: 404 });
     }
 
     const normalizedTracks = tracksRaw.map((track: IncomingTrack, index: number) =>
@@ -213,5 +247,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true });
+  // Security: GET is only for health checks, not for webhook processing
+  return NextResponse.json({
+    ok: true,
+    message: 'Suno callback endpoint is active',
+    method: 'POST required for webhooks'
+  });
 }

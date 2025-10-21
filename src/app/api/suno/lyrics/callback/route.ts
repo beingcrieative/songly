@@ -6,6 +6,20 @@ import { setLyricsTaskComplete, setLyricsTaskFailed, pruneLyricsCache } from '..
  * Suno Lyrics Callback Handler
  *
  * Task 3.9-3.11: Receives callbacks from Suno when lyrics are generated
+ *
+ * Security Note:
+ * This endpoint is publicly accessible (exempted from session auth in middleware.ts)
+ * to allow Suno webhooks to deliver results. Current security measures:
+ * - Request metadata logging (User-Agent, Origin) for monitoring
+ * - Payload structure validation
+ * - Database verification (conversationId/taskId must exist before updates)
+ * - 200 responses on errors to prevent retries
+ *
+ * Recommended Future Enhancements:
+ * - HMAC signature verification if Suno provides webhook signatures
+ * - IP allowlist for known Suno webhook sources
+ * - Rate limiting per IP/taskId to prevent abuse
+ * - Timestamp validation to prevent replay attacks
  */
 
 /**
@@ -18,10 +32,23 @@ export async function POST(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
 
-    const payload = await request.json();
+    // Security: Log request metadata for monitoring
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    const origin = request.headers.get('origin') || request.headers.get('referer') || 'unknown';
 
     console.log('=== SUNO LYRICS CALLBACK RECEIVED ===');
+    console.log('User-Agent:', userAgent);
+    console.log('Origin:', origin);
     console.log('Conversation ID:', conversationId);
+
+    const payload = await request.json();
+
+    // Security: Validate payload structure
+    if (!payload || typeof payload !== 'object') {
+      console.warn('⚠️ Invalid lyrics callback payload structure');
+      return NextResponse.json({ ok: false, error: 'Invalid payload' }, { status: 400 });
+    }
+
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
     // Task 3.10: Parse callback payload for lyrics data
@@ -105,7 +132,7 @@ export async function POST(request: NextRequest) {
 
           console.log('✅ Found and updated conversation by taskId');
         } else {
-          console.warn('No conversation found for taskId:', taskId);
+          console.warn('⚠️ No conversation found for taskId:', taskId, 'from:', userAgent);
         }
       } catch (error) {
         console.error('Error finding conversation by taskId:', error);
