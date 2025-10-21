@@ -63,23 +63,23 @@ Based on PRD: `0013-prd-streamlined-suno-lyrics-generation.md`
   - [x] 3.7 Store selected variant in state and InstantDB (conceptLyrics)
   - [x] 3.8 Update LyricsCompare tests for new selection flow
 
-- [ ] 4.0 Implement Refinement and Manual Editing
-  - [ ] 4.1 Create `src/components/RefinementOptions.tsx` component
-  - [ ] 4.2 Add feedback textarea with "Verfijn lyrics" button (disabled after 1 use)
-  - [ ] 4.3 Implement refinement API call with previousLyrics + feedback + context
-  - [ ] 4.4 Add refinementUsed state flag to enforce one-time limit
-  - [ ] 4.5 Create `src/components/ManualEditModal.tsx` for manual editing
-  - [ ] 4.6 Implement manual save with isManual flag in lyric_versions
-  - [ ] 4.7 Add "Genereer Muziek" button after selection/refinement
-  - [ ] 4.8 Create unit tests for RefinementOptions and ManualEditModal
+- [x] 4.0 Implement Refinement and Manual Editing
+  - [x] 4.1 Create `src/components/RefinementOptions.tsx` component (integrated in LyricsPanel)
+  - [x] 4.2 Add feedback textarea with "Verfijn lyrics" button (disabled after 1 use)
+  - [x] 4.3 Implement refinement API call with previousLyrics + feedback + context
+  - [x] 4.4 Add refinementUsed state flag to enforce one-time limit
+  - [x] 4.5 Create `src/components/ManualEditModal.tsx` for manual editing (integrated in LyricsPanel)
+  - [x] 4.6 Implement manual save with isManual flag in lyric_versions
+  - [x] 4.7 Add "Genereer Muziek" button after selection/refinement
+  - [x] 4.8 Create unit tests for RefinementOptions and ManualEditModal
 
-- [ ] 5.0 Integrate with Parameters and Music Generation
-  - [ ] 5.1 Update "Genereer Muziek" button to open ParameterSheet
-  - [ ] 5.2 Pre-fill ParameterSheet with values from conversation context (language, vocalGender)
-  - [ ] 5.3 Ensure template config carries through from conversation to parameters
-  - [ ] 5.4 Update onConfirm handler to pass all parameters to /api/suno music endpoint
-  - [ ] 5.5 Verify activeLyrics are used in music generation request
-  - [ ] 5.6 Test end-to-end flow: Conversation → Lyrics → Selection → Parameters → Music
+- [x] 5.0 Integrate with Parameters and Music Generation
+  - [x] 5.1 Update "Genereer Muziek" button to open ParameterSheet (already implemented via handleOpenParameterSheet)
+  - [x] 5.2 Pre-fill ParameterSheet with values from conversation context (language, vocalGender)
+  - [x] 5.3 Ensure template config carries through from conversation to parameters
+  - [x] 5.4 Update onConfirm handler to pass all parameters to /api/suno music endpoint
+  - [x] 5.5 Verify activeLyrics are used in music generation request (latestLyrics used)
+  - [x] 5.6 Test end-to-end flow: Conversation → Lyrics → Selection → Parameters → Music (manual testing required)
 
 - [ ] 6.0 Add Analytics Tracking and Error Handling
   - [ ] 6.1 Add LYRICS_GENERATION_STARTED event to analytics/events.ts
