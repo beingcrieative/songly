@@ -46,12 +46,12 @@ Based on PRD: `0013-prd-streamlined-suno-lyrics-generation.md`
   - [x] 1.4 Remove any OpenRouter-specific state variables and functions from StudioClient
   - [x] 1.5 Verify no broken imports or references remain
 
-- [ ] 2.0 Create Lyrics Generation Progress UI
-  - [ ] 2.1 Create `src/components/LyricsGenerationProgress.tsx` component (based on MusicGenerationProgress)
-  - [ ] 2.2 Add props: `isGenerating`, `isRefining`, `pollingAttempts`, `onCancel`
-  - [ ] 2.3 Implement progress messages for generation vs refinement
-  - [ ] 2.4 Add estimated time display and cancel button (after timeout)
-  - [ ] 2.5 Create unit tests in `LyricsGenerationProgress.test.tsx`
+- [x] 2.0 Create Lyrics Generation Progress UI
+  - [x] 2.1 Create `src/components/LyricsGenerationProgress.tsx` component (based on MusicGenerationProgress)
+  - [x] 2.2 Add props: `isGenerating`, `isRefining`, `pollingAttempts`, `onCancel`
+  - [x] 2.3 Implement progress messages for generation vs refinement
+  - [x] 2.4 Add estimated time display and cancel button (after timeout)
+  - [x] 2.5 Create unit tests in `LyricsGenerationProgress.test.tsx`
 
 - [ ] 3.0 Enhance Lyrics Comparison and Selection Flow
   - [ ] 3.1 Update StudioClient to call Suno lyrics API after conversation readiness
