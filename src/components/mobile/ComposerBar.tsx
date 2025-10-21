@@ -1,0 +1,71 @@
+"use client";
+
+import React, { useRef } from "react";
+
+export interface ComposerBarProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+export default function ComposerBar({ value, onChange, onSubmit, disabled, placeholder }: ComposerBarProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = () => {
+    if (disabled) return;
+    onSubmit();
+    // Keep keyboard open on mobile by refocusing the input
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+  return (
+    <div className="w-full">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            ref={inputRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
+            onBlur={() => {
+              // No-op: user controls keyboard visibility; avoid auto-clearing state
+            }}
+            enterKeyHint="send"
+            placeholder={placeholder}
+            disabled={disabled}
+            className="w-full h-12 rounded-xl border-2 pl-4 pr-12 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:bg-gray-100"
+            style={{ borderColor: 'rgba(74, 222, 128, 0.35)' }}
+          />
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-500 hover:text-[color:var(--color-secondary)]"
+            aria-label="Toetsenbord verbergen"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => inputRef.current?.blur()}
+          >
+            {/* keyboard-hide icon */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M4 4h16v10H4zM6 6h2v2H6zm4 0h2v2h-2zm4 0h2v2h-2zM6 9h12v1H6zm6 7l-3 3h6z" />
+            </svg>
+          </button>
+        </div>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleSubmit}
+          disabled={disabled || !value.trim()}
+          className="h-12 w-12 rounded-lg text-white shadow-lg transition-all hover:shadow-xl disabled:bg-gray-300 disabled:cursor-not-allowed"
+          style={{ backgroundImage: 'var(--gradient-primary)' }}
+          aria-label="Verstuur"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M22 2L11 13" />
+            <path d="M22 2L15 22 11 13 2 9l20-7z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}

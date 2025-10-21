@@ -173,6 +173,29 @@ export async function POST(request: NextRequest) {
 
     await adminDb.transact([...variantTx, songUpdate]);
 
+    // Attempt push notification to owner of the song
+    try {
+      const { songs } = await adminDb.query({
+        songs: { $: { where: { id: targetSongId } }, conversation: { user: {} } },
+      });
+      const ownerId = songs?.[0]?.conversation?.[0]?.user?.[0]?.id;
+      if (ownerId) {
+        const { push_subscriptions } = await adminDb.query({
+          push_subscriptions: { $: { where: { 'user.id': ownerId } } },
+        });
+        if (Array.isArray(push_subscriptions) && push_subscriptions.length > 0) {
+          const subs = push_subscriptions.map((s: any) => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
+          const payload = { title: 'Je liedje is klaar', body: 'Klik om te luisteren', url: `/studio?songId=${targetSongId}` };
+          try {
+            const { sendWebPush } = await import('@/lib/push');
+            await Promise.all(subs.map((sub) => sendWebPush(sub as any, payload)));
+          } catch (_) {
+            // ignore if push not available
+          }
+        }
+      }
+    } catch (_) {}
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("Failed to process Suno callback", error);

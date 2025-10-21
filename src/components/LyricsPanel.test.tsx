@@ -1,5 +1,5 @@
+import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import "@testing-library/jest-dom/extend-expect";
 import { LyricsPanel } from "./LyricsPanel";
 import { vi } from "vitest";
 
@@ -22,6 +22,8 @@ const baseProps = {
   canRefine: true,
   isGeneratingMusic: false,
   isRefining: false,
+  conversationPhase: "complete" as const,
+  readinessScore: 1,
 };
 
 describe("LyricsPanel interactions", () => {
@@ -45,7 +47,7 @@ describe("LyricsPanel interactions", () => {
 
   it("disables refine button when canRefine is false", () => {
     render(<LyricsPanel {...baseProps} canRefine={false} />);
-    const button = screen.getByRole("button", { name: /Verfijn lyrics/i });
+    const button = screen.getByRole("button", { name: /Verfijn/i });
     expect(button).toBeDisabled();
   });
 
@@ -58,4 +60,3 @@ describe("LyricsPanel interactions", () => {
     expect(baseProps.onManualEditSave).toHaveBeenCalledWith("Nieuwe tekst");
   });
 });
-

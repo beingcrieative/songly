@@ -135,6 +135,8 @@ export interface UserPreferences {
   instrumentation?: 'acoustic' | 'electronic' | 'orchestral';
   /** Optional mood tags influencing lyrics and style */
   mood?: string[];
+  /** Generate instrumental-only track */
+  makeInstrumental?: boolean;
 
   /**
    * Explicitly selected song language

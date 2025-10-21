@@ -4,20 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Next.js 15 app that generates personalized love songs through an AI-powered chat interface. It's called "Liefdesliedje Maker" (Love Song Maker) and combines:
+This is a Next.js 15 app called "Liefdesliedje Maker" (Love Song Maker) - a Progressive Web App (PWA) that generates personalized love songs through an AI-powered conversational interface. The app combines:
 
-- **AI Chat Agent**: Conversational flow that asks questions about relationships
-- **Lyrics Generation**: Uses OpenRouter (DeepSeek Chat v3.1) to write personalized lyrics
-- **Music Generation**: Integrates with Suno AI API (v4) to compose music
-- **Realtime Database**: InstantDB for storing conversations, messages, and songs
+- **AI Conversational Agent**: Multi-turn chat that gathers relationship context
+- **Lyrics Generation**: OpenRouter-based AI lyrics generation with refinement capabilities
+- **Music Generation**: Suno AI API (v4) integration with variant management
+- **Realtime Database**: InstantDB for storing conversations, messages, songs, and lyrics versions
+- **PWA Features**: Mobile-optimized UI, offline support, push notifications, installable
+- **Session Management**: Custom JWT-based session system for mobile API routes
 
 ## Critical Dependencies
 
-Before writing ANY InstantDB code, read `instant-rules.md` completely. It contains critical information about:
-- Query operators and field indexing requirements
-- Hook usage constraints
-- Data seeding with Admin SDK
-- Authentication patterns
+**IMPORTANT**: Before writing ANY InstantDB code, read `instant-rules.md` completely. Also review `AGENTS.md` for repository-wide coding conventions.
 
 ## Tech Stack
 
@@ -26,8 +24,10 @@ Before writing ANY InstantDB code, read `instant-rules.md` completely. It contai
 - **TypeScript 5** with strict mode
 - **Tailwind CSS 4** for styling
 - **InstantDB** for realtime database with type-safe queries
-- **OpenRouter API** (DeepSeek Chat v3.1 - free tier)
+- **OpenRouter API** (configurable model, default: `openai/gpt-oss-20b:free`)
 - **Suno AI API** (v4 - music generation)
+- **Vitest** for unit/integration tests
+- **Playwright** for E2E tests
 - **npm 11.5.1** as package manager
 
 ## Common Commands
@@ -35,10 +35,13 @@ Before writing ANY InstantDB code, read `instant-rules.md` completely. It contai
 All commands run from the project root:
 
 ```bash
-npm run dev       # Start dev server with Turbopack
-npm run build     # Production build
-npm start         # Start production server
-npm run lint      # Run Next.js linter
+npm run dev         # Start dev server with Turbopack (port 3000)
+npm run dev:3001    # Start dev server on port 3001
+npm run build       # Production build
+npm start           # Start production server
+npm run lint        # Run Next.js linter
+npm run test        # Run Vitest unit tests
+npm run test:e2e    # Run Playwright E2E tests
 ```
 
 ### InstantDB Schema Management
@@ -60,15 +63,21 @@ Required in `.env`:
 NEXT_PUBLIC_INSTANT_APP_ID=<uuid>
 INSTANT_APP_ADMIN_TOKEN=<uuid>  # For admin SDK operations
 
+# Session Management (choose one)
+SESSION_SECRET=<random-string>  # Primary session secret
+NEXTAUTH_SECRET=<random-string> # Fallback if SESSION_SECRET not set
+
 # AI Services
-OPENROUTER_API_KEY=sk-or-v1-...  # For lyrics generation (DeepSeek)
+OPENROUTER_API_KEY=sk-or-v1-...  # For lyrics generation via OpenRouter
+OPENROUTER_MODEL=openai/gpt-oss-20b:free  # Optional override
 SUNO_API_KEY=<key>                # For music generation
 
 # Suno Webhook (for local dev, use ngrok)
 SUNO_CALLBACK_URL=https://<domain>/api/suno/callback
 
-# Optional
-MAX_CONVERSATION_ROUNDS=8  # Default conversation length before lyrics
+# Optional Configuration
+MAX_CONVERSATION_ROUNDS=8         # Default conversation length before lyrics
+APP_ENFORCE_SESSION=false         # Set to 'true' to require session cookies
 ```
 
 ### Local Development with Suno Callbacks
@@ -81,6 +90,13 @@ export SUNO_CALLBACK_URL="https://<ngrok-id>.ngrok-free.app/api/suno/callback"
 npm run dev
 ```
 
+For mobile testing on LAN:
+
+```bash
+npm run dev:3001  # Run on port 3001 to avoid conflicts
+# Then access via http://<your-ip>:3001 from mobile device
+```
+
 ## Architecture
 
 ### Database Schema (`src/instant.schema.ts`)
@@ -89,21 +105,47 @@ Core entities with relationships:
 
 - **conversations** - User chat sessions with status tracking
   - `status`: 'active' | 'generating_lyrics' | 'generating_music' | 'completed'
-  - `currentStep`: Conversation progress counter
-  - Links to: user ($users), messages, songs
+  - `conversationPhase`: 'gathering' | 'generating' | 'refining' | 'complete'
+  - `currentStep`, `roundNumber`, `readinessScore`: Conversation flow tracking
+  - `extractedContext`: JSON of ExtractedContext (relationship details)
+  - `songSettings`: JSON of UserPreferences (language, vocalGender, mood)
+  - `selectedTemplateId`, `templateConfig`: Template-based generation
+  - Links to: user ($users), messages, songs, lyricVersions
 
 - **messages** - Chat messages in conversations
   - `role`: 'user' | 'assistant'
+  - `composerContext`: Optional metadata for UI context
   - Links to: conversation
 
 - **songs** - Generated songs with metadata
   - `status`: 'generating' | 'ready' | 'failed'
-  - `sunoTaskId`: Task ID for status polling
+  - `sunoTaskId`, `sunoTrackId`: Suno API identifiers
   - `audioUrl`, `streamAudioUrl`, `videoUrl`, `imageUrl`: Media URLs
-  - Links to: conversation, user
+  - `lyrics`, `title`, `musicStyle`, `prompt`: Song content
+  - `templateId`, `lyricsTaskId`: Template and Suno lyrics generation
+  - `version`: Version tracking for iterative generation
+  - Links to: conversation, user, variants, lyricVersions
 
 - **sunoVariants** - Multiple versions from Suno (2 tracks per generation)
+  - `trackId`, `songId`: Identifiers
+  - `streamAvailableAt`, `downloadAvailableAt`: Progressive loading timestamps
   - Links to: song
+
+- **lyric_versions** - Lyrics iteration history
+  - `content`, `label`, `hash`: Version content and metadata
+  - `version`, `variantIndex`, `variantSource`: Source tracking
+  - `isManual`, `isRefined`, `isSelection`: Type flags
+  - Links to: conversation, song
+
+- **push_subscriptions** - PWA push notification subscriptions
+  - `endpoint`, `p256dh`, `auth`: Web Push credentials
+  - `ua`, `platform`, `allowMarketing`: User agent and preferences
+  - Links to: user
+
+- **$users** - Built-in user entity
+  - `email`: User email (indexed)
+  - `type`: Optional user type
+  - `linkedPrimaryUser`: Link to primary account for guest user consolidation
 
 All indexed fields are marked `.indexed()` in schema. Do not filter or order by non-indexed fields.
 
@@ -114,81 +156,189 @@ All indexed fields are marked `.indexed()` in schema. Do not filter or order by 
 
 Use `useDateObjects: true` for automatic date handling.
 
+### Session Management
+
+Custom JWT-based session system in `src/lib/session.ts`:
+
+- `createSessionCookie(user, ttlMs)` - Creates signed JWT cookie
+- `parseSessionCookie(cookieValue)` - Verifies and parses session
+- `getSessionFromRequest(req)` - Extracts session from Next.js request
+
+Middleware in `src/middleware.ts`:
+- Sets security headers
+- Detects mobile user agents
+- Optionally enforces session cookies on protected routes (if `APP_ENFORCE_SESSION=true`)
+
+Session bridging: `src/components/auth/SessionBridge.tsx` syncs InstantDB auth to session cookies.
+
 ### API Routes
 
-#### `/api/chat` (POST)
-Handles conversational lyrics generation with streaming refinements:
+#### Chat & Conversation APIs
+
+**`/api/chat` (POST)** - Legacy chat endpoint
+- Handles conversational lyrics generation with streaming refinements
 - Manages multi-turn conversations
-- Generates hidden concept lyrics in parallel with visible chat
-- Uses `###CONCEPT_LYRICS v{N}###` format for iterative refinement
 - Returns: `{ type: 'message' | 'message_lyrics', content, lyrics?, round }`
 
-Key pattern: After each user message, returns both visible chat text AND updated concept lyrics (hidden from user in chat UI, but shown in sidebar).
+**`/api/chat/conversation` (POST)** - Create new conversation
+**`/api/chat/generate-lyrics` (POST)** - Generate lyrics from conversation context
+**`/api/chat/refine-lyrics` (POST)** - Refine existing lyrics with user feedback
 
-#### `/api/suno` (POST)
-Creates music generation task:
+#### Suno Music Generation APIs
+
+**`/api/suno` (POST)** - Creates music generation task
 - Input: `{ songId, title, lyrics, musicStyle, model?, instrumental? }`
 - Calls Suno API `/api/v1/gateway/generate`
 - Returns: `{ taskId, status: 'generating', model }`
 
-#### `/api/suno` (GET)
-Polls music generation status:
+**`/api/suno` (GET)** - Polls music generation status
 - Query: `?taskId=<taskId>`
 - Calls Suno API `/api/v1/gateway/query?ids={taskId}`
 - Returns: `{ status, audioUrl, videoUrl, tracks: [...] }`
 
-#### `/api/suno/callback` (POST)
-Webhook receiver for Suno variant updates:
+**`/api/suno/callback` (POST)** - Webhook receiver for Suno updates
 - Updates song entity with track URLs and metadata
 - Creates `sunoVariants` entities for each track
+- Tracks progressive loading timestamps
 - Query param: `?songId=<id>`
 
-#### `/api/suno/add-vocals` (POST)
-Adds vocals to instrumental track
+**`/api/suno/lyrics` (POST)** - Suno AI lyrics generation
+- Uses Suno's lyrics model with caching
+- Input: `{ prompt, conversationId }`
+- Returns: `{ id, text, title }`
 
-#### `/api/suno/add-instrumental` (POST)
-Creates instrumental version from vocal track
+**`/api/suno/lyrics/callback` (POST)** - Webhook for lyrics generation
 
-#### `/api/admin/backfill-suno` (POST)
-Re-fetches song data for existing Suno tasks (admin only)
+**`/api/suno/add-vocals` (POST)** - Adds vocals to instrumental track
 
-### Frontend Architecture (`src/app/page.tsx`)
+**`/api/suno/add-instrumental` (POST)** - Creates instrumental version from vocal track
 
-Main page is a large client component with:
+**`/api/admin/backfill-suno` (POST)** - Re-fetches song data for existing Suno tasks (admin only)
 
-- **Multi-step conversational UI** with FLOW_STEPS and PROMPT_LIBRARY
-- **Real-time InstantDB queries** for conversations, messages, songs
-- **Polling mechanism** for Suno task status (checks every 5s)
-- **Lyrics refinement flow** - user can iterate on concept lyrics before generating music
-- **Music player component** with download/share functionality
+#### Mobile APIs (Session-based)
 
-Key pattern: Uses `db.useQuery()` with nested relations:
-```typescript
-db.useQuery({
-  conversations: {
-    $: { where: { 'user.id': user.id }, order: { createdAt: 'desc' } },
-    messages: { $: { order: { createdAt: 'asc' } } },
-    songs: { $: { order: { createdAt: 'desc' } } }
-  }
-})
-```
+**`/api/mobile/conversations` (GET/POST)** - List/create conversations
+**`/api/mobile/conversations/[id]` (GET)** - Get conversation details
+**`/api/mobile/messages` (GET/POST)** - List/create messages
+**`/api/mobile/songs` (GET/POST)** - List/create songs
+**`/api/mobile/songs/[id]` (GET/PUT)** - Get/update song details
 
-### Song Detail Page (`src/app/song/[id]/page.tsx`)
+All mobile routes use session cookies instead of InstantDB auth.
 
-Displays individual song with:
+#### Other APIs
+
+**`/api/lyric-versions` (POST)** - Create/update lyrics versions
+**`/api/auth/exchange` (POST)** - Exchange InstantDB token for session cookie
+**`/api/auth/logout` (POST)** - Clear session cookie
+**`/api/push/subscribe` (POST)** - Register push notification subscription
+**`/api/push/test` (POST)** - Send test push notification
+**`/api/cover/upload` (POST)** - Upload cover images for songs
+
+### Frontend Architecture
+
+#### Main Pages
+
+**`src/app/page.tsx`** - Legacy main chat UI (original conversational interface)
+
+**`src/app/studio/page.tsx`** - Modern studio interface
+- Primary UI for creating songs
+- Template-based workflow with `TemplateSelector`
+- Conversational flow with context extraction
+- Lyrics comparison and refinement with `LyricsCompare`
+- Music generation with variant selection
+- Integrated parameter controls
+
+**`src/app/library/page.tsx`** - Library of created songs
+- Browse user's song history
+- Play/manage songs
+
+**`src/app/settings/page.tsx`** - User settings and preferences
+
+**`src/app/song/[id]/page.tsx`** - Song detail page
 - Music player
 - Lyrics display
-- Share functionality
-- Download options
+- Share/download functionality
+
+#### Key Components
+
+**Conversational UI:**
+- `ConversationalStudioLayout.tsx` - Main studio layout with chat interface
+- `ChatBubble.tsx` - Chat message display
+- `Avatar.tsx` - User/assistant avatars
+- `ComposerControls.tsx` - Message input and controls
+
+**Lyrics Management:**
+- `LyricsPanel.tsx` - Display and edit lyrics
+- `LyricsCompare.tsx` - Side-by-side lyrics comparison for refinement
+- `ParameterSheet.tsx` - Music generation parameters
+
+**Music Playback:**
+- `MusicPlayer.tsx` - Full-featured audio player
+- `AudioMiniPlayer.tsx` - Compact player for mobile
+- `VariantSelector.tsx` - Choose between Suno-generated variants
+
+**Templates & Settings:**
+- `TemplateSelector.tsx` - Choose song templates
+- `TemplateCard.tsx` - Template preview card
+- `SongSettingsPanel.tsx` - Language, vocal, mood settings
+- `AudioPreferencesPanel.tsx` - Audio-specific preferences
+- `AdvancedControlsPanel.tsx` - Advanced generation controls
+- `LanguageToggle.tsx` - Language switcher
+
+**PWA Components:**
+- `pwa/InstallPrompt.tsx` - PWA install prompt
+- `pwa/ServiceWorkerRegister.tsx` - Service worker registration
+- `ClientBoot.tsx` - Client-side initialization
+
+**Mobile Components:**
+- `mobile/NavTabs.tsx` - Bottom navigation tabs
+- `mobile/ChatHeader.tsx` - Mobile chat header
+- `mobile/ComposerBar.tsx` - Mobile message composer
+- `mobile/DrawerSheet.tsx` - Mobile drawer/sheet UI
+- `mobile/LyricsCardStack.tsx` - Swipeable lyrics cards
+
+**Other:**
+- `recorder/AudioRecorder.tsx` - Voice input recorder
+- `MusicGenerationProgress.tsx` - Progress indicator
+
+#### Utilities & Libraries
+
+**`src/lib/utils/`:**
+- `contextExtraction.ts` - Extract relationship context from conversations
+- `readinessScore.ts` - Calculate conversation readiness for lyrics generation
+- `lyricsFormatter.ts` - Format lyrics for display/generation
+- `sunoLyricsPrompt.ts` - Build Suno lyrics generation prompts
+- `vocalDescriptionBuilder.ts` - Generate vocal style descriptions
+- `audioHelpers.ts` - Audio utility functions
+- `openrouterClient.ts` - OpenRouter API client wrapper
+
+**`src/lib/prompts/`:**
+- `conversationAgent.ts` - Conversation agent system prompts
+- `lyricsAgent.ts` - Lyrics generation agent prompts
+
+**`src/lib/analytics/`:**
+- `events.ts` - Analytics event definitions
+- `recording.ts` - Audio recording analytics
+
+**`src/lib/i18n/`:**
+- `ui.ts` - Internationalization utilities
 
 ### Authentication
 
-InstantDB magic code authentication:
+InstantDB magic code authentication with session bridging:
+
 - Use `<db.SignedIn>` and `<db.SignedOut>` components
 - Access current user with `db.useUser()` (only inside `<db.SignedIn>`)
 - Send codes: `db.auth.sendMagicCode({ email })`
 - Verify codes: `db.auth.signInWithMagicCode({ email, code })`
 - Sign out: `db.auth.signOut()`
+- Session bridging: `SessionBridge` component creates session cookies for mobile APIs
+
+### PWA Features
+
+**Manifest:** `public/manifest.webmanifest` - App manifest for installability
+**Service Worker:** `public/sw.js` - Offline caching and push notifications
+**Offline Page:** `public/offline.html` - Fallback page when offline
 
 ## InstantDB Patterns
 
@@ -246,7 +396,7 @@ type Song = InstaQLEntity<AppSchema, "songs">;
 type ConversationWithRelations = InstaQLEntity<
   AppSchema,
   "conversations",
-  { messages: {}, songs: {} }
+  { messages: {}, songs: {}, lyricVersions: {} }
 >;
 ```
 
@@ -257,11 +407,17 @@ type ConversationWithRelations = InstaQLEntity<
 1. POST to `/api/suno` → receives `taskId`
 2. Client polls GET `/api/suno?taskId=...` every 5 seconds
 3. Suno webhook calls `/api/suno/callback?songId=...` with variant data
-4. Callback updates song status and creates variant entities
+4. Callback updates song status and creates variant entities with progressive loading timestamps
+
+### Lyrics Generation Flow
+
+1. POST to `/api/suno/lyrics` → receives `taskId`
+2. Poll or wait for webhook at `/api/suno/lyrics/callback`
+3. Lyrics stored with caching in `src/app/api/suno/lyrics/cache.ts`
 
 ### Key Suno API Fields
 
-**Request**:
+**Music Request**:
 - `custom_mode: true` - Use custom lyrics
 - `prompt`: Lyrics text
 - `title`: Song title
@@ -273,26 +429,53 @@ type ConversationWithRelations = InstaQLEntity<
 **Response** (from callback):
 - Each task returns ~2 track variants
 - Track fields: `audio_url`, `stream_audio_url`, `video_url`, `image_url`, `duration`, `title`
+- Progressive loading: `stream_audio_url` available first, then `audio_url`
 
 See `prompts/sunomanual.md` for full API documentation.
 
-## OpenRouter / DeepSeek Integration
+## OpenRouter Integration
 
-Uses DeepSeek Chat v3.1 (free tier) via OpenRouter for lyrics generation.
+Uses OpenRouter with configurable model (default: `openai/gpt-oss-20b:free`) for lyrics generation.
 
-Key prompts in `/api/chat/route.ts`:
-- `SYSTEM_PROMPT`: Guides conversational flow with hidden concept lyrics
-- `lyricsPrompt`: Final lyrics generation when conversation complete
-- `refineLyrics`: Iterative improvements to concept lyrics
+Key prompts located in `src/lib/prompts/`:
+- `conversationAgent.ts`: Guides conversational flow with context extraction
+- `lyricsAgent.ts`: Lyrics generation and refinement
 
-Concept lyrics use special format:
-```
-###CONCEPT_LYRICS v{N}###
-{ "version": N, "title": "...", "lyrics": "...", "style": "...", "notes": "..." }
-###END###
-```
+Context extraction pattern in `src/lib/utils/contextExtraction.ts`:
+- Extracts relationship details from conversation
+- Calculates readiness score for lyrics generation
+- Stores as JSON in `conversations.extractedContext`
 
-This block is parsed out and shown in UI sidebar, hidden from main chat.
+## Testing
+
+### Unit Tests (Vitest)
+
+Run with: `npm run test`
+
+Test files are colocated with components: `*.test.tsx`, `*.test.ts`
+
+Examples:
+- `src/components/LyricsCompare.test.tsx`
+- `src/components/LyricsPanel.test.tsx`
+- `src/components/ParameterSheet.test.tsx`
+- `src/components/Avatar.test.tsx`
+- `src/components/ChatBubble.test.tsx`
+- `src/components/mobile/NavTabs.test.tsx`
+- `src/lib/session.test.ts`
+- `src/app/api/suno/lyrics/__tests__/lyrics-api.test.ts`
+
+Mock InstantDB and external APIs in tests. Use React Testing Library for component tests.
+
+### E2E Tests (Playwright)
+
+Run with: `npm run test:e2e`
+
+Configuration: `playwright.config.ts`
+- Mobile Chrome profile (Pixel 7)
+- Desktop Chrome profile
+- Base URL: `http://192.168.77.222:3001` (configurable via `BASE_URL` env var)
+
+Test directory: `tests/e2e/`
 
 ## Development Patterns
 
@@ -304,11 +487,19 @@ This block is parsed out and shown in UI sidebar, hidden from main chat.
 4. Update TypeScript types in components
 5. Commit both schema and perms files
 
-### Modifying Conversations Flow
+### Modifying Conversation Flow
 
-- Update `FLOW_STEPS` and `PROMPT_LIBRARY` in `page.tsx`
-- Adjust `MAX_CONVERSATION_ROUNDS` in `.env` or `/api/chat/route.ts`
-- Modify `SYSTEM_PROMPT` to change AI behavior
+- Update prompt templates in `src/lib/prompts/`
+- Adjust context extraction logic in `src/lib/utils/contextExtraction.ts`
+- Modify readiness scoring in `src/lib/utils/readinessScore.ts`
+- Update chat API routes in `src/app/api/chat/`
+
+### Adding Mobile API Routes
+
+1. Create route in `src/app/api/mobile/`
+2. Use session management: `getSessionFromRequest(req)`
+3. Use admin SDK for database operations
+4. Return JSON responses (no InstantDB hooks in server routes)
 
 ### Debugging Suno Issues
 
@@ -327,29 +518,125 @@ curl -X POST "http://localhost:3000/api/admin/backfill-suno?token=$INSTANT_APP_A
 ```
 src/
 ├── app/
-│   ├── page.tsx              # Main chat UI
-│   ├── song/[id]/page.tsx    # Song detail page
-│   ├── layout.tsx            # Root layout with InstantDB provider
-│   ├── globals.css           # Global styles
+│   ├── page.tsx                  # Legacy main chat UI
+│   ├── studio/page.tsx           # Modern studio interface
+│   ├── library/page.tsx          # Song library
+│   ├── settings/page.tsx         # User settings
+│   ├── song/[id]/page.tsx        # Song detail page
+│   ├── layout.tsx                # Root layout with InstantDB provider
+│   ├── globals.css               # Global styles
 │   └── api/
-│       ├── chat/route.ts     # OpenRouter lyrics generation
-│       ├── suno/route.ts     # Suno music generation & status
-│       ├── suno/callback/route.ts     # Suno webhook receiver
-│       ├── suno/add-vocals/route.ts   # Add vocals to track
-│       ├── suno/add-instrumental/route.ts # Create instrumental
-│       └── admin/backfill-suno/route.ts   # Re-fetch Suno data
+│       ├── chat/                 # Chat & conversation APIs
+│       │   ├── route.ts          # Legacy chat endpoint
+│       │   ├── conversation/route.ts
+│       │   ├── generate-lyrics/route.ts
+│       │   └── refine-lyrics/route.ts
+│       ├── suno/                 # Suno music generation APIs
+│       │   ├── route.ts
+│       │   ├── callback/route.ts
+│       │   ├── lyrics/route.ts
+│       │   ├── lyrics/callback/route.ts
+│       │   ├── add-vocals/route.ts
+│       │   └── add-instrumental/route.ts
+│       ├── mobile/               # Mobile session-based APIs
+│       │   ├── conversations/route.ts
+│       │   ├── conversations/[conversationId]/route.ts
+│       │   ├── messages/route.ts
+│       │   ├── songs/route.ts
+│       │   └── songs/[songId]/route.ts
+│       ├── auth/                 # Auth APIs
+│       │   ├── exchange/route.ts
+│       │   └── logout/route.ts
+│       ├── push/                 # Push notification APIs
+│       │   ├── subscribe/route.ts
+│       │   └── test/route.ts
+│       ├── cover/upload/route.ts
+│       ├── lyric-versions/route.ts
+│       └── admin/backfill-suno/route.ts
+├── components/
+│   ├── ConversationalStudioLayout.tsx
+│   ├── ChatBubble.tsx
+│   ├── Avatar.tsx
+│   ├── ComposerControls.tsx
+│   ├── LyricsPanel.tsx
+│   ├── LyricsCompare.tsx
+│   ├── ParameterSheet.tsx
+│   ├── MusicPlayer.tsx
+│   ├── AudioMiniPlayer.tsx
+│   ├── VariantSelector.tsx
+│   ├── TemplateSelector.tsx
+│   ├── TemplateCard.tsx
+│   ├── SongSettingsPanel.tsx
+│   ├── AudioPreferencesPanel.tsx
+│   ├── AdvancedControlsPanel.tsx
+│   ├── LanguageToggle.tsx
+│   ├── MusicGenerationProgress.tsx
+│   ├── ClientBoot.tsx
+│   ├── pwa/                      # PWA components
+│   │   ├── InstallPrompt.tsx
+│   │   └── ServiceWorkerRegister.tsx
+│   ├── mobile/                   # Mobile components
+│   │   ├── NavTabs.tsx
+│   │   ├── ChatHeader.tsx
+│   │   ├── ComposerBar.tsx
+│   │   ├── DrawerSheet.tsx
+│   │   └── LyricsCardStack.tsx
+│   ├── recorder/
+│   │   └── AudioRecorder.tsx
+│   └── auth/
+│       └── SessionBridge.tsx
 ├── lib/
-│   ├── db.ts                 # InstantDB client (client-side)
-│   └── adminDb.ts            # InstantDB Admin SDK (server-side)
-├── instant.schema.ts         # Database schema with type safety
-└── instant.perms.ts          # Access control rules
+│   ├── db.ts                     # InstantDB client (client-side)
+│   ├── adminDb.ts                # InstantDB Admin SDK (server-side)
+│   ├── session.ts                # Session management
+│   ├── push.ts                   # Push notification utilities
+│   ├── prompts/                  # AI agent prompts
+│   │   ├── conversationAgent.ts
+│   │   └── lyricsAgent.ts
+│   ├── utils/                    # Utility functions
+│   │   ├── contextExtraction.ts
+│   │   ├── readinessScore.ts
+│   │   ├── lyricsFormatter.ts
+│   │   ├── sunoLyricsPrompt.ts
+│   │   ├── vocalDescriptionBuilder.ts
+│   │   ├── audioHelpers.ts
+│   │   └── openrouterClient.ts
+│   ├── analytics/                # Analytics
+│   │   ├── events.ts
+│   │   └── recording.ts
+│   └── i18n/                     # Internationalization
+│       └── ui.ts
+├── middleware.ts                 # Next.js middleware (security, sessions)
+├── instant.schema.ts             # Database schema with type safety
+└── instant.perms.ts              # Access control rules
 
-prompts/                      # API documentation and references
-├── sunomanual.md            # Suno API docs
-├── openrouter.md            # OpenRouter API docs
-└── instantmanual.md         # InstantDB patterns
+public/
+├── manifest.webmanifest          # PWA manifest
+├── sw.js                         # Service worker
+├── offline.html                  # Offline fallback
+└── icons/                        # PWA icons
 
-instant-rules.md             # Critical InstantDB usage rules (READ FIRST)
+tests/
+└── e2e/                          # Playwright E2E tests
+
+tasks/                            # Product requirement docs (PRDs)
+├── 0001-prd-love-song-studio.md
+├── 0002-prd-two-agent-conversation-system.md
+├── 0003-prd-suno-music-generation-integration.md
+├── 0004-prd-vocal-preferences-and-ui-improvements.md
+├── 0005-prd-template-based-studio-workflow.md
+├── 0006-prd-lyrics-compare-and-selection.md
+├── 0007-prd-pwa-studio-server-and-cover-audio.md
+├── 0010-prd-visual-refresh-and-params.md
+└── 0011-prd-pwa-native-shell-ui.md
+
+prompts/                          # API documentation
+├── sunomanual.md                 # Suno API docs
+├── openrouter.md                 # OpenRouter API docs
+└── sunoapi.md                    # Additional Suno docs
+
+instant-rules.md                  # Critical InstantDB usage rules (READ FIRST)
+AGENTS.md                         # Repository coding guidelines (READ FIRST)
 ```
 
 ## Common Pitfalls
@@ -360,12 +647,17 @@ instant-rules.md             # Critical InstantDB usage rules (READ FIRST)
 4. **Seeding data**: Never seed from client, always use Admin SDK in scripts
 5. **Suno callbacks**: Require public URL - use ngrok for local dev
 6. **Polling timeout**: Songs may take 60-90 seconds to generate
-7. **Hidden lyrics format**: Must use exact `###CONCEPT_LYRICS v{N}###` delimiters
+7. **Progressive loading**: Suno provides `stream_audio_url` first, then `audio_url` - handle both
+8. **Session management**: Mobile APIs use session cookies, not InstantDB auth - use `getSessionFromRequest()`
+9. **Guest users**: Guest users can be linked to primary users via `$users.linkedPrimaryUser`
+10. **Test mocking**: Always mock InstantDB and external APIs in tests
 
 ## Reference Documentation
 
 - InstantDB: https://instantdb.com/docs (read `instant-rules.md` first)
 - Suno API: https://docs.sunoapi.com (see `prompts/sunomanual.md`)
-- OpenRouter: https://openrouter.ai/docs
-- DeepSeek Model: https://openrouter.ai/models/deepseek/deepseek-chat-v3.1:free
+- OpenRouter: https://openrouter.ai/docs (see `prompts/openrouter.md`)
 - Next.js 15: https://nextjs.org/docs
+- Vitest: https://vitest.dev/
+- Playwright: https://playwright.dev/
+- PWA: https://web.dev/progressive-web-apps/

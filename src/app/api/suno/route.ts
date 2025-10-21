@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 5.7: Use template config to override model and tags
-    const resolvedModel = (templateConfig?.model || model || DEFAULT_MODEL).toUpperCase();
+    const resolvedModel = 'V5';
     const wantsInstrumental = Boolean(makeInstrumental ?? instrumental ?? false);
 
     // Build vocal description and tags from preferences
@@ -200,10 +200,16 @@ export async function POST(request: NextRequest) {
       mv: resolvedModel, // compat voor oudere API versies
       make_instrumental: wantsInstrumental,
       instrumental: wantsInstrumental,
-      callBackUrl: songId
-        ? `${SUNO_CALLBACK_URL}?songId=${encodeURIComponent(songId)}`
-        : SUNO_CALLBACK_URL,
     };
+    const resolvedCallback = songId
+      ? `${SUNO_CALLBACK_URL}?songId=${encodeURIComponent(songId)}`
+      : SUNO_CALLBACK_URL;
+    if (resolvedCallback) {
+      // Send multiple casings to maximize compatibility
+      requestBody.callBackUrl = resolvedCallback;
+      requestBody.callbackUrl = resolvedCallback;
+      requestBody.callback_url = resolvedCallback;
+    }
 
     // Task 5.9-5.11: Add advanced Suno parameters from template config
     if (templateConfig?.styleWeight !== undefined) {
@@ -332,6 +338,56 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Helper: fallback by checking DB for callback results (when upstream 404s)
+    const tryDbFallback = async () => {
+      try {
+        const admin = getAdminDb();
+        if (!admin) return null;
+        const { songs } = await admin.query({
+          songs: { $: { where: { sunoTaskId: taskId } } },
+        });
+        const song = songs?.[0];
+        if (!song) return null;
+        const parsed = song.callbackData ? JSON.parse(song.callbackData) : [];
+        if (!Array.isArray(parsed) || parsed.length === 0) return null;
+        const mappedTracks = parsed.map((t: any) => ({
+          status: t.audioUrl || t.streamAudioUrl ? 'ready' : 'generating',
+          audioUrl: t.audioUrl || null,
+          streamAudioUrl: t.streamAudioUrl || t.sourceStreamAudioUrl || null,
+          sourceAudioUrl: t.sourceAudioUrl || null,
+          sourceStreamAudioUrl: t.sourceStreamAudioUrl || null,
+          videoUrl: null,
+          imageUrl: t.imageUrl || null,
+          title: t.title || song.title || 'Versie',
+          lyrics: song.lyrics || undefined,
+          durationSeconds: typeof t.durationSeconds === 'number' ? t.durationSeconds : null,
+          modelName: t.modelName || null,
+          prompt: t.prompt || null,
+          tags: t.tags || null,
+          trackId: t.trackId,
+        }));
+        const primary = mappedTracks[0];
+        return NextResponse.json({
+          status: 'ready',
+          audioUrl: primary.audioUrl,
+          videoUrl: primary.videoUrl || null,
+          imageUrl: primary.imageUrl || null,
+          title: primary.title,
+          lyrics: primary.lyrics,
+          streamAudioUrl: primary.streamAudioUrl,
+          sourceAudioUrl: null,
+          sourceStreamAudioUrl: null,
+          durationSeconds: primary.durationSeconds,
+          modelName: primary.modelName,
+          prompt: primary.prompt,
+          tags: primary.tags,
+          tracks: mappedTracks,
+        });
+      } catch (_) {
+        return null;
+      }
+    };
+
     // Get music task status
     // Docs: https://docs.sunoapi.org/suno-api/get-music-generation-details.md
     const apiUrl = `${SUNO_API_BASE}/generate/get-music-generation-details?task_id=${taskId}`;
@@ -351,7 +407,10 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       if (response.status === 404) {
-        console.warn('Status 404 voor task', taskId, '- markeren als generating');
+        console.warn('Status 404 voor task', taskId, '- proberen via DB callback fallback');
+        const fallback = await tryDbFallback();
+        if (fallback) return fallback;
+        console.warn('Geen DB callback gevonden; markeren als generating');
         return NextResponse.json({ status: 'generating' });
       }
       console.error('Status check failed:', responseText);

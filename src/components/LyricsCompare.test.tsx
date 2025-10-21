@@ -1,5 +1,5 @@
+import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import "@testing-library/jest-dom/extend-expect";
 import { LyricsCompare } from "./LyricsCompare";
 
 describe("LyricsCompare", () => {
@@ -33,7 +33,7 @@ describe("LyricsCompare", () => {
       />
     );
 
-    const optionB = screen.getByLabelText("Versie B");
+    const optionB = screen.getByLabelText("Selecteer Versie B");
     fireEvent.click(optionB);
 
     expect(selected).toBe(1);
@@ -48,7 +48,7 @@ describe("LyricsCompare", () => {
         onUseSelected={() => {}}
       />
     );
-    const button = screen.getByRole("button", { name: /Gebruik geselecteerde lyrics/i });
+    const button = screen.getByRole("button", { name: /Selecteer eerst een lyrics variant/i });
     expect(button).toBeDisabled();
   });
 
@@ -61,7 +61,7 @@ describe("LyricsCompare", () => {
         onUseSelected={() => {}}
       />
     );
-    const button = screen.getByRole("button", { name: /Gebruik geselecteerde lyrics/i });
+    const button = screen.getByRole("button", { name: /Gebruik Versie B/i });
     expect(button).toBeEnabled();
   });
 
@@ -75,7 +75,7 @@ describe("LyricsCompare", () => {
         isSaving
       />
     );
-    const button = screen.getByRole("button", { name: /Gebruik geselecteerde lyrics/i });
+    const button = screen.getByRole("button", { name: /Bezig met opslaan/i });
     expect(button).toBeDisabled();
   });
 });

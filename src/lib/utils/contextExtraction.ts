@@ -1,9 +1,10 @@
 import { ExtractedContext } from '@/types/conversation';
+import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 const EXTRACTION_MODEL =
   process.env.OPENROUTER_EXTRACTION_MODEL ||
   process.env.OPENROUTER_MODEL ||
-  'google/gemini-2.5-flash-lite';
+  'openai/gpt-oss-20b:free';
 
 /**
  * Context extraction utility for analyzing conversation history
@@ -60,43 +61,23 @@ BELANGRIJK:
     .join('\n');
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://liefdesliedje.app',
-        'X-Title': 'Liefdesliedje Maker - Context Extraction',
-      },
-      body: JSON.stringify({
-        model: EXTRACTION_MODEL,
-        messages: [
-          { role: 'system', content: EXTRACTION_PROMPT },
-          { role: 'user', content: `Conversatie:\n${conversationText}` },
-        ],
-        temperature: 0.3, // Lower temperature for more consistent extraction
-        route: 'fallback', // Allow fallback to paid models if free model unavailable
-      }),
+    const data = await openrouterChatCompletion({
+      messages: [
+        { role: 'system', content: EXTRACTION_PROMPT },
+        { role: 'user', content: `Conversatie:\n${conversationText}` },
+      ] as any,
+      temperature: 0.3,
+      title: 'Liefdesliedje Maker - Context Extraction',
+      maxTokens: 220,
     });
-
-    if (!response.ok) {
-      // On rate limit, return empty context instead of throwing
-      if (response.status === 429) {
-        console.warn('Context extraction rate limited, using empty context');
-        return createEmptyContext();
-      }
-      throw new Error(`OpenRouter API error: ${response.status}`);
-    }
-
-    const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '{}';
 
     // Try to parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      // Sanitize JSON by replacing undefined with null
-      const sanitizedJson = jsonMatch[0].replace(/:\s*undefined/g, ': null');
-      const extracted = JSON.parse(sanitizedJson);
+      // Attempt robust JSON parsing with common LLM cleanup steps
+      const raw = jsonMatch[0];
+      const extracted = tryParseLooseJson(raw);
 
       // Validate and ensure all required fields exist
       const extractedContext = {
@@ -206,6 +187,49 @@ export function stringifyExtractedContext(context: ExtractedContext): string {
 }
 
 // Helper functions
+
+function tryParseLooseJson(raw: string): any {
+  // Step 1: strip code fences if present
+  let s = raw
+    .replace(/^```[a-zA-Z]*\n?/g, '')
+    .replace(/```\s*$/g, '');
+
+  // Replace fancy quotes with normal quotes
+  s = s.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"').replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+
+  // Replace undefined with null
+  s = s.replace(/:\s*undefined/g, ': null');
+
+  // Remove comments
+  s = s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+
+  // Quote unquoted keys: {key: value} -> {"key": value}
+  s = s.replace(/([,{\s])([A-Za-z_][A-Za-z0-9_\-]*)\s*:/g, '$1"$2":');
+
+  // Convert single-quoted strings to double-quoted (only those that look like JSON values)
+  // e.g. 'text' -> "text" (avoid touching contractions inside already quoted strings)
+  s = s.replace(/:\s*'([^']*)'/g, ': "$1"');
+  s = s.replace(/\[\s*'([^']*)'\s*\]/g, '["$1"]');
+
+  // Remove trailing commas in objects/arrays
+  s = s.replace(/,\s*([}\]])/g, '$1');
+
+  try {
+    return JSON.parse(s);
+  } catch (e) {
+    // Last resort: try to find the biggest valid JSON substring
+    try {
+      const start = s.indexOf('{');
+      const end = s.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        return JSON.parse(s.slice(start, end + 1));
+      }
+    } catch {}
+    // Give a helpful error for upstream logs
+    console.error('Loose JSON parse failed. Input (truncated):', s.slice(0, 400));
+    throw e;
+  }
+}
 
 function createEmptyContext(): ExtractedContext {
   return {

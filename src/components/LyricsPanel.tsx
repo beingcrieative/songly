@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLyricVersionsWithNotification } from "@/hooks/useLyricVersions";
 import { InstaQLEntity } from "@instantdb/react";
 import { type AppSchema } from "@/instant.schema";
@@ -54,6 +54,7 @@ interface LyricsPanelProps {
   // Song settings
   preferences?: UserPreferences;
   onChangePreferences?: (next: UserPreferences) => void;
+  enableLiveQueries?: boolean;
 }
 
 export function LyricsPanel({
@@ -80,6 +81,7 @@ export function LyricsPanel({
   onAdjustLyrics,
   preferences,
   onChangePreferences,
+  enableLiveQueries = true,
 }: LyricsPanelProps) {
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -96,7 +98,7 @@ export function LyricsPanel({
   const { versions, latestVersion, isLoading, hasNewVersion } = useLyricVersionsWithNotification({
     conversationId,
     songId,
-    enabled: !!(conversationId || songId),
+    enabled: enableLiveQueries && !!(conversationId || songId),
   });
 
   // Parse lyric content from JSON string

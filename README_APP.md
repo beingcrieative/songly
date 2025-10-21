@@ -12,7 +12,7 @@ Een Next.js applicatie waarmee gebruikers gepersonaliseerde liefdesliedjes kunne
    - Realtime opslag in InstantDB
 
 2. **AI Lyrics Generatie**
-   - DeepSeek Chat v3.1 (via OpenRouter) voor het schrijven van persoonlijke songteksten
+   - OpenRouter model: `openai/gpt-oss-20b:free` (gratis) voor het schrijven van persoonlijke songteksten
    - Structuur: couplet, refrein, bridge
    - Gebaseerd op gebruikers antwoorden
 
@@ -41,7 +41,7 @@ Een Next.js applicatie waarmee gebruikers gepersonaliseerde liefdesliedjes kunne
 - **Frontend**: Next.js 15, React 19, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: InstantDB (realtime)
-- **AI Lyrics**: OpenRouter (DeepSeek Chat v3.1 - gratis!)
+- **AI Lyrics**: OpenRouter (`openai/gpt-oss-20b:free` - gratis!)
 - **Music**: Suno AI API
 - **Auth**: InstantDB Magic Codes
 
@@ -58,6 +58,8 @@ INSTANT_APP_ADMIN_TOKEN=9628446a-fde8-4fd4-a333-a77ef1e287ef
 
 # OpenRouter API Key (already configured - FREE tier!)
 OPENROUTER_API_KEY=sk-or-v1-...
+# Optional: override model (default is openai/gpt-oss-20b:free)
+# OPENROUTER_MODEL=openai/gpt-oss-20b:free
 
 # Suno API Key (already configured)
 SUNO_API_KEY=ed1d9fbbab21bc78e944027e5d31b290
@@ -115,7 +117,7 @@ Open [http://localhost:3000](http://localhost:3000)
    - Gevoel dat je wilt overbrengen
    - Wat jullie relatie uniek maakt
    - Muziekstijl voorkeur
-4. **Lyrics Generatie**: DeepSeek AI genereert persoonlijke songtekst
+4. **Lyrics Generatie**: `openai/gpt-oss-20b:free` genereert persoonlijke songtekst via OpenRouter
 5. **Muziek Generatie**: Suno AI creëert de muziek (30-60 seconden)
 6. **Resultaat**: Luister, download en deel je liefdesliedje
 
@@ -177,7 +179,7 @@ links: {
 
 - `src/instant.schema.ts` - Database schema definitie
 - `src/app/page.tsx` - Hoofdapplicatie (chat UI + logic)
-- `src/app/api/chat/route.ts` - OpenRouter (DeepSeek) integratie voor lyrics
+- `src/app/api/chat/route.ts` - OpenRouter integratie voor lyrics (model via `OPENROUTER_MODEL`)
 - `src/app/api/suno/route.ts` - Suno muziek generatie
 - `src/lib/db.ts` - InstantDB client
 
@@ -218,7 +220,7 @@ Zie `prompts/sunomanual.md` voor volledige API documentatie.
 - InstantDB Docs: https://instantdb.com/docs
 - Suno API Docs: https://docs.sunoapi.com
 - OpenRouter Docs: https://openrouter.ai/docs
-- DeepSeek Model: https://openrouter.ai/models/deepseek/deepseek-chat-v3.1:free
+- OpenRouter Docs: https://openrouter.ai/docs
 
 ---
 

@@ -10,7 +10,8 @@ import { calculateReadinessScore } from '@/lib/utils/readinessScore';
 import { ConversationAgentResponse, ExtractedContext } from '@/types/conversation';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
+import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Helper for clear, single-line server logs
+    const singleLine = (s: string) => (s || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const lastUserMsg = Array.isArray(messages)
+      ? [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
+      : '';
+
     // Build conversation history for OpenRouter
     const conversationHistory = [
       { role: 'system', content: CONVERSATION_AGENT_SYSTEM_PROMPT },
@@ -38,27 +45,18 @@ export async function POST(request: NextRequest) {
     ];
 
     // Call OpenRouter with conversation agent
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://liefdesliedje.app',
-        'X-Title': 'Liefdesliedje Maker - Conversation',
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: conversationHistory,
-        temperature: 0.8, // Slightly higher for more natural conversation
-        route: 'fallback', // Allow fallback to paid models if free model unavailable
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-
-      // Handle rate limiting gracefully
-      if (response.status === 429) {
+    let data: any;
+    try {
+      data = await openrouterChatCompletion({
+        messages: conversationHistory as any,
+        temperature: 0.8,
+        title: 'Liefdesliedje Maker - Conversation',
+        // Allow enough room for short chat + optional hidden concept block
+        maxTokens: 1024,
+      });
+    } catch (e: any) {
+      const message = e?.message || '';
+      if ((message && message.toLowerCase().includes('too many')) || message.toLowerCase().includes('rate')) {
         return NextResponse.json(
           {
             error: 'Even geduld, we hebben te veel aanvragen ontvangen. Probeer het over een paar seconden opnieuw.',
@@ -67,15 +65,42 @@ export async function POST(request: NextRequest) {
           { status: 429 }
         );
       }
-
-      throw new Error(errorData.error?.message || 'OpenRouter API error');
+      throw e;
     }
 
-    const data = await response.json();
-    const aiMessage = data.choices?.[0]?.message?.content || '';
+    // Defensive extraction of assistant text across model variants
+    const extractAssistantText = (resp: any): string => {
+      try {
+        const choice = resp?.choices?.[0];
+        // OpenAI-compatible path
+        const content = choice?.message?.content;
+        if (typeof content === 'string' && content.trim()) return content;
+        // Some providers may return array blocks
+        if (Array.isArray(content)) {
+          const joined = content.map((c: any) => c?.text || c).join('');
+          if (joined && typeof joined === 'string' && joined.trim()) return joined;
+        }
+        // Fallbacks sometimes expose content directly on choice
+        const direct = choice?.content;
+        if (typeof direct === 'string' && direct.trim()) return direct;
+        // Some providers put text at choice.text
+        const altText = choice?.text;
+        if (typeof altText === 'string' && altText.trim()) return altText;
+      } catch (_) {
+        // ignore – will fall through to fallback message
+      }
+      return '';
+    };
+
+    let aiMessage = extractAssistantText(data);
 
     if (!aiMessage) {
-      throw new Error('No response from conversation agent');
+      // Don’t hard-fail the flow; provide a graceful reply and continue
+      console.warn('Conversation agent returned empty content; using fallback. Meta:', {
+        model: (data && (data.model || data.provider)) || 'unknown',
+        finish_reason: data?.choices?.[0]?.finish_reason,
+      });
+      aiMessage = 'Sorry, ik kon je net niet goed verstaan. Kun je het nog eens beschrijven? Bijvoorbeeld: een mooie herinnering of een moment dat jullie band bijzonder maakt.';
     }
 
     // Parse concept lyrics from response (hidden from chat, shown in lyrics panel)
@@ -113,6 +138,12 @@ export async function POST(request: NextRequest) {
       extractedContext,
       fullConversation
     );
+
+    // Server logs: show last user + assistant visible reply
+    if (lastUserMsg) {
+      console.log(`user: ${singleLine(lastUserMsg)}`);
+    }
+    console.log(`aiagent: ${singleLine(visibleMessage)}`);
 
     // Build response
     const responseData: ConversationAgentResponse = {

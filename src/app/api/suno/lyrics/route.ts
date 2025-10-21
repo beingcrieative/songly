@@ -19,7 +19,10 @@ import {
  */
 
 const SUNO_API_BASE = "https://api.sunoapi.org/api/v1";
-const SUNO_API_KEY = process.env.SUNO_API_KEY || "";
+
+function getSunoApiKey() {
+  return process.env.SUNO_API_KEY || "";
+}
 
 /**
  * POST /api/suno/lyrics
@@ -108,8 +111,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '60');
-    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '200');
+    const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '40');
+    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '700');
     const promptLength = finalPrompt.length;
 
     if (promptLength < minChars) {
@@ -132,7 +135,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!SUNO_API_KEY) {
+    const apiKey = getSunoApiKey();
+
+    if (!apiKey) {
       console.error('SUNO_API_KEY not configured');
       return NextResponse.json(
         { error: 'Suno API key not configured' },
@@ -153,7 +158,10 @@ export async function POST(request: NextRequest) {
     };
 
     if (callBackUrl) {
+      // Send multiple casings to maximize compatibility with Suno API variants
       requestBody.callBackUrl = callBackUrl;
+      requestBody.callbackUrl = callBackUrl;
+      requestBody.callback_url = callBackUrl;
     }
 
     // Task 3.6: Call Suno /api/v1/lyrics endpoint
@@ -164,7 +172,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUNO_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
     });
@@ -282,7 +290,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!SUNO_API_KEY) {
+    const apiKey = getSunoApiKey();
+
+    if (!apiKey) {
       return NextResponse.json(
         { error: 'Suno API key not configured' },
         { status: 500 }
@@ -310,21 +320,25 @@ export async function GET(request: NextRequest) {
     }
 
     const endpoints = [
-      { method: 'POST', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskId } },
-      { method: 'POST', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskIdList: [taskId] } },
-      { method: 'GET', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?taskId=${taskId}` },
-      { method: 'GET', url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?task_id=${taskId}` },
-      { method: 'POST', url: `${SUNO_API_BASE}/get-lyrics-generation-details`, body: { taskId } },
-      { method: 'POST', url: `${SUNO_API_BASE}/get-lyrics-generation-details`, body: { taskIdList: [taskId] } },
-      { method: 'GET', url: `${SUNO_API_BASE}/get-lyrics-generation-details?taskId=${taskId}` },
-      { method: 'GET', url: `${SUNO_API_BASE}/get-lyrics-generation-details?task_id=${taskId}` },
-      { method: 'GET', url: `${SUNO_API_BASE}/generate/get-lyrics-generation-details?taskId=${taskId}` },
-      { method: 'GET', url: `${SUNO_API_BASE}/generate/get-lyrics-generation-details?task_id=${taskId}` },
-      { method: 'GET', url: `${SUNO_API_BASE}/generate/record-info?task_id=${taskId}` },
+      // Most likely variants
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskId } },
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { task_id: taskId } },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?taskId=${taskId}` },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details?task_id=${taskId}` },
+      // Alternate endpoints observed in some deployments
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-result`, body: { taskId } },
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-result`, body: { task_id: taskId } },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-result?taskId=${taskId}` },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-result?task_id=${taskId}` },
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-generation-details`, body: { taskId } },
+      { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-generation-details`, body: { task_id: taskId } },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-generation-details?taskId=${taskId}` },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/get-generation-details?task_id=${taskId}` },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/details?taskId=${taskId}` },
+      { method: 'GET' as const, url: `${SUNO_API_BASE}/lyrics/details?task_id=${taskId}` },
     ];
 
     let data: any = null;
-    let lastStatus = 0;
     let lastBody = '';
 
     for (const endpoint of endpoints) {
@@ -333,21 +347,21 @@ export async function GET(request: NextRequest) {
         const response = await fetch(endpoint.url, {
           method: endpoint.method,
           headers: {
-            Authorization: `Bearer ${SUNO_API_KEY}`,
+            Authorization: `Bearer ${apiKey}`,
             ...(endpoint.body ? { 'Content-Type': 'application/json' } : {}),
           },
           ...(endpoint.body ? { body: JSON.stringify(endpoint.body) } : {}),
         });
 
-        lastStatus = response.status;
         lastBody = await response.text();
         console.log('Suno lyrics status response:', lastBody);
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            continue; // Try next endpoint
-          }
+        if (response.status === 404) {
+          // Try next candidate endpoint on 404
+          continue;
+        }
 
+        if (!response.ok) {
           return NextResponse.json(
             { error: 'Failed to get lyrics status', details: lastBody },
             { status: response.status }
@@ -355,32 +369,15 @@ export async function GET(request: NextRequest) {
         }
 
         try {
-          const parsed = JSON.parse(lastBody);
-          const numericCode =
-            typeof parsed.code !== 'undefined' && parsed.code !== null
-              ? Number(parsed.code)
-              : undefined;
-
-          if (numericCode && !Number.isNaN(numericCode) && ![0, 200].includes(numericCode)) {
-            const message = String(parsed.msg || parsed.message || '');
-            if (numericCode === 400 && message.includes('任务')) {
-              data = null;
-              continue;
-            }
-            if (numericCode === 404) {
-              data = null;
-              continue;
-            }
-          }
-
-          data = parsed;
-          break; // Successful parse
+          data = JSON.parse(lastBody);
         } catch (e) {
           return NextResponse.json(
             { error: 'Invalid JSON response', details: lastBody },
             { status: 500 }
           );
         }
+
+        break;
       } catch (error) {
         console.error('Error polling Suno lyrics status:', error);
       }

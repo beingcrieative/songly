@@ -14,6 +14,7 @@ const _schema = i.schema({
     }),
     conversations: i.entity({
       createdAt: i.number().indexed().optional(),
+      updatedAt: i.number().indexed().optional(),
       currentStep: i.number().optional(),
       status: i.string().indexed().optional(),
       extractedContext: i.string().optional(), // Stores JSON of ExtractedContext interface
@@ -21,6 +22,11 @@ const _schema = i.schema({
       roundNumber: i.number().optional(), // Current conversation round counter
       readinessScore: i.number().optional(), // 0-1 score indicating readiness for lyrics generation
       songSettings: i.string().optional(), // JSON of UserPreferences (language, vocalGender, mood)
+      selectedTemplateId: i.string().indexed().optional(),
+      templateConfig: i.string().optional(),
+      conceptTitle: i.string().indexed().optional(),
+      conceptLyrics: i.string().optional(),
+      conceptHistory: i.string().optional(),
     }),
     messages: i.entity({
       content: i.string().optional(),
@@ -31,11 +37,13 @@ const _schema = i.schema({
     songs: i.entity({
       audioUrl: i.string().optional(),
       createdAt: i.number().indexed().optional(),
+      updatedAt: i.number().indexed().optional(),
       errorMessage: i.string().optional(),
       generationModel: i.string().optional(),
       generationParams: i.string().optional(),
       instrumental: i.boolean().optional(),
       lyrics: i.string().optional(),
+      lyricsSnippet: i.string().indexed().optional(),
       musicStyle: i.string().optional(),
       status: i.string().indexed().optional(),
       sunoTaskId: i.string().optional(),
@@ -47,13 +55,17 @@ const _schema = i.schema({
       modelName: i.string().optional(),
       prompt: i.string().optional(),
       callbackData: i.string().optional(),
-      title: i.string().optional(),
+      title: i.string().indexed().optional(),
       version: i.number().optional(),
       imageUrl: i.string().optional(),
       videoUrl: i.string().optional(),
       // Task 5.1, 5.2: Template-related fields
       templateId: i.string().indexed().optional(), // Selected template ID
       lyricsTaskId: i.string().optional(), // Suno lyrics generation task ID
+      isPublic: i.boolean().indexed().optional(),
+      publicId: i.string().indexed().optional(),
+      selectedVariantId: i.string().optional(),
+      lastPlayedAt: i.number().indexed().optional(),
     }),
     sunoVariants: i.entity({
       songId: i.string().indexed(),
@@ -92,6 +104,15 @@ const _schema = i.schema({
       isSelection: i.boolean().optional(),
       selectedAt: i.number().optional(),
       selectedFromTaskId: i.string().optional(),
+    }),
+    push_subscriptions: i.entity({
+      endpoint: i.string().unique().indexed(),
+      p256dh: i.string(),
+      auth: i.string(),
+      ua: i.string().optional(),
+      platform: i.string().optional(),
+      allowMarketing: i.boolean().optional(),
+      createdAt: i.number().indexed().optional(),
     }),
   },
   links: {
@@ -191,6 +212,10 @@ const _schema = i.schema({
         has: "many",
         label: "lyricVersions",
       },
+    },
+    pushSubscriptionsUser: {
+      forward: { on: 'push_subscriptions', has: 'one', label: 'user' },
+      reverse: { on: '$users', has: 'many', label: 'pushSubscriptions' },
     },
   },
   rooms: {

@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:3001": "next dev --turbopack -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest"
+    "test": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@instantdb/admin": "^0.6.5",

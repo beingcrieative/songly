@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
 
 // Configureerbaar: maximum aantal conversatie rondes voordat lyrics gegenereerd worden
 const MAX_CONVERSATION_ROUNDS = parseInt(process.env.MAX_CONVERSATION_ROUNDS || '8');
@@ -60,30 +61,14 @@ async function generateComposerContext(messages: any[]): Promise<string | null> 
       .map((m: any) => `${m.role}: ${m.content}`)
       .join('\n');
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://liefdesliedje.app',
-        'X-Title': 'Liefdesliedje Maker',
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          { role: 'system', content: COMPOSER_CONTEXT_PROMPT },
-          { role: 'user', content: `Conversatie:\n${conversationSummary}` },
-        ],
-        route: 'fallback', // Allow fallback to paid models if free model unavailable
-      }),
+    const data = await openrouterChatCompletion({
+      messages: [
+        { role: 'system', content: COMPOSER_CONTEXT_PROMPT },
+        { role: 'user', content: `Conversatie:\n${conversationSummary}` },
+      ],
+      temperature: 0.4,
+      title: 'Liefdesliedje Maker - Composer Context',
     });
-
-    if (!response.ok) {
-      console.error('Failed to generate composer context');
-      return null;
-    }
-
-    const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
 
     // Try to parse JSON from response
@@ -114,15 +99,26 @@ export async function POST(request: NextRequest) {
       currentStyle = '',
     } = await request.json();
 
+    // Server log helpers for clarity
+    const singleLine = (s: string) => (s || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const lastUserMsg = Array.isArray(messages)
+      ? [...messages].reverse().find((m: any) => m?.role === 'user')?.content || ''
+      : '';
+
     // Als dit de eerste call is, start het gesprek
     if (conversationRound === 0) {
-      return NextResponse.json({
-        type: 'message',
-        content: `Hoi! Wat leuk dat je een liefdesliedje wilt maken! 💕
+      const greeting = `Hoi! Wat leuk dat je een liefdesliedje wilt maken! 💕
 
 Ik ga je helpen om iets heel persoonlijks en speciaals te creëren voor je geliefde.
 
-Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag iets kleins zijn, of iets groots - alles wat belangrijk voor jullie is!`,
+Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag iets kleins zijn, of iets groots - alles wat belangrijk voor jullie is!`;
+      if (lastUserMsg) {
+        console.log(`user: ${singleLine(lastUserMsg)}`);
+      }
+      console.log(`aiagent: ${singleLine(greeting)}`);
+      return NextResponse.json({
+        type: 'message',
+        content: greeting,
         round: 1,
       });
     }
@@ -159,27 +155,11 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
     }
 
     // Normale conversatie
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://liefdesliedje.app',
-        'X-Title': 'Liefdesliedje Maker',
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: conversationHistory,
-        route: 'fallback', // Allow fallback to paid models if free model unavailable
-      }),
+    const data = await openrouterChatCompletion({
+      messages: conversationHistory,
+      title: 'Liefdesliedje Maker - Conversation',
+      temperature: 0.8,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'OpenRouter API error');
-    }
-
-    const data = await response.json();
     const aiMessage = data.choices?.[0]?.message?.content || '';
 
     // Generate composer context after getting AI reply
@@ -188,7 +168,12 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
       { role: 'assistant', content: aiMessage }
     ]);
 
+    // Server logs: last user + assistant visible reply (parsed below)
+    if (lastUserMsg) {
+      console.log(`user: ${singleLine(lastUserMsg)}`);
+    }
     const parsed = parseMessageWithHidden(aiMessage);
+    console.log(`aiagent: ${singleLine(parsed.visible)}`);
     if (parsed.concept) {
       return NextResponse.json({
         type: 'message_lyrics',
@@ -287,32 +272,11 @@ Formatteer je antwoord EXACT als dit JSON object (geen andere tekst):
   "style": "Beschrijving van muziekstijl (bijv. 'romantic acoustic ballad', 'upbeat love song')"
 }`;
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://liefdesliedje.app',
-      'X-Title': 'Liefdesliedje Maker',
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      messages: [
-        {
-          role: 'user',
-          content: lyricsPrompt,
-        },
-      ],
-      route: 'fallback', // Allow fallback to paid models if free model unavailable
-    }),
+  const data = await openrouterChatCompletion({
+    messages: [{ role: 'user', content: lyricsPrompt }],
+    title: 'Liefdesliedje Maker - Lyrics Generation',
+    temperature: 0.9,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || 'OpenRouter API error');
-  }
-
-  const data = await response.json();
   const full = data.choices?.[0]?.message?.content || '';
   const parsed = parseMessageWithHidden(full);
   if (parsed.concept) {
@@ -358,29 +322,11 @@ Leveringsprotocol (zichtbaar + verborgen):
 }
 ###END###`;
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://liefdesliedje.app',
-      'X-Title': 'Liefdesliedje Maker',
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      messages: [
-        { role: 'user', content: prompt },
-      ],
-      route: 'fallback', // Allow fallback to paid models if free model unavailable
-    }),
+  const data = await openrouterChatCompletion({
+    messages: [{ role: 'user', content: prompt }],
+    title: 'Liefdesliedje Maker - Lyrics Refinement',
+    temperature: 0.9,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || 'OpenRouter API error');
-  }
-
-  const data = await response.json();
   const full = data.choices?.[0]?.message?.content || '';
   const parsed = parseMessageWithHidden(full);
   if (parsed.concept) {

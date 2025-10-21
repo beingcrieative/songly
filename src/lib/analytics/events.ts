@@ -81,3 +81,28 @@ export function trackLyricsRefined(payload: LyricsRefinedPayload) {
   // TODO: Integrate with your analytics provider
   // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_REFINED, payload);
 }
+
+// Library analytics
+type LibraryEventPayload = Record<string, unknown>;
+
+function trackLibrary(eventName: string, payload: LibraryEventPayload) {
+  if (typeof window === 'undefined') return;
+  console.log('[Analytics]', eventName, payload);
+  // window.analytics?.track(eventName, payload);
+}
+
+export function trackLibraryOpen(payload: { userId: string }) {
+  trackLibrary('library_open', payload);
+}
+
+export function trackLibraryPlay(payload: { songId: string; variantId?: string }) {
+  trackLibrary('library_play', payload);
+}
+
+export function trackLibraryDelete(payload: { songId?: string; conversationId?: string }) {
+  trackLibrary('library_delete', payload);
+}
+
+export function trackLibraryShare(payload: { songId: string; publicId: string }) {
+  trackLibrary('library_share', payload);
+}

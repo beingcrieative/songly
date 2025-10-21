@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/adminDb';
 import { id } from '@instantdb/admin';
 import crypto from 'crypto';
+import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
 
 const LYRIC_VERSION_PROMPT = `Je bent een professionele liedjesschrijver. Genereer of verfijn song lyrics op basis van de conversatie.
 
@@ -81,30 +82,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Call LLM to generate lyrics
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://liefdesliedje.app',
-          'X-Title': 'Liefdesliedje Maker',
-        },
-        body: JSON.stringify({
-          model: OPENROUTER_MODEL,
-          messages: [
-            { role: 'system', content: LYRIC_VERSION_PROMPT },
-            { role: 'user', content: prompt },
-          ],
-          route: 'fallback', // Allow fallback to paid models if free model unavailable
-        }),
+      const data = await openrouterChatCompletion({
+        messages: [
+          { role: 'system', content: LYRIC_VERSION_PROMPT },
+          { role: 'user', content: prompt },
+        ] as any,
+        temperature: 0.9,
+        title: 'Liefdesliedje Maker - Lyric Version',
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'OpenRouter API error');
-      }
-
-      const data = await response.json();
       const content = data.choices?.[0]?.message?.content || '';
 
       // Parse JSON from response
