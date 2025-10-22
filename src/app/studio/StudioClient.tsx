@@ -1105,17 +1105,31 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     if (streamed) return;
 
     // Fallback: non-streaming API
-    const response = await fetch("/api/chat/conversation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [...messages, userMessage],
-        conversationRound: currentRound - 1,
-        existingContext: stringifyExtractedContext(extractedContext),
-      }),
-    });
+    console.log('[conversation] Stream failed, using fallback non-streaming API');
+    let response: Response;
+    let data: any;
 
-    const data = await response.json();
+    try {
+      response = await fetch("/api/chat/conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+          conversationRound: currentRound - 1,
+          existingContext: stringifyExtractedContext(extractedContext),
+        }),
+      });
+
+      data = await response.json();
+    } catch (fetchError: any) {
+      console.error('[conversation] Fallback API fetch failed:', fetchError);
+      const errorMessage = {
+        role: "assistant" as const,
+        content: "Sorry, er ging iets mis. Probeer het opnieuw.",
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      return;
+    }
 
     if (response.status === 429 && data.rateLimited) {
       const retryMessage = {
