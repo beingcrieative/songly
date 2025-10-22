@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 
 export interface ComposerBarProps {
   value: string;
@@ -19,6 +19,19 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
     // Keep keyboard open on mobile by refocusing the input
     requestAnimationFrame(() => inputRef.current?.focus());
   };
+
+  // Auto-scroll input into view when keyboard opens
+  const handleFocus = () => {
+    // Small delay to ensure keyboard is shown before scrolling
+    setTimeout(() => {
+      inputRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest'
+      });
+    }, 300);
+  };
+
   return (
     <div className="w-full">
       <div className="flex items-center gap-3">
@@ -29,12 +42,18 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
+            onFocus={handleFocus}
             onBlur={() => {
               // No-op: user controls keyboard visibility; avoid auto-clearing state
             }}
             enterKeyHint="send"
             placeholder={placeholder}
             disabled={disabled}
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
             className="w-full h-12 rounded-xl border-2 pl-4 pr-12 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:bg-gray-100"
             style={{ borderColor: 'rgba(74, 222, 128, 0.35)' }}
           />
