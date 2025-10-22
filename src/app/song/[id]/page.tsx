@@ -115,17 +115,23 @@ export default function SongDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
-        <div className="surface-card px-8 py-6 text-sm text-[rgba(31,27,45,0.6)]">Laden...</div>
-      </div>
+      <>
+        <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
+          <div className="surface-card px-8 py-6 text-sm text-[rgba(31,27,45,0.6)]">Laden...</div>
+        </div>
+        <NavTabs />
+      </>
     );
   }
 
   if (error || !song) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
-        <div className="surface-card px-8 py-6 text-sm text-rose-600">Kon lied niet laden</div>
-      </div>
+      <>
+        <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
+          <div className="surface-card px-8 py-6 text-sm text-rose-600">Kon lied niet laden</div>
+        </div>
+        <NavTabs />
+      </>
     );
   }
 
