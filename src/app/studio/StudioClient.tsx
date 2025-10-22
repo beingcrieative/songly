@@ -9,6 +9,7 @@ import { LyricsCompare } from "@/components/LyricsCompare";
 import { LyricsGenerationProgress } from "@/components/LyricsGenerationProgress";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
+import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import { ConversationPhase, ExtractedContext, ConceptLyrics, UserPreferences } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
@@ -2312,15 +2313,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
           {messages.length === 0 && (
-            <div className="text-center py-10">
-              <div className="text-6xl mb-4">🎵</div>
-              <h2 className="text-xl font-semibold text-gray-700 mb-2">
-                {strings.studio.welcomeTitle}
-              </h2>
-              <p className="text-gray-600">
-                {strings.studio.welcomeDescription}
-              </p>
-            </div>
+            <WelcomeAnimation
+              title={strings.studio.welcomeTitle}
+              description={strings.studio.welcomeDescription}
+            />
           )}
 
           {messages.map((message, idx) => (
