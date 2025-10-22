@@ -2,8 +2,8 @@
 
 import type { InstantRules } from "@instantdb/react";
 
-// Default‑deny policy: no client-side writes unless explicitly allowed.
-// NOTE: Server routes continue to use the admin SDK for persistence on behalf of the user.
+// Permission model: Allow authenticated users to read and write their own data
+// Server routes can also use the admin SDK for operations requiring elevated permissions
 const rules = {
   $files: {
     allow: { view: "false", create: "false", update: "false", delete: "false" },
@@ -14,28 +14,33 @@ const rules = {
   conversations: {
     allow: {
       view: "auth.id != null && auth.id == data.ref('user.id')",
-      create: "false",
-      update: "false",
+      create: "auth.id != null",
+      update: "auth.id != null && auth.id == data.ref('user.id')",
       delete: "auth.id != null && auth.id == data.ref('user.id')",
     },
   },
   messages: {
-    allow: { view: "false", create: "false", update: "false", delete: "false" },
+    allow: {
+      view: "auth.id != null && auth.id == data.ref('conversation.user.id')",
+      create: "auth.id != null",
+      update: "false",
+      delete: "auth.id != null && auth.id == data.ref('conversation.user.id')",
+    },
   },
   songs: {
     allow: {
       view: "auth.id != null && auth.id == data.ref('user.id')",
-      create: "false",
-      update: "false",
+      create: "auth.id != null",
+      update: "auth.id != null && auth.id == data.ref('user.id')",
       delete: "auth.id != null && auth.id == data.ref('user.id')",
     },
   },
   sunoVariants: {
     allow: {
       view: "auth.id != null && auth.id == data.ref('song.user.id')",
-      create: "false",
-      update: "false",
-      delete: "false",
+      create: "auth.id != null",
+      update: "auth.id != null && auth.id == data.ref('song.user.id')",
+      delete: "auth.id != null && auth.id == data.ref('song.user.id')",
     },
   },
   todos: {
@@ -44,8 +49,8 @@ const rules = {
   lyric_versions: {
     allow: {
       view: "auth.id != null && (auth.id == data.ref('conversation.user.id') || auth.id == data.ref('song.user.id'))",
-      create: "false",
-      update: "false",
+      create: "auth.id != null",
+      update: "auth.id != null && (auth.id == data.ref('conversation.user.id') || auth.id == data.ref('song.user.id'))",
       delete: "auth.id != null && (auth.id == data.ref('conversation.user.id') || auth.id == data.ref('song.user.id'))",
     },
   },
