@@ -93,14 +93,22 @@ export default function LibraryPage() {
 
   if (auth.isLoading) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center text-slate-500">
-        Bibliotheek laden…
-      </div>
+      <>
+        <div className="flex min-h-[70vh] items-center justify-center text-slate-500">
+          Bibliotheek laden…
+        </div>
+        <NavTabs />
+      </>
     );
   }
 
   if (!auth.user) {
-    return <LoginScreen />;
+    return (
+      <>
+        <LoginScreen />
+        <NavTabs />
+      </>
+    );
   }
 
   const handlePlay = async (songId: string, variant: { trackId: string; streamAudioUrl?: string | null; audioUrl?: string | null; title?: string | null; imageUrl?: string | null }) => {
