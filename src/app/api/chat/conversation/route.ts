@@ -15,14 +15,26 @@ import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 export async function POST(request: NextRequest) {
   try {
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error('[conversation] JSON parse error:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
+
     const {
       messages,
       conversationRound = 0,
       existingContext = null,
-    } = await request.json();
+    } = body;
 
     // Validate input
     if (!Array.isArray(messages) || messages.length === 0) {
+      console.error('[conversation] Invalid messages array:', { messages, type: typeof messages });
       return NextResponse.json(
         { error: 'Messages array is required' },
         { status: 400 }
@@ -157,7 +169,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(responseData);
   } catch (error: any) {
-    console.error('Conversation API error:', error);
+    // Enhanced error logging for debugging
+    console.error('[conversation] Error caught:', {
+      message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 3).join(' | '),
+      name: error?.name,
+      type: typeof error,
+    });
 
     // User-friendly Dutch error messages
     const errorMessage =
