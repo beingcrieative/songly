@@ -93,9 +93,9 @@ export function useLibrarySongs(
     },
   } as const;
 
-  // Always call the hook (Rules of Hooks)
-  // If no userId, query will have no user filter and return empty results
-  return db.useQuery(userId ? query : { songs: {} });
+  // Always call the hook with consistent query structure (Rules of Hooks)
+  // If no userId, where clause will have no user filter and return empty results
+  return db.useQuery(query);
 }
 
 export function useLibraryConversations(
@@ -137,7 +137,7 @@ export function useLibraryConversations(
     },
   } as const;
 
-  // Always call the hook (Rules of Hooks)
-  // If no userId, query will have no user filter and return empty results
-  return db.useQuery(userId ? query : { conversations: {} });
+  // Always call the hook with consistent query structure (Rules of Hooks)
+  // If no userId, where clause will have no user filter and return empty results
+  return db.useQuery(query);
 }
