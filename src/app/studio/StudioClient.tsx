@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { id } from "@instantdb/react";
 import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
-import { ComposerControls } from "@/components/ComposerControls";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { LyricsCompare } from "@/components/LyricsCompare";
 import { LyricsGenerationProgress } from "@/components/LyricsGenerationProgress";
@@ -2404,22 +2403,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               fixed={false}
             />
           ) : null}
-
-          {/* Composer Controls (hide when keyboard open) */}
-          {!isKeyboardOpen && (
-            <ComposerControls
-              composerContext={latestComposerContext}
-              onSuggestionClick={handleSuggestionClick}
-              roundNumber={roundNumber}
-              readinessScore={readinessScore}
-              onGenerateNow={
-                ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering'
-                  ? transitionToLyricsGeneration
-                  : undefined
-              }
-              isKeyboardOpen={isKeyboardOpen}
-            />
-          )}
 
           {/* Input Area */}
           {isMobile ? (
