@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 export interface ComposerBarProps {
   value: string;
@@ -12,29 +12,21 @@ export interface ComposerBarProps {
 
 export default function ComposerBar({ value, onChange, onSubmit, disabled, placeholder }: ComposerBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSubmittingRef = useRef(false);
 
   const handleSubmit = () => {
-    if (disabled) return;
+    if (disabled || !value.trim()) return;
 
-    // Store the current focus state
-    const wasFocused = document.activeElement === inputRef.current;
+    // Mark that we're submitting to prevent blur
+    isSubmittingRef.current = true;
 
+    // Call the parent's submit handler
     onSubmit();
 
-    // Keep keyboard open on mobile by refocusing the input
-    // Use multiple attempts to ensure focus is restored
-    if (wasFocused) {
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-
-        // Double-check after a short delay
-        setTimeout(() => {
-          if (document.activeElement !== inputRef.current) {
-            inputRef.current?.focus();
-          }
-        }, 50);
-      });
-    }
+    // Reset the flag after the keyboard would have closed
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+    }, 100);
   };
 
   // Auto-scroll input into view when keyboard opens
@@ -49,6 +41,30 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
     }, 300);
   };
 
+  // Prevent blur during submit to keep keyboard open
+  const handleBlur = (e: React.FocusEvent) => {
+    if (isSubmittingRef.current) {
+      e.preventDefault();
+      // Immediately refocus to keep keyboard open
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    }
+  };
+
+  // Keep input focused after value changes
+  useEffect(() => {
+    if (inputRef.current && document.activeElement === inputRef.current) {
+      // Force focus to stay if we're the active element
+      const timeoutId = setTimeout(() => {
+        if (inputRef.current && value === '') {
+          inputRef.current.focus();
+        }
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [value]);
+
   return (
     <div className="w-full">
       <div className="flex items-center gap-3">
@@ -60,9 +76,7 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
             onFocus={handleFocus}
-            onBlur={() => {
-              // No-op: user controls keyboard visibility; avoid auto-clearing state
-            }}
+            onBlur={handleBlur}
             enterKeyHint="send"
             placeholder={placeholder}
             disabled={disabled}

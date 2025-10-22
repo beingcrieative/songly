@@ -311,7 +311,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
   const [lyricsPollingAttempts, setLyricsPollingAttempts] = useState(0);
   const [isParameterSheetOpen, setIsParameterSheetOpen] = useState(false);
-  const [isMobileLyricsOpen, setIsMobileLyricsOpen] = useState(false);
   // Task 6.1: Error state
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [hasHydratedConversation, setHasHydratedConversation] = useState(!isMobile);
@@ -2263,12 +2262,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     >
       {/* Header */}
       {isMobile ? (
-        <ChatHeader
-          title="Studio"
-          onNew={() => {
-            setIsMobileLyricsOpen(true);
-          }}
-        />
+        <ChatHeader title="Studio" />
       ) : (
         <div className="px-4 py-3 md:px-6 md:py-4 border-b border-[rgba(15,23,42,0.08)] bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75">
           <h1 className="text-xl font-extrabold" style={{ color: 'var(--color-secondary)' }}>
@@ -2712,8 +2706,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           chatPane={chatPane}
           lyricsPane={lyricsPane}
           className={isMobile ? "bg-transparent" : ""}
-          isMobileLyricsOpen={isMobileLyricsOpen}
-          onMobileLyricsOpenChange={setIsMobileLyricsOpen}
         />
       </div>
 
