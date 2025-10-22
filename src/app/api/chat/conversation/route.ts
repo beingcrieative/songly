@@ -14,12 +14,20 @@ const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:fre
 import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 export async function POST(request: NextRequest) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
   try {
     let body: any;
     try {
       body = await request.json();
+      console.log(`[conversation:${requestId}] Request received:`, {
+        hasMessages: Array.isArray(body?.messages),
+        messageCount: body?.messages?.length,
+        conversationRound: body?.conversationRound,
+        hasContext: !!body?.existingContext,
+      });
     } catch (parseError) {
-      console.error('[conversation] JSON parse error:', parseError);
+      console.error(`[conversation:${requestId}] JSON parse error:`, parseError);
       return NextResponse.json(
         { error: 'Invalid request body' },
         { status: 400 }
@@ -34,7 +42,10 @@ export async function POST(request: NextRequest) {
 
     // Validate input
     if (!Array.isArray(messages) || messages.length === 0) {
-      console.error('[conversation] Invalid messages array:', { messages, type: typeof messages });
+      console.error(`[conversation:${requestId}] Invalid messages:`, {
+        messagesType: typeof messages,
+        messagesLength: messages?.length
+      });
       return NextResponse.json(
         { error: 'Messages array is required' },
         { status: 400 }
@@ -57,6 +68,7 @@ export async function POST(request: NextRequest) {
     ];
 
     // Call OpenRouter with conversation agent
+    console.log(`[conversation:${requestId}] Calling OpenRouter for conversation agent...`);
     let data: any;
     try {
       data = await openrouterChatCompletion({
@@ -66,7 +78,12 @@ export async function POST(request: NextRequest) {
         // Allow enough room for short chat + optional hidden concept block
         maxTokens: 1024,
       });
+      console.log(`[conversation:${requestId}] OpenRouter call successful`);
     } catch (e: any) {
+      console.error(`[conversation:${requestId}] OpenRouter error:`, {
+        message: e?.message,
+        name: e?.name,
+      });
       const message = e?.message || '';
       if ((message && message.toLowerCase().includes('too many')) || message.toLowerCase().includes('rate')) {
         return NextResponse.json(
@@ -127,20 +144,26 @@ export async function POST(request: NextRequest) {
       { role: 'assistant', content: aiMessage },
     ];
 
+    console.log(`[conversation:${requestId}] Extracting context from conversation...`);
     let extractedContext: ExtractedContext = { memories: [], emotions: [], partnerTraits: [] };
     try {
       const newContext = await extractContextFromConversation(
         fullConversation,
         OPENROUTER_API_KEY
       );
+      console.log(`[conversation:${requestId}] Context extraction successful`);
 
       // Merge with existing context
       const parsedExisting = existingContext
         ? parseExtractedContext(existingContext)
         : null;
       extractedContext = mergeContext(parsedExisting, newContext);
-    } catch (error) {
-      console.error('Context extraction failed:', error);
+    } catch (error: any) {
+      console.error(`[conversation:${requestId}] Context extraction failed:`, {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack?.split('\n').slice(0, 5).join(' | '),
+      });
       // Use existing context if extraction fails
       extractedContext = (existingContext ? parseExtractedContext(existingContext) : null) ?? { memories: [], emotions: [], partnerTraits: [] };
     }
@@ -167,12 +190,13 @@ export async function POST(request: NextRequest) {
       conceptLyrics: conceptLyrics,  // Add concept lyrics to response
     };
 
+    console.log(`[conversation:${requestId}] Request completed successfully`);
     return NextResponse.json(responseData);
   } catch (error: any) {
     // Enhanced error logging for debugging
-    console.error('[conversation] Error caught:', {
+    console.error(`[conversation:${requestId}] Error caught:`, {
       message: error?.message,
-      stack: error?.stack?.split('\n').slice(0, 3).join(' | '),
+      stack: error?.stack?.split('\n').slice(0, 5).join(' | '),
       name: error?.name,
       type: typeof error,
     });

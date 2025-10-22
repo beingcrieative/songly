@@ -996,7 +996,9 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     userInput: string
   ) => {
     // Prefer streaming endpoint for better UX; fallback to non-streaming
-    const tryStreaming = async (): Promise<boolean> => {
+    const tryStreaming = async (): Promise<{ success: boolean; streamCompleted: boolean }> => {
+      let streamCompleted = false;
+
       try {
         const placeholderIdx = messages.length + 1; // after we append user message
         setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
@@ -1011,7 +1013,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }),
         });
 
-        if (!res.ok || !res.body) throw new Error('stream not available');
+        if (!res.ok || !res.body) {
+          console.log('[conversation] Stream response not OK or no body:', res.status);
+          throw new Error('stream not available');
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1053,6 +1058,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }
         }
 
+        // Stream completed successfully
+        streamCompleted = true;
+        console.log('[conversation] Stream completed successfully');
+
         // Apply meta (context/readiness) if provided
         if (finalMeta) {
           const {
@@ -1093,16 +1102,32 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }
         }
 
-        return true;
-      } catch (e) {
-        // Remove placeholder on failure
-        setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
-        return false;
+        return { success: true, streamCompleted };
+      } catch (e: any) {
+        console.error('[conversation] Stream processing error:', {
+          message: e?.message,
+          streamCompleted,
+          phase: streamCompleted ? 'post-processing' : 'streaming',
+        });
+
+        // Only remove placeholder if stream never completed
+        if (!streamCompleted) {
+          setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
+        }
+
+        return { success: false, streamCompleted };
       }
     };
 
-    const streamed = await tryStreaming();
-    if (streamed) return;
+    const { success: streamed, streamCompleted } = await tryStreaming();
+
+    // If stream completed successfully, don't use fallback even if post-processing failed
+    if (streamed || streamCompleted) {
+      if (!streamed && streamCompleted) {
+        console.log('[conversation] Stream completed but post-processing failed, skipping fallback');
+      }
+      return;
+    }
 
     // Fallback: non-streaming API
     console.log('[conversation] Stream failed, using fallback non-streaming API');
