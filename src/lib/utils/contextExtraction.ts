@@ -71,6 +71,7 @@ BELANGRIJK:
       maxTokens: 220,
     });
     const content = data.choices?.[0]?.message?.content || '{}';
+    console.log('[contextExtraction] Received response, content length:', content.length);
 
     // Try to parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -102,9 +103,14 @@ BELANGRIJK:
     }
 
     // Fallback: return empty context if parsing fails
+    console.warn('[contextExtraction] No valid JSON found in response');
     return createEmptyContext();
-  } catch (error) {
-    console.error('Context extraction error:', error);
+  } catch (error: any) {
+    console.error('[contextExtraction] Error:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack?.split('\n').slice(0, 3).join(' | ')
+    });
     // Return empty context on error rather than throwing
     return createEmptyContext();
   }
