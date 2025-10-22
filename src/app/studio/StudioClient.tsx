@@ -46,6 +46,7 @@ import {
 import LoginScreen from "@/components/auth/LoginScreen";
 import { useSessionReady } from "@/components/auth/SessionBridge";
 import { createSnippet, serializeConceptForStorage } from "@/lib/library/utils";
+import { useI18n } from "@/providers/I18nProvider";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
@@ -264,6 +265,7 @@ function useSongData(currentSong: { songId?: string | null } | null, isMobile: b
 }
 
 export default function StudioClient({ isMobile }: { isMobile: boolean }) {
+  const { strings } = useI18n();
   const [messages, setMessages] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -2300,10 +2302,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
             <div className="text-center py-10">
               <div className="text-6xl mb-4">🎵</div>
               <h2 className="text-xl font-semibold text-gray-700 mb-2">
-                Welkom bij je liefdesliedje studio!
+                {strings.studio.welcomeTitle}
               </h2>
               <p className="text-gray-600">
-                Begin een gesprek en ik help je een persoonlijk liefdesliedje te maken.
+                {strings.studio.welcomeDescription}
               </p>
             </div>
           )}
@@ -2314,7 +2316,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
                 key={idx}
                 role={message.role}
                 avatar={{ name: message.role === 'user' ? 'Jij' : 'AI' }}
-                label={message.role === 'user' ? 'Gebruiker' : 'Muziekgeneratie'}
+                label={message.role === 'user' ? strings.studio.userLabel : strings.studio.assistantLabel}
               >
                 {message.content}
               </ChatBubble>
