@@ -2391,7 +2391,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           showCompactChat ? 'px-3 py-2' : 'p-4'
         } ${
           isMobile
-            ? `sticky ${isKeyboardOpen ? 'bottom-0' : 'bottom-[64px]'} z-30 px-4 py-3 shadow-[0_-8px_20px_-12px_rgba(17,24,39,0.35)] pb-safe`
+            ? `sticky ${isKeyboardOpen ? 'bottom-0 z-[70]' : 'bottom-[64px] z-30'} px-4 py-3 shadow-[0_-8px_20px_-12px_rgba(17,24,39,0.35)] pb-safe`
             : ''
         }`}
       >
