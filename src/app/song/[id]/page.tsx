@@ -4,6 +4,7 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import NavTabs from "@/components/mobile/NavTabs";
 
 type Song = any;
 
@@ -172,6 +173,7 @@ export default function SongDetailPage() {
           <div className="lyrics-scroll mt-2 max-h-[400px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-relaxed text-[rgba(31,27,45,0.85)]">{song.lyrics}</div>
         </div>
       )}
+      <NavTabs />
     </div>
   );
 }

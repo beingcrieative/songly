@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
+import NavTabs from "@/components/mobile/NavTabs";
 import { useLibrarySongs, useLibraryConversations } from "@/lib/library/queries";
 import SongCard from "./components/SongCard";
 import ConversationCard from "./components/ConversationCard";
@@ -324,6 +325,7 @@ export default function LibraryPage() {
           />
         </div>
       )}
+      <NavTabs />
     </div>
   );
 }
