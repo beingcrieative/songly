@@ -14,12 +14,15 @@ const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:fre
 import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
 
 export async function POST(request: NextRequest) {
+  const requestId = Math.random().toString(36).substring(7);
+  console.log(`[conversation:${requestId}] Starting request`);
+
   try {
     let body: any;
     try {
       body = await request.json();
     } catch (parseError) {
-      console.error('[conversation] JSON parse error:', parseError);
+      console.error(`[conversation:${requestId}] JSON parse error:`, parseError);
       return NextResponse.json(
         { error: 'Invalid request body' },
         { status: 400 }
@@ -31,6 +34,8 @@ export async function POST(request: NextRequest) {
       conversationRound = 0,
       existingContext = null,
     } = body;
+
+    console.log(`[conversation:${requestId}] Received ${messages?.length || 0} messages, round ${conversationRound}`);
 
     // Validate input
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -59,6 +64,7 @@ export async function POST(request: NextRequest) {
     // Call OpenRouter with conversation agent
     let data: any;
     try {
+      console.log(`[conversation:${requestId}] Calling OpenRouter...`);
       data = await openrouterChatCompletion({
         messages: conversationHistory,
         temperature: 0.8,
@@ -66,7 +72,13 @@ export async function POST(request: NextRequest) {
         // Allow enough room for short chat + optional hidden concept block
         maxTokens: 1024,
       });
+      console.log(`[conversation:${requestId}] OpenRouter response received`);
     } catch (e: any) {
+      console.error(`[conversation:${requestId}] OpenRouter error:`, {
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack?.split('\n').slice(0, 3).join(' | ')
+      });
       const message = e?.message || '';
       if ((message && message.toLowerCase().includes('too many')) || message.toLowerCase().includes('rate')) {
         return NextResponse.json(
@@ -129,6 +141,7 @@ export async function POST(request: NextRequest) {
 
     let extractedContext: ExtractedContext = { memories: [], emotions: [], partnerTraits: [] };
     try {
+      console.log(`[conversation:${requestId}] Extracting context...`);
       const newContext = await extractContextFromConversation(
         fullConversation,
         OPENROUTER_API_KEY
@@ -139,8 +152,9 @@ export async function POST(request: NextRequest) {
         ? parseExtractedContext(existingContext)
         : null;
       extractedContext = mergeContext(parsedExisting, newContext);
+      console.log(`[conversation:${requestId}] Context extracted successfully`);
     } catch (error) {
-      console.error('Context extraction failed:', error);
+      console.error(`[conversation:${requestId}] Context extraction failed:`, error);
       // Use existing context if extraction fails
       extractedContext = (existingContext ? parseExtractedContext(existingContext) : null) ?? { memories: [], emotions: [], partnerTraits: [] };
     }
@@ -167,15 +181,19 @@ export async function POST(request: NextRequest) {
       conceptLyrics: conceptLyrics,  // Add concept lyrics to response
     };
 
+    console.log(`[conversation:${requestId}] Success - returning response`);
     return NextResponse.json(responseData);
   } catch (error: any) {
     // Enhanced error logging for debugging
-    console.error('[conversation] Error caught:', {
+    const errorInfo = {
+      requestId,
       message: error?.message,
-      stack: error?.stack?.split('\n').slice(0, 3).join(' | '),
       name: error?.name,
       type: typeof error,
-    });
+      stack: error?.stack?.split('\n').slice(0, 5).join(' | '),
+      cause: error?.cause,
+    };
+    console.error('[conversation] Error caught:', errorInfo);
 
     // User-friendly Dutch error messages
     const errorMessage =
@@ -184,7 +202,7 @@ export async function POST(request: NextRequest) {
         : 'Er is iets misgegaan. Probeer het alsjeblieft opnieuw.';
 
     return NextResponse.json(
-      { error: errorMessage, details: error.message },
+      { error: errorMessage, details: error.message, requestId },
       { status: 500 }
     );
   }
