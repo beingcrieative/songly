@@ -15,9 +15,26 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
 
   const handleSubmit = () => {
     if (disabled) return;
+
+    // Store the current focus state
+    const wasFocused = document.activeElement === inputRef.current;
+
     onSubmit();
+
     // Keep keyboard open on mobile by refocusing the input
-    requestAnimationFrame(() => inputRef.current?.focus());
+    // Use multiple attempts to ensure focus is restored
+    if (wasFocused) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+
+        // Double-check after a short delay
+        setTimeout(() => {
+          if (document.activeElement !== inputRef.current) {
+            inputRef.current?.focus();
+          }
+        }, 50);
+      });
+    }
   };
 
   // Auto-scroll input into view when keyboard opens
