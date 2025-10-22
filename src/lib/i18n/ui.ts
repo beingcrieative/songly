@@ -38,10 +38,43 @@ type LanguageToggleTranslations = {
   switchToEnglish: string;
 };
 
+type StudioTranslations = {
+  welcomeTitle: string;
+  welcomeDescription: string;
+  userLabel: string;
+  assistantLabel: string;
+};
+
+type LibraryTranslations = {
+  title: string;
+  description: string;
+  tabSongs: string;
+  tabConversations: string;
+  loading: string;
+  searchSongsPlaceholder: string;
+  searchConversationsPlaceholder: string;
+  emptySongs: string;
+  emptyConversations: string;
+  statusAll: string;
+  statusReady: string;
+  statusGenerating: string;
+  statusFailed: string;
+  phaseAll: string;
+  phaseGathering: string;
+  phaseGenerating: string;
+  phaseRefining: string;
+  phaseComplete: string;
+  sortRecent: string;
+  sortAZ: string;
+  sortPlayed: string;
+};
+
 type UITokens = {
   nav: NavTranslations;
   parameters: ParameterTranslations;
   languageToggle: LanguageToggleTranslations;
+  studio: StudioTranslations;
+  library: LibraryTranslations;
 };
 
 export const uiStrings: Record<UILanguage, UITokens> = {
@@ -85,6 +118,35 @@ export const uiStrings: Record<UILanguage, UITokens> = {
       switchToDutch: 'Schakel naar Nederlands',
       switchToEnglish: 'Switch to English',
     },
+    studio: {
+      welcomeTitle: 'Welkom bij je liefdesliedje studio!',
+      welcomeDescription: 'Begin een gesprek en ik help je een persoonlijk liefdesliedje te maken.',
+      userLabel: 'Gebruiker',
+      assistantLabel: 'Muziekgeneratie',
+    },
+    library: {
+      title: 'Je bibliotheek',
+      description: 'Herbeluister je liedjes en open eerdere gesprekken om verder te verfijnen.',
+      tabSongs: 'Liedjes',
+      tabConversations: 'Gesprekken',
+      loading: 'Bibliotheek laden…',
+      searchSongsPlaceholder: 'Zoek op titel of lyrics',
+      searchConversationsPlaceholder: 'Zoek naar concept lyrics',
+      emptySongs: 'Nog geen liedjes opgeslagen',
+      emptyConversations: 'Nog geen gesprekken opgeslagen',
+      statusAll: 'Alle statussen',
+      statusReady: 'Klaar',
+      statusGenerating: 'Bezig',
+      statusFailed: 'Mislukt',
+      phaseAll: 'Alle fases',
+      phaseGathering: 'Context',
+      phaseGenerating: 'Genereren',
+      phaseRefining: 'Verfijnen',
+      phaseComplete: 'Afgerond',
+      sortRecent: 'Laatst bijgewerkt',
+      sortAZ: 'Naam A-Z',
+      sortPlayed: 'Recent afgespeeld',
+    },
   },
   en: {
     nav: {
@@ -125,6 +187,35 @@ export const uiStrings: Record<UILanguage, UITokens> = {
       label: 'Language',
       switchToDutch: 'Switch to Dutch',
       switchToEnglish: 'Switch to English',
+    },
+    studio: {
+      welcomeTitle: 'Welcome to your love song studio!',
+      welcomeDescription: 'Start a conversation and I\'ll help you create a personalized love song.',
+      userLabel: 'User',
+      assistantLabel: 'Music Generation',
+    },
+    library: {
+      title: 'Your library',
+      description: 'Replay your songs and open previous conversations to refine further.',
+      tabSongs: 'Songs',
+      tabConversations: 'Conversations',
+      loading: 'Loading library…',
+      searchSongsPlaceholder: 'Search by title or lyrics',
+      searchConversationsPlaceholder: 'Search concept lyrics',
+      emptySongs: 'No songs saved yet',
+      emptyConversations: 'No conversations saved yet',
+      statusAll: 'All statuses',
+      statusReady: 'Ready',
+      statusGenerating: 'In Progress',
+      statusFailed: 'Failed',
+      phaseAll: 'All phases',
+      phaseGathering: 'Context',
+      phaseGenerating: 'Generating',
+      phaseRefining: 'Refining',
+      phaseComplete: 'Complete',
+      sortRecent: 'Recently updated',
+      sortAZ: 'Name A-Z',
+      sortPlayed: 'Recently played',
     },
   },
 };

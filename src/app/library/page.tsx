@@ -17,34 +17,9 @@ import {
   trackLibraryPlay,
   trackLibraryShare,
 } from "@/lib/analytics/events";
+import { useI18n } from "@/providers/I18nProvider";
 
 type TabKey = "songs" | "conversations";
-
-const SONG_STATUS_OPTIONS = [
-  { value: "all", label: "Alle statussen" },
-  { value: "ready", label: "Klaar" },
-  { value: "generating", label: "Bezig" },
-  { value: "failed", label: "Mislukt" },
-];
-
-const SONG_SORT_OPTIONS = [
-  { value: "recent", label: "Laatst bijgewerkt" },
-  { value: "az", label: "Naam A-Z" },
-  { value: "played", label: "Recent afgespeeld" },
-];
-
-const CONVERSATION_STATUS_OPTIONS = [
-  { value: "all", label: "Alle fases" },
-  { value: "gathering", label: "Context" },
-  { value: "generating", label: "Genereren" },
-  { value: "refining", label: "Verfijnen" },
-  { value: "complete", label: "Afgerond" },
-];
-
-const CONVERSATION_SORT_OPTIONS = [
-  { value: "recent", label: "Laatst bijgewerkt" },
-  { value: "az", label: "Naam A-Z" },
-];
 
 interface CurrentPlaybackState {
   id: string;
@@ -58,6 +33,33 @@ export default function LibraryPage() {
   const router = useRouter();
   const auth = db.useAuth();
   const userId = auth.user?.id;
+  const { strings } = useI18n();
+
+  const SONG_STATUS_OPTIONS = [
+    { value: "all", label: strings.library.statusAll },
+    { value: "ready", label: strings.library.statusReady },
+    { value: "generating", label: strings.library.statusGenerating },
+    { value: "failed", label: strings.library.statusFailed },
+  ];
+
+  const SONG_SORT_OPTIONS = [
+    { value: "recent", label: strings.library.sortRecent },
+    { value: "az", label: strings.library.sortAZ },
+    { value: "played", label: strings.library.sortPlayed },
+  ];
+
+  const CONVERSATION_STATUS_OPTIONS = [
+    { value: "all", label: strings.library.phaseAll },
+    { value: "gathering", label: strings.library.phaseGathering },
+    { value: "generating", label: strings.library.phaseGenerating },
+    { value: "refining", label: strings.library.phaseRefining },
+    { value: "complete", label: strings.library.phaseComplete },
+  ];
+
+  const CONVERSATION_SORT_OPTIONS = [
+    { value: "recent", label: strings.library.sortRecent },
+    { value: "az", label: strings.library.sortAZ },
+  ];
 
   const [activeTab, setActiveTab] = useState<TabKey>("songs");
   const [songSearch, setSongSearch] = useState("");
@@ -95,7 +97,7 @@ export default function LibraryPage() {
     return (
       <>
         <div className="flex min-h-[70vh] items-center justify-center text-slate-500">
-          Bibliotheek laden…
+          {strings.library.loading}
         </div>
         <NavTabs />
       </>
@@ -251,9 +253,9 @@ export default function LibraryPage() {
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:py-12">
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Je bibliotheek</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{strings.library.title}</h1>
             <p className="text-sm text-slate-600">
-              Herbeluister je liedjes en open eerdere gesprekken om verder te verfijnen.
+              {strings.library.description}
             </p>
           </div>
           <div className="flex rounded-full bg-white p-1 shadow">
@@ -266,7 +268,7 @@ export default function LibraryPage() {
               }`}
               onClick={() => setActiveTab("songs")}
             >
-              Liedjes
+              {strings.library.tabSongs}
             </button>
             <button
               type="button"
@@ -277,7 +279,7 @@ export default function LibraryPage() {
               }`}
               onClick={() => setActiveTab("conversations")}
             >
-              Gesprekken
+              {strings.library.tabConversations}
             </button>
           </div>
         </header>
@@ -293,10 +295,10 @@ export default function LibraryPage() {
               sort={songSort}
               onSortChange={setSongSort}
               sortOptions={SONG_SORT_OPTIONS}
-              placeholder="Zoek op titel of lyrics"
+              placeholder={strings.library.searchSongsPlaceholder}
             />
             <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {songCards.length ? songCards : <EmptyState message="Nog geen liedjes opgeslagen" />}
+              {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
             </section>
           </>
         ) : (
@@ -310,13 +312,13 @@ export default function LibraryPage() {
               sort={conversationSort}
               onSortChange={setConversationSort}
               sortOptions={CONVERSATION_SORT_OPTIONS}
-              placeholder="Zoek naar concept lyrics"
+              placeholder={strings.library.searchConversationsPlaceholder}
             />
             <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {conversationCards.length ? (
                 conversationCards
               ) : (
-                <EmptyState message="Nog geen gesprekken opgeslagen" />
+                <EmptyState message={strings.library.emptyConversations} />
               )}
             </section>
           </>
