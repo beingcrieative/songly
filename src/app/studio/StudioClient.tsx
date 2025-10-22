@@ -1085,16 +1085,24 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               });
             } catch (e) {
               console.warn('Failed to persist assistant message (stream)', e);
+              // Continue even if persistence fails - streaming succeeded
             }
           }
 
-          if (shouldTransitionToGeneration(currentRound, readinessScore, userInput)) {
-            await transitionToLyricsGeneration();
+          // Wrap transition check in try-catch to prevent unhandled errors
+          try {
+            if (shouldTransitionToGeneration(currentRound, readinessScore, userInput)) {
+              await transitionToLyricsGeneration();
+            }
+          } catch (e) {
+            console.warn('Failed to transition to lyrics generation', e);
+            // Continue - streaming still succeeded
           }
         }
 
         return true;
       } catch (e) {
+        console.error('[conversation] Streaming failed:', e);
         // Remove placeholder on failure
         setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
         return false;
@@ -1102,7 +1110,11 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     };
 
     const streamed = await tryStreaming();
-    if (streamed) return;
+    console.log('[conversation] tryStreaming() returned:', streamed);
+    if (streamed) {
+      console.log('[conversation] Streaming succeeded, skipping fallback');
+      return;
+    }
 
     // Fallback: non-streaming API
     console.log('[conversation] Stream failed, using fallback non-streaming API');
