@@ -17,6 +17,7 @@
     "next": "^15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-swipeable": "^7.0.2",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

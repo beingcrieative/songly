@@ -316,7 +316,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🔄 Task 3.0: Create LyricsChoiceModal Component
+### ✅ Task 3.0: Create LyricsChoiceModal Component
 
 **Description**: Build new swipeable modal for lyrics variant selection with desktop side-by-side and mobile swipeable layouts.
 
@@ -326,7 +326,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **3.1 - Create base modal component**
+- [x] **3.1 - Create base modal component**
   - **File**: `src/components/LyricsChoiceModal.tsx` (NEW)
   - **Description**: Create modal shell with responsive layout
   - **Implementation**:
@@ -377,7 +377,7 @@ This task list implements the complete Library redesign to support async generat
     - Responsive layout (desktop vs mobile)
     - Props properly typed
 
-- [ ] **3.2 - Implement desktop side-by-side layout**
+- [x] **3.2 - Implement desktop side-by-side layout**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Show both variants side by side on desktop
   - **Implementation**:
@@ -420,7 +420,7 @@ This task list implements the complete Library redesign to support async generat
     - Button to confirm selection
     - Scrollable lyrics content
 
-- [ ] **3.3 - Implement mobile swipeable layout**
+- [x] **3.3 - Implement mobile swipeable layout**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Swipeable cards on mobile with clear indicators
   - **Implementation**:
@@ -487,7 +487,7 @@ This task list implements the complete Library redesign to support async generat
     - Swipe hint visible
     - Vertical scroll for lyrics, horizontal swipe for variants
 
-- [ ] **3.4 - Implement handleSelect logic**
+- [x] **3.4 - Implement handleSelect logic**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Call API to select variant and start music generation
   - **Implementation**:
@@ -513,7 +513,7 @@ This task list implements the complete Library redesign to support async generat
     - Shows error on failure
     - Button disabled during submission
 
-- [ ] **3.5 - Add keyboard navigation (desktop)**
+- [x] **3.5 - Add keyboard navigation (desktop)**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Arrow keys to navigate, Enter to confirm
   - **Implementation**:
