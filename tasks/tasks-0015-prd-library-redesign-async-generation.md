@@ -886,7 +886,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🔌 Task 6.0: Implement New API Endpoints
+### ✅ Task 6.0: Implement New API Endpoints
 
 **Description**: Create three new API routes for lyrics selection, retry, and view tracking.
 
@@ -896,7 +896,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **6.1 - Create select-lyrics endpoint**
+- [x] **6.1 - Create select-lyrics endpoint**
   - **File**: `src/app/api/library/songs/[songId]/select-lyrics/route.ts` (NEW)
   - **Description**: Select a lyric variant and start music generation
   - **Implementation**:
@@ -1016,7 +1016,7 @@ This task list implements the complete Library redesign to support async generat
     - Returns taskId on success
     - Error handling for all edge cases
 
-- [ ] **6.2 - Create retry endpoint**
+- [x] **6.2 - Create retry endpoint**
   - **File**: `src/app/api/library/songs/[songId]/retry/route.ts` (NEW)
   - **Description**: Retry failed lyrics or music generation
   - **Implementation**:
@@ -1139,7 +1139,7 @@ This task list implements the complete Library redesign to support async generat
     - Calls appropriate Suno API
     - Returns taskId and retry count
 
-- [ ] **6.3 - Create view tracking endpoint**
+- [x] **6.3 - Create view tracking endpoint**
   - **File**: `src/app/api/library/songs/[songId]/view/route.ts` (NEW)
   - **Description**: Update lastViewedAt when user opens song
   - **Implementation**:
@@ -1173,7 +1173,7 @@ This task list implements the complete Library redesign to support async generat
     - Returns success
     - Error handling
 
-- [ ] **6.4 - Add endpoint tests**
+- [x] **6.4 - Add endpoint tests**
   - **File**: `src/app/api/library/songs/__tests__/endpoints.test.ts` (NEW)
   - **Description**: Unit tests for all 3 endpoints
   - **Tests**:
