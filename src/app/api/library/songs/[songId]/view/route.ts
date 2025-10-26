@@ -3,10 +3,10 @@ import { getAdminDb } from '@/lib/adminDb';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { songId: string } }
+  { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
-    const { songId } = params;
+    const { songId } = await params;
 
     const admin = getAdminDb();
     if (!admin) {

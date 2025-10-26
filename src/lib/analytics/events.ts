@@ -141,13 +141,18 @@ export function trackLyricsProceededToMusic(payload: LyricsProceededToMusicPaylo
   // window.analytics?.track(LyricsAnalyticsEvent.LYRICS_PROCEEDED_TO_MUSIC, payload);
 }
 
+// General analytics helper
+function track(eventName: string, payload: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+  console.log('[Analytics]', eventName, payload);
+  // window.analytics?.track(eventName, payload);
+}
+
 // Library analytics
 type LibraryEventPayload = Record<string, unknown>;
 
 function trackLibrary(eventName: string, payload: LibraryEventPayload) {
-  if (typeof window === 'undefined') return;
-  console.log('[Analytics]', eventName, payload);
-  // window.analytics?.track(eventName, payload);
+  track(eventName, payload);
 }
 
 export function trackLibraryOpen(payload: { userId: string }) {
