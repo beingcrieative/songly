@@ -47,6 +47,12 @@ export async function openrouterChatCompletion(params: {
   const models = getCandidateModels();
   let lastError: any = null;
 
+  // ALWAYS log API key status (without exposing the full key)
+  const keyPreview = OPENROUTER_API_KEY
+    ? `${OPENROUTER_API_KEY.substring(0, 8)}...${OPENROUTER_API_KEY.substring(OPENROUTER_API_KEY.length - 4)}`
+    : 'MISSING';
+  console.log('[OpenRouter] API Key:', keyPreview, '| Models to try:', models);
+
   for (const model of models) {
     try {
       if (LLM_DEBUG) {
@@ -78,6 +84,14 @@ export async function openrouterChatCompletion(params: {
       if (!res.ok) {
         let errorData: any = {};
         try { errorData = await res.json(); } catch {}
+        // ALWAYS log errors (not just in debug mode)
+        console.error('[OpenRouter][Error]', {
+          model,
+          status: res.status,
+          statusText: res.statusText,
+          error: errorData?.error?.message || 'No error message',
+          fullError: JSON.stringify(errorData).substring(0, 500),
+        });
         if (LLM_DEBUG) {
           console.debug('[LLM][response-error]', {
             model,
