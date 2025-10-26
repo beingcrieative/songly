@@ -787,7 +787,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🔔 Task 5.0: Add Badge Counter to NavTabs
+### ✅ Task 5.0: Add Badge Counter to NavTabs
 
 **Description**: Show badge with count of action-required items on Library tab icon.
 
@@ -797,7 +797,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **5.1 - Create badge counter hook**
+- [x] **5.1 - Create badge counter hook**
   - **File**: `src/hooks/useActionItemsCount.ts` (NEW)
   - **Description**: Hook to count action items from songs query
   - **Implementation**:
@@ -831,7 +831,7 @@ This task list implements the complete Library redesign to support async generat
     - Updates in realtime via InstantDB subscription
     - Returns 0 if no user
 
-- [ ] **5.2 - Update NavTabs component**
+- [x] **5.2 - Update NavTabs component**
   - **File**: `src/components/mobile/NavTabs.tsx`
   - **Description**: Add badge to Library tab
   - **Implementation**:
@@ -870,7 +870,7 @@ This task list implements the complete Library redesign to support async generat
     - Updates in realtime
     - Positioned correctly on Library icon
 
-- [ ] **5.3 - Add pulse animation to badge**
+- [x] **5.3 - Add pulse animation to badge**
   - **File**: `src/components/mobile/NavTabs.tsx`
   - **Description**: Make badge pulse to draw attention
   - **Implementation**:
