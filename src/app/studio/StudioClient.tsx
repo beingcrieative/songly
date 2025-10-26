@@ -1371,6 +1371,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       const response = await fetch(`/api/suno/lyrics?taskId=${taskId}`);
       const data = await response.json();
 
+      console.log(`[Lyrics Poll] Attempt ${attempts}/${maxAttempts}:`, {
+        status: data.status,
+        hasLyrics: !!data.lyrics,
+        hasVariants: !!data.variants,
+        variantsCount: Array.isArray(data.variants) ? data.variants.length : 0,
+      });
+
       if (data.status === 'complete' && (data.lyrics || data.variants)) {
         // Success! Show lyrics
         const isRefinement = !!options?.refinement;
@@ -1390,6 +1397,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           : [];
         const hasVariants = variantArray.length >= 2;
 
+        console.log('[Lyrics Poll] ✅ Generation complete!', {
+          variantsCount: variantArray.length,
+          hasVariants,
+          willShowCompare: hasVariants,
+        });
+
         if (hasVariants) {
           setPendingLyricVariants(variantArray);
           setLyricsOptions(variantArray.slice(0, 2));
@@ -1405,6 +1418,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
             variantCount: variantArray.length,
             conversationId: conversationId || undefined,
           });
+
+          // Open lyrics panel on mobile to show comparison UI
+          if (isMobile) {
+            console.log('[Lyrics Poll] Opening mobile lyrics panel to show comparison');
+            setIsMobileLyricsOpen(true);
+          }
         } else if (data.lyrics) {
           const finalLyrics = String(data.lyrics);
           setPendingLyricVariants([]);

@@ -299,10 +299,60 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // FIRST: Check database for callback results (highest priority - callback may have arrived)
+    const { getAdminDb } = await import('@/lib/adminDb');
+    const adminDb = getAdminDb();
+
+    if (adminDb) {
+      try {
+        console.log('[Lyrics Poll] Checking database for taskId:', taskId);
+        const { conversations } = await adminDb.query({
+          conversations: {
+            $: { where: { lyricsTaskId: taskId } } as any,
+          },
+        });
+
+        if (conversations.length > 0) {
+          const conv = conversations[0];
+          console.log('[Lyrics Poll] Found conversation:', {
+            id: conv.id,
+            lyricsStatus: conv.lyricsStatus,
+            hasVariants: !!conv.lyricsVariants,
+          });
+
+          // Check if we have variants from callback
+          if (conv.lyricsVariants && conv.lyricsStatus === 'complete') {
+            try {
+              const variants = JSON.parse(conv.lyricsVariants);
+              if (Array.isArray(variants) && variants.length > 0) {
+                console.log('[Lyrics Poll] ✅ Found', variants.length, 'variants in DB from callback');
+                // Also update cache for future requests
+                setLyricsTaskComplete(taskId, variants);
+                return NextResponse.json({
+                  status: 'complete',
+                  lyrics: variants.join('\n\n---\n\n'),
+                  variants,
+                  taskId,
+                });
+              }
+            } catch (e) {
+              console.warn('[Lyrics Poll] Failed to parse lyricsVariants from DB:', e);
+            }
+          }
+        } else {
+          console.log('[Lyrics Poll] No conversation found with lyricsTaskId:', taskId);
+        }
+      } catch (error) {
+        console.warn('[Lyrics Poll] Error checking DB for lyrics:', error);
+      }
+    }
+
+    // SECOND: Check cache (may have been populated by previous poll or callback)
     pruneLyricsCache();
     const cached = getLyricsTask(taskId);
 
     if (cached?.status === 'complete' && cached.lyrics?.length) {
+      console.log('[Lyrics Poll] ✅ Found', cached.lyrics.length, 'variants in cache');
       return NextResponse.json({
         status: 'complete',
         lyrics: cached.lyrics.join('\n\n---\n\n'),
@@ -312,49 +362,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (cached?.status === 'failed') {
+      console.log('[Lyrics Poll] ❌ Lyrics generation failed (from cache)');
       return NextResponse.json({
         status: 'failed',
         error: cached.error || 'Lyrics generation failed',
         taskId,
       });
-    }
-
-    // Check database for callback results (if callback already arrived)
-    const { getAdminDb } = await import('@/lib/adminDb');
-    const adminDb = getAdminDb();
-
-    if (adminDb) {
-      try {
-        const { conversations } = await adminDb.query({
-          conversations: {
-            $: { where: { lyricsTaskId: taskId } } as any,
-          },
-        });
-
-        if (conversations.length > 0) {
-          const conv = conversations[0];
-
-          // Check if we have variants from callback
-          if (conv.lyricsVariants && conv.lyricsStatus === 'complete') {
-            try {
-              const variants = JSON.parse(conv.lyricsVariants);
-              if (Array.isArray(variants) && variants.length > 0) {
-                console.log('Found lyrics variants in DB from callback:', variants.length);
-                return NextResponse.json({
-                  status: 'complete',
-                  lyrics: variants.join('\n\n---\n\n'),
-                  variants,
-                  taskId,
-                });
-              }
-            } catch (e) {
-              console.warn('Failed to parse lyricsVariants from DB:', e);
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('Error checking DB for lyrics:', error);
-      }
     }
 
     const endpoints = [
