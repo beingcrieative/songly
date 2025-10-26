@@ -543,7 +543,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 📚 Task 4.0: Update Library Page with Smart Sorting and Realtime Subscriptions
+### ✅ Task 4.0: Update Library Page with Smart Sorting and Realtime Subscriptions
 
 **Description**: Remove tabs, implement smart sorting, add realtime updates, and integrate LyricsChoiceModal.
 
@@ -553,7 +553,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **4.1 - Remove Songs/Conversations tabs**
+- [x] **4.1 - Remove Songs/Conversations tabs**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Remove tab switcher and conversations view
   - **Changes**:
@@ -568,7 +568,7 @@ This task list implements the complete Library redesign to support async generat
     - Conversations code removed (but ConversationCard.tsx kept for future)
     - No TypeScript errors
 
-- [ ] **4.2 - Update status filter options**
+- [x] **4.2 - Update status filter options**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Add new status filter values
   - **Implementation**:
@@ -588,7 +588,7 @@ This task list implements the complete Library redesign to support async generat
     - Dutch labels
     - Filtering works correctly
 
-- [ ] **4.3 - Add smart sorting dropdown**
+- [x] **4.3 - Add smart sorting dropdown**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Add "Action Required" sort option
   - **Implementation**:
@@ -605,7 +605,7 @@ This task list implements the complete Library redesign to support async generat
     - Selecting it triggers smart sorting
     - Default sort option is "action"
 
-- [ ] **4.4 - Implement client-side smart sorting**
+- [x] **4.4 - Implement client-side smart sorting**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Apply smart sorting to songs after query
   - **Implementation**:
@@ -628,7 +628,7 @@ This task list implements the complete Library redesign to support async generat
     - Other sorts still work (recent, az, played)
     - No performance issues with 50+ songs
 
-- [ ] **4.5 - Add LyricsChoiceModal state and handler**
+- [x] **4.5 - Add LyricsChoiceModal state and handler**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Open modal when user clicks "Kies Lyrics" on song card
   - **Implementation**:
@@ -675,7 +675,7 @@ This task list implements the complete Library redesign to support async generat
     - API called on selection
     - Modal closes on success
 
-- [ ] **4.6 - Add retry handler**
+- [x] **4.6 - Add retry handler**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Handle retry for failed songs
   - **Implementation**:
@@ -714,7 +714,7 @@ This task list implements the complete Library redesign to support async generat
     - Success/error feedback displayed
     - Song status updates after retry
 
-- [ ] **4.7 - Update SongCard props in mapping**
+- [x] **4.7 - Update SongCard props in mapping**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Pass new handlers to SongCard
   - **Implementation**:
@@ -741,7 +741,7 @@ This task list implements the complete Library redesign to support async generat
     - No TypeScript errors
     - Handlers called when buttons clicked
 
-- [ ] **4.8 - Update empty state**
+- [x] **4.8 - Update empty state**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Improve empty state messaging
   - **Implementation**:
