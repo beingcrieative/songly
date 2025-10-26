@@ -82,7 +82,12 @@ const rules = {
       "videoUrl",
       "imageUrl",
       "durationSeconds",
-      "errorMessage"
+      "errorMessage",
+      // PRD-0014: Async generation fields (server-only)
+      "generationProgress",   // Set by callback handlers
+      "lyricsVariants",        // Set by lyrics callback
+      "notificationsSent",     // Set after push notifications sent
+      // Note: lastViewedAt is NOT in bind - users can update it when viewing songs
     ],
   },
 
