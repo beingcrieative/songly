@@ -340,41 +340,17 @@ export async function POST(request: NextRequest) {
     // Task 2.2.4: Send push notification (fire-and-forget)
     if (isComplete) {
       try {
-        // TODO: Implement sendMusicReadyNotification in lib/push.ts (Task 3.0)
-        // const { sendMusicReadyNotification } = await import('@/lib/push');
-        // const ownerId = song.conversation?.[0]?.user?.[0]?.id;
-        // if (ownerId) {
-        //   await sendMusicReadyNotification(ownerId, targetSongId);
-        // }
-
-        // Legacy push notification (keep for now)
         const ownerId = song.conversation?.[0]?.user?.[0]?.id;
         if (ownerId) {
-          const { push_subscriptions } = await adminDb.query({
-            push_subscriptions: { $: { where: { 'user.id': ownerId } } as any },
-          });
-          if (Array.isArray(push_subscriptions) && push_subscriptions.length > 0) {
-            const subs = push_subscriptions.map((s: any) => ({
-              endpoint: s.endpoint,
-              keys: { p256dh: s.p256dh, auth: s.auth },
-            }));
-            const pushPayload = {
-              title: 'Je liedje is klaar',
-              body: 'Klik om te luisteren',
-              url: `/studio?songId=${targetSongId}`,
-            };
-            try {
-              const { sendWebPush } = await import('@/lib/push');
-              await Promise.all(subs.map((sub) => sendWebPush(sub, pushPayload)));
-              console.log('📬 Push notification sent to', subs.length, 'subscription(s)');
-            } catch (pushError) {
-              console.error('⚠️ Failed to send push notification:', pushError);
-            }
+          const { sendMusicReadyNotification } = await import('@/lib/push');
+          const result = await sendMusicReadyNotification(ownerId, targetSongId);
+          if (result.ok) {
+            console.log(`📬 Music ready notification sent: ${result.sent} sent, ${result.failed} failed`);
           } else {
-            console.log('📬 No push subscriptions found for user:', ownerId);
+            console.error('⚠️ Failed to send music ready notification:', result.error);
           }
         } else {
-          console.log('📬 No owner ID found for push notification');
+          console.log('📬 No owner ID found - skipping push notification');
         }
       } catch (error) {
         console.error('⚠️ Push notification error:', error);

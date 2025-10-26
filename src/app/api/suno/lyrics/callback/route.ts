@@ -274,13 +274,20 @@ export async function POST(request: NextRequest) {
 
     // Task 2.1.4: Send push notification (fire-and-forget)
     try {
-      // TODO: Implement sendLyricsReadyNotification in lib/push.ts (Task 3.0)
-      // const { sendLyricsReadyNotification } = await import('@/lib/push');
-      // await sendLyricsReadyNotification(song.user?.id, song.id);
-      console.log('📬 Push notification: TODO - implement in Task 3.0');
-      console.log('   Will notify user:', song.user?.id);
+      const userId = song.user?.id;
+      if (userId) {
+        const { sendLyricsReadyNotification } = await import('@/lib/push');
+        const result = await sendLyricsReadyNotification(userId, song.id);
+        if (result.ok) {
+          console.log(`📬 Lyrics ready notification sent: ${result.sent} sent, ${result.failed} failed`);
+        } else {
+          console.error('⚠️ Failed to send lyrics ready notification:', result.error);
+        }
+      } else {
+        console.log('📬 No user ID found - skipping push notification');
+      }
     } catch (error) {
-      console.error('⚠️ Failed to send push notification:', error);
+      console.error('⚠️ Push notification error:', error);
       // Don't fail the callback if notification fails
     }
 
