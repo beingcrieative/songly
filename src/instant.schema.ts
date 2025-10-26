@@ -27,6 +27,11 @@ const _schema = i.schema({
       conceptTitle: i.string().indexed().optional(),
       conceptLyrics: i.string().optional(),
       conceptHistory: i.string().optional(),
+      // Suno lyrics generation
+      lyricsTaskId: i.string().optional(), // Task ID from Suno lyrics API
+      lyricsStatus: i.string().optional(), // Status: generating, complete, failed
+      generatedLyrics: i.string().optional(), // First variant (backward compat)
+      lyricsVariants: i.string().optional(), // JSON array of all variants from Suno
     }),
     messages: i.entity({
       content: i.string().optional(),
