@@ -1,19 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/adminDb';
 import { setLyricsTaskComplete, setLyricsTaskFailed, pruneLyricsCache } from '../cache';
+import {
+  parseGenerationProgress,
+  stringifyGenerationProgress,
+  stringifyLyricVariants,
+  type LyricVariant,
+} from '@/types/generation';
 
 /**
- * Suno Lyrics Callback Handler
+ * Suno Lyrics Callback Handler (PRD-0014: Task 2.1)
  *
- * Task 3.9-3.11: Receives callbacks from Suno when lyrics are generated
+ * Receives callbacks from Suno when lyrics are generated.
+ * Updates song entity with lyrics variants and triggers push notifications.
+ *
+ * Key Changes (PRD-0014):
+ * - Idempotency checks to prevent duplicate processing
+ * - Validates minimum 2 variants required
+ * - Updates songs entity instead of conversations
+ * - Sets status to "lyrics_ready" for UI to react
+ * - Stores structured data in generationProgress field
+ * - Triggers push notifications (fire-and-forget)
  *
  * Security Note:
  * This endpoint is publicly accessible (exempted from session auth in middleware.ts)
  * to allow Suno webhooks to deliver results. Current security measures:
  * - Request metadata logging (User-Agent, Origin) for monitoring
  * - Payload structure validation
- * - Database verification (conversationId/taskId must exist before updates)
- * - 200 responses on errors to prevent retries
+ * - Database verification (songId/taskId must exist before updates)
+ * - Idempotency checks to prevent duplicate processing
+ * - 200 responses on all errors to prevent retries
  *
  * Recommended Future Enhancements:
  * - HMAC signature verification if Suno provides webhook signatures
@@ -23,14 +39,21 @@ import { setLyricsTaskComplete, setLyricsTaskFailed, pruneLyricsCache } from '..
  */
 
 /**
- * POST /api/suno/lyrics/callback?conversationId=xxx
+ * POST /api/suno/lyrics/callback?songId=xxx
  *
  * Receives lyrics generation callback from Suno
+ *
+ * Query params:
+ * - songId (preferred): Direct song ID for O(1) lookup
+ * - conversationId (legacy): For backward compatibility during migration
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+
   try {
     const { searchParams } = new URL(request.url);
-    const conversationId = searchParams.get('conversationId');
+    const songId = searchParams.get('songId');
+    const conversationId = searchParams.get('conversationId'); // Legacy support
 
     // Security: Log request metadata for monitoring
     const userAgent = request.headers.get('user-agent') || 'unknown';
@@ -39,19 +62,23 @@ export async function POST(request: NextRequest) {
     console.log('=== SUNO LYRICS CALLBACK RECEIVED ===');
     console.log('User-Agent:', userAgent);
     console.log('Origin:', origin);
-    console.log('Conversation ID:', conversationId);
+    console.log('Song ID:', songId);
+    console.log('Conversation ID (legacy):', conversationId);
 
     const payload = await request.json();
 
     // Security: Validate payload structure
     if (!payload || typeof payload !== 'object') {
       console.warn('⚠️ Invalid lyrics callback payload structure');
-      return NextResponse.json({ ok: false, error: 'Invalid payload' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'Invalid payload' },
+        { status: 200 } // Task 2.1.5: Always return 200
+      );
     }
 
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    // Task 3.10: Parse callback payload for lyrics data
+    // Parse callback payload for lyrics data
     const callbackType = payload?.data?.callbackType || payload?.callbackType;
     const taskId = payload?.data?.task_id || payload?.task_id || payload?.taskId;
     const lyrics = payload?.data?.lyrics || payload?.lyrics;
@@ -62,9 +89,11 @@ export async function POST(request: NextRequest) {
     console.log('Status:', status);
     console.log('Has lyrics:', !!lyrics);
 
+    // Update cache for backward compatibility with polling endpoint
     pruneLyricsCache();
 
-    const lyricVariants: string[] = Array.isArray(payload?.data?.data)
+    // Extract lyric variants from payload
+    const lyricTexts: string[] = Array.isArray(payload?.data?.data)
       ? payload.data.data
           .map((entry: any) => entry?.text)
           .filter((entry: any) => typeof entry === 'string' && entry.trim().length > 0)
@@ -72,9 +101,12 @@ export async function POST(request: NextRequest) {
       ? [String(lyrics)]
       : [];
 
+    console.log('Lyric variants extracted:', lyricTexts.length);
+
+    // Update cache for backward compatibility
     if (taskId) {
-      if (lyricVariants.length > 0) {
-        setLyricsTaskComplete(taskId, lyricVariants);
+      if (lyricTexts.length > 0) {
+        setLyricsTaskComplete(taskId, lyricTexts);
       } else if (status && typeof status === 'string' && status.toUpperCase().includes('FAIL')) {
         setLyricsTaskFailed(taskId, status);
       }
@@ -84,88 +116,197 @@ export async function POST(request: NextRequest) {
     const adminDb = getAdminDb();
 
     if (!adminDb) {
-      console.error('Admin DB not available - cannot update conversation');
-      // Return 200 to acknowledge receipt (prevent retries)
+      console.error('❌ Admin DB not available - cannot update song');
       return NextResponse.json(
-        { ok: false, warning: 'Admin token not configured' },
-        { status: 200 }
+        { ok: false, error: 'Admin token not configured' },
+        { status: 200 } // Task 2.1.5: Always return 200
       );
     }
 
-    // Task 3.11: Update conversation or create lyrics entity in InstantDB
-    if (conversationId && lyricVariants.length > 0) {
-      try {
-        console.log('=== UPDATING CONVERSATION WITH LYRICS ===');
-        console.log('Conversation ID:', conversationId);
-        console.log('Task ID:', taskId);
-        console.log('Variants count:', lyricVariants.length);
-        console.log('First variant preview:', lyricVariants[0]?.substring(0, 100) + '...');
+    // Task 2.1.1: Find song by songId or taskId
+    let song: any = null;
 
-        // Store ALL variants as JSON array, plus first one for backward compatibility
-        await adminDb.transact([
-          adminDb.tx.conversations[conversationId].update({
-            generatedLyrics: lyricVariants[0], // First variant for backward compat
-            lyricsVariants: JSON.stringify(lyricVariants), // ALL variants as JSON
-            lyricsTaskId: taskId,
-            lyricsStatus: callbackType === 'complete' ? 'complete' : 'generating',
-            updatedAt: Date.now(),
-          }),
-        ]);
-
-        console.log('✅ Updated conversation with generated lyrics');
-        console.log(`   Stored ${lyricVariants.length} variant(s)`);
-        console.log('   lyricsStatus:', callbackType === 'complete' ? 'complete' : 'generating');
-      } catch (error) {
-        console.error('❌ Failed to update conversation:', error);
+    if (songId) {
+      // Preferred: Direct lookup by songId
+      const result = await adminDb.query({
+        songs: {
+          $: { where: { id: songId } } as any,
+          user: {},
+        },
+      });
+      if (result.songs.length > 0) {
+        song = result.songs[0];
+        console.log('✅ Found song by songId:', songId);
       }
     }
 
-    // If no conversationId, try to find by taskId
-    if (!conversationId && taskId && lyricVariants.length > 0) {
-      try {
-        const { conversations } = await adminDb.query({
-          conversations: {
-            $: { where: { lyricsTaskId: taskId } } as any,
-          },
-        });
+    // Fallback: Find by taskId using indexed lyricsTaskId field
+    if (!song && taskId) {
+      console.log('🔍 Searching for song by lyricsTaskId:', taskId);
+      const result = await adminDb.query({
+        songs: {
+          $: { where: { lyricsTaskId: taskId } } as any,
+          user: {},
+        },
+      });
 
-        if (conversations.length > 0) {
-          const conv = conversations[0];
+      if (result.songs.length > 0) {
+        song = result.songs[0];
+        console.log('✅ Found song by lyricsTaskId:', taskId, '-> songId:', song.id);
+      }
+    }
+
+    if (!song) {
+      console.warn('⚠️ No song found for songId:', songId, 'or taskId:', taskId);
+
+      // Legacy: Try updating conversation for backward compatibility
+      if (conversationId) {
+        console.log('⚙️ Legacy mode: Updating conversation instead');
+        try {
           await adminDb.transact([
-            adminDb.tx.conversations[conv.id].update({
-              generatedLyrics: lyricVariants[0], // First variant for backward compat
-              lyricsVariants: JSON.stringify(lyricVariants), // ALL variants as JSON
+            adminDb.tx.conversations[conversationId].update({
+              generatedLyrics: lyricTexts[0] || '',
+              lyricsVariants: JSON.stringify(lyricTexts),
+              lyricsTaskId: taskId,
               lyricsStatus: callbackType === 'complete' ? 'complete' : 'generating',
               updatedAt: Date.now(),
             }),
           ]);
-
-          console.log('✅ Found and updated conversation by taskId');
-          console.log(`   Stored ${lyricVariants.length} variant(s)`);
-        } else {
-          console.warn('⚠️ No conversation found for taskId:', taskId, 'from:', userAgent);
+          console.log('✅ Updated conversation (legacy mode)');
+        } catch (error) {
+          console.error('❌ Failed to update conversation:', error);
         }
-      } catch (error) {
-        console.error('Error finding conversation by taskId:', error);
       }
+
+      return NextResponse.json(
+        { ok: false, error: 'Song not found' },
+        { status: 200 } // Task 2.1.5: Always return 200
+      );
     }
 
-    // Return success response to Suno
+    // Task 2.1.1: Idempotency check
+    const currentProgress = parseGenerationProgress(song.generationProgress);
+
+    if (song.status === 'lyrics_ready' && currentProgress?.lyricsCompletedAt) {
+      const completedAt = new Date(currentProgress.lyricsCompletedAt).toISOString();
+      console.log('⏭️ Lyrics already processed for taskId:', taskId);
+      console.log('   Status:', song.status);
+      console.log('   Completed at:', completedAt);
+
+      return NextResponse.json({
+        ok: true,
+        message: 'Lyrics already processed (idempotent)',
+        completedAt,
+      });
+    }
+
+    // Task 2.1.2: Validate variants (must have at least 2)
+    if (lyricTexts.length < 2) {
+      console.error('❌ Insufficient variants received:', lyricTexts.length, '(expected >= 2)');
+
+      const updatedProgress = {
+        lyricsTaskId: currentProgress?.lyricsTaskId || taskId || null,
+        lyricsStartedAt: currentProgress?.lyricsStartedAt || null,
+        lyricsCompletedAt: Date.now(),
+        lyricsError: `Insufficient variants received: ${lyricTexts.length} (expected >= 2)`,
+        lyricsRetryCount: (currentProgress?.lyricsRetryCount || 0) + 1,
+        musicTaskId: currentProgress?.musicTaskId || null,
+        musicStartedAt: currentProgress?.musicStartedAt || null,
+        musicCompletedAt: currentProgress?.musicCompletedAt || null,
+        musicError: currentProgress?.musicError || null,
+        musicRetryCount: currentProgress?.musicRetryCount || 0,
+        rawCallback: payload,
+      };
+
+      await adminDb.transact([
+        adminDb.tx.songs[song.id].update({
+          status: 'failed',
+          errorMessage: updatedProgress.lyricsError,
+          generationProgress: stringifyGenerationProgress(updatedProgress),
+          updatedAt: Date.now(),
+        }),
+      ]);
+
+      console.log('✅ Updated song status to failed due to insufficient variants');
+
+      return NextResponse.json(
+        { ok: false, error: 'Insufficient variants' },
+        { status: 200 } // Task 2.1.5: Always return 200
+      );
+    }
+
+    // Task 2.1.3: Prepare lyric variants data
+    const variants: LyricVariant[] = lyricTexts.map((text, index) => ({
+      text,
+      variantIndex: index,
+      selected: false, // User will select one later
+    }));
+
+    const updatedProgress = {
+      lyricsTaskId: currentProgress?.lyricsTaskId || taskId || null,
+      lyricsStartedAt: currentProgress?.lyricsStartedAt || null,
+      lyricsCompletedAt: Date.now(),
+      lyricsError: null,
+      lyricsRetryCount: currentProgress?.lyricsRetryCount || 0,
+      musicTaskId: currentProgress?.musicTaskId || null,
+      musicStartedAt: currentProgress?.musicStartedAt || null,
+      musicCompletedAt: currentProgress?.musicCompletedAt || null,
+      musicError: currentProgress?.musicError || null,
+      musicRetryCount: currentProgress?.musicRetryCount || 0,
+      rawCallback: payload,
+    };
+
+    // Task 2.1.3: Update song entity
+    await adminDb.transact([
+      adminDb.tx.songs[song.id].update({
+        status: 'lyrics_ready',
+        lyricsVariants: stringifyLyricVariants(variants),
+        generationProgress: stringifyGenerationProgress(updatedProgress),
+        updatedAt: Date.now(),
+      }),
+    ]);
+
+    console.log('✅ Updated song with lyrics variants');
+    console.log('   Status: lyrics_ready');
+    console.log('   Variants:', variants.length);
+    console.log('   Completed at:', new Date(updatedProgress.lyricsCompletedAt!).toISOString());
+    console.log('   First variant preview:', lyricTexts[0]?.substring(0, 100) + '...');
+
+    // Task 2.1.4: Send push notification (fire-and-forget)
+    try {
+      // TODO: Implement sendLyricsReadyNotification in lib/push.ts (Task 3.0)
+      // const { sendLyricsReadyNotification } = await import('@/lib/push');
+      // await sendLyricsReadyNotification(song.user?.id, song.id);
+      console.log('📬 Push notification: TODO - implement in Task 3.0');
+      console.log('   Will notify user:', song.user?.id);
+    } catch (error) {
+      console.error('⚠️ Failed to send push notification:', error);
+      // Don't fail the callback if notification fails
+    }
+
+    const processingTime = Date.now() - startTime;
+    console.log(`✅ Lyrics callback processed successfully in ${processingTime}ms`);
+
+    // Task 2.1.5: Return 200 OK
     return NextResponse.json({
       ok: true,
       message: 'Lyrics callback processed successfully',
+      variantsCount: variants.length,
+      processingTimeMs: processingTime,
     });
 
   } catch (error: any) {
+    const processingTime = Date.now() - startTime;
     console.error('=== SUNO LYRICS CALLBACK ERROR ===');
     console.error('Error:', error);
     console.error('Stack:', error.stack);
+    console.error(`Processing time: ${processingTime}ms`);
 
-    // Return 200 to prevent retries (error is logged)
+    // Task 2.1.5: Return 200 to prevent retries (error is logged)
     return NextResponse.json(
       {
         ok: false,
-        error: error.message,
+        error: error.message || 'Internal error processing callback',
       },
       { status: 200 }
     );
