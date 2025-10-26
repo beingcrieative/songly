@@ -1,7 +1,16 @@
 import { db } from "@/lib/db";
 
-type SortOption = "recent" | "az" | "played";
-type SongStatus = "ready" | "generating" | "failed" | "all";
+type SortOption = "recent" | "az" | "played" | "action";
+type SongStatus =
+  | "all"
+  | "pending"
+  | "generating_lyrics"
+  | "lyrics_ready"
+  | "generating_music"
+  | "ready"
+  | "complete"
+  | "failed"
+  | "generating"; // Legacy backward compatibility
 
 export interface LibrarySongsOptions {
   search?: string;
@@ -90,6 +99,8 @@ export function useLibrarySongs(
           order: { order: "asc" as const },
         } as any,
       },
+      user: {},
+      conversation: {},
     },
   } as const;
 
