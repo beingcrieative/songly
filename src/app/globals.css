@@ -333,6 +333,19 @@ input[type="range"]:active::-moz-range-thumb {
   }
 }
 
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }

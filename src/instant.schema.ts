@@ -50,6 +50,7 @@ const _schema = i.schema({
       lyrics: i.string().optional(),
       lyricsSnippet: i.string().indexed().optional(),
       musicStyle: i.string().optional(),
+      // Status field supports: "pending" | "generating_lyrics" | "lyrics_ready" | "generating_music" | "ready" | "failed" | "complete"
       status: i.string().indexed().optional(),
       sunoTaskId: i.string().optional(),
       sunoTrackId: i.string().optional(),
@@ -71,6 +72,11 @@ const _schema = i.schema({
       publicId: i.string().indexed().optional(),
       selectedVariantId: i.string().optional(),
       lastPlayedAt: i.number().indexed().optional(),
+      // PRD-0014: Async generation tracking fields
+      generationProgress: i.string().optional(), // JSON: { lyricsTaskId, lyricsStartedAt, lyricsCompletedAt, lyricsError, lyricsRetryCount, musicTaskId, musicStartedAt, musicCompletedAt, musicError, musicRetryCount, rawCallback }
+      lyricsVariants: i.string().optional(), // JSON: [{ text, variantIndex, selected }, ...]
+      notificationsSent: i.string().optional(), // JSON array: ["lyrics_ready", "music_ready"]
+      lastViewedAt: i.number().indexed().optional(), // Timestamp for "Recently Viewed" sorting
     }),
     sunoVariants: i.entity({
       songId: i.string().indexed(),

@@ -277,6 +277,8 @@ export async function POST(request: NextRequest) {
  * GET /api/suno/lyrics?taskId=xxx
  *
  * Poll for lyrics generation status (alternative to callback)
+ *
+ * PRD-0014 Task 2.3: Updated to check songs entity first
  */
 export async function GET(request: NextRequest) {
   try {
@@ -299,13 +301,77 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // FIRST: Check database for callback results (highest priority - callback may have arrived)
+    // FIRST: Check songs entity for callback results (PRD-0014 Task 2.3.1)
     const { getAdminDb } = await import('@/lib/adminDb');
     const adminDb = getAdminDb();
 
     if (adminDb) {
       try {
-        console.log('[Lyrics Poll] Checking database for taskId:', taskId);
+        console.log('[Lyrics Poll] Checking songs entity for lyricsTaskId:', taskId);
+        const { songs } = await adminDb.query({
+          songs: {
+            $: { where: { lyricsTaskId: taskId } } as any,
+          },
+        });
+
+        if (songs.length > 0) {
+          const song = songs[0];
+          console.log('[Lyrics Poll] Found song:', {
+            id: song.id,
+            status: song.status,
+            hasVariants: !!song.lyricsVariants,
+          });
+
+          // Task 2.3.4: Handle new status values - map "lyrics_ready" to "complete"
+          if (song.status === 'lyrics_ready' && song.lyricsVariants) {
+            try {
+              const { parseLyricVariants } = await import('@/types/generation');
+              const variants = parseLyricVariants(song.lyricsVariants);
+
+              if (variants && variants.length > 0) {
+                console.log('[Lyrics Poll] ✅ Found', variants.length, 'variants in songs entity');
+
+                // Extract text for backward-compatible format
+                const variantTexts = variants.map(v => v.text);
+
+                // Also update cache for future requests
+                setLyricsTaskComplete(taskId, variantTexts);
+
+                return NextResponse.json({
+                  status: 'complete', // Map lyrics_ready → complete for client
+                  lyrics: variantTexts.join('\n\n---\n\n'),
+                  variants: variantTexts, // Backward compatible: array of strings
+                  variantObjects: variants, // New format: array of LyricVariant objects
+                  taskId,
+                });
+              }
+            } catch (e) {
+              console.warn('[Lyrics Poll] Failed to parse lyricsVariants from songs entity:', e);
+            }
+          }
+
+          // Task 2.3.4: Map "failed" status
+          if (song.status === 'failed') {
+            console.log('[Lyrics Poll] ❌ Song generation failed');
+            return NextResponse.json({
+              status: 'failed',
+              error: song.errorMessage || 'Lyrics generation failed',
+              taskId,
+            });
+          }
+
+          // Task 2.3.4: Map "generating_lyrics" status
+          if (song.status === 'generating_lyrics') {
+            console.log('[Lyrics Poll] ⏳ Still generating lyrics');
+            return NextResponse.json({
+              status: 'generating',
+              taskId,
+            });
+          }
+        }
+
+        // Task 2.3.5: Backward compatibility - check conversations if songs query empty
+        console.log('[Lyrics Poll] No song found, checking conversations (legacy)');
         const { conversations } = await adminDb.query({
           conversations: {
             $: { where: { lyricsTaskId: taskId } } as any,
@@ -314,18 +380,18 @@ export async function GET(request: NextRequest) {
 
         if (conversations.length > 0) {
           const conv = conversations[0];
-          console.log('[Lyrics Poll] Found conversation:', {
+          console.log('[Lyrics Poll] Found conversation (legacy):', {
             id: conv.id,
             lyricsStatus: conv.lyricsStatus,
             hasVariants: !!conv.lyricsVariants,
           });
 
-          // Check if we have variants from callback
+          // Check if we have variants from callback (legacy format)
           if (conv.lyricsVariants && conv.lyricsStatus === 'complete') {
             try {
               const variants = JSON.parse(conv.lyricsVariants);
               if (Array.isArray(variants) && variants.length > 0) {
-                console.log('[Lyrics Poll] ✅ Found', variants.length, 'variants in DB from callback');
+                console.log('[Lyrics Poll] ✅ Found', variants.length, 'variants in conversation (legacy)');
                 // Also update cache for future requests
                 setLyricsTaskComplete(taskId, variants);
                 return NextResponse.json({
@@ -336,11 +402,9 @@ export async function GET(request: NextRequest) {
                 });
               }
             } catch (e) {
-              console.warn('[Lyrics Poll] Failed to parse lyricsVariants from DB:', e);
+              console.warn('[Lyrics Poll] Failed to parse lyricsVariants from conversation:', e);
             }
           }
-        } else {
-          console.log('[Lyrics Poll] No conversation found with lyricsTaskId:', taskId);
         }
       } catch (error) {
         console.warn('[Lyrics Poll] Error checking DB for lyrics:', error);

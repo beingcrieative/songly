@@ -120,9 +120,32 @@ npx instant-cli pull   # Pull remote schema from InstantDB
 
 After any schema changes, always push and commit both `instant.schema.ts` and `instant.perms.ts`.
 
+## Vercel Deployment
+
+**CRITICAL:** This app is deployed on Vercel. Environment variables are managed through Vercel's dashboard/CLI, NOT through `.env` files.
+
+### Environment Variable Management
+
+**For Local Development:**
+- Use `.env.local` for local secrets (NEVER commit this file)
+- `.env.example` shows required variables (safe to commit)
+- Copy `.env.example` to `.env.local` and fill in real values
+
+**For Vercel Production:**
+- Go to: Vercel Dashboard → Project Settings → Environment Variables
+- Or use: `vercel env add <KEY> production`
+- Mark sensitive values (API keys, private keys) as "Secret"
+- Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser
+- Each environment (Development, Preview, Production) can have different values
+
+**Never:**
+- ❌ Commit `.env.local`, `.env`, or any file with real credentials
+- ❌ Expect `.env` files to work in Vercel production
+- ❌ Store secrets in code or configuration files
+
 ## Environment Variables
 
-Required in `.env`:
+Required variables (add to Vercel Dashboard for production, `.env.local` for local):
 
 ```bash
 # InstantDB
@@ -139,10 +162,56 @@ SUNO_API_KEY=<key>                # For lyrics and music generation
 # Suno Webhook (for local dev, use ngrok)
 SUNO_CALLBACK_URL=https://<domain>/api/suno/callback
 
+# Web Push Notifications (VAPID)
+# Generate with: npx web-push generate-vapid-keys
+VAPID_PUBLIC_KEY=<public-key>
+VAPID_PRIVATE_KEY=<private-key>
+VAPID_SUBJECT=mailto:your-email@example.com
+
 # Optional Configuration
 MAX_CONVERSATION_ROUNDS=8         # Default conversation length before lyrics
 APP_ENFORCE_SESSION=false         # Set to 'true' to require session cookies
+NEXT_PUBLIC_ENABLE_ASYNC_GENERATION=false  # Enable async background generation
 ```
+
+### Generating VAPID Keys for Push Notifications
+
+Push notifications require VAPID keys for authentication. Generate them once:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+**For Local Development:**
+Copy the output to your `.env.local` file (never commit this file).
+
+**For Vercel Production:**
+**CRITICAL:** Environment variables on Vercel are NOT managed through `.env` files. Instead:
+
+1. Add variables through Vercel Dashboard:
+   - Go to: Project Settings → Environment Variables
+   - Add `VAPID_PUBLIC_KEY` (Production)
+   - Add `VAPID_PRIVATE_KEY` (Production, mark as Secret)
+   - Add `VAPID_SUBJECT` (Production)
+
+2. Or use Vercel CLI:
+   ```bash
+   vercel env add VAPID_PUBLIC_KEY production
+   vercel env add VAPID_PRIVATE_KEY production
+   vercel env add VAPID_SUBJECT production
+   ```
+
+3. **Required for client-side access:**
+   - VAPID public key must be prefixed with `NEXT_PUBLIC_` to be accessible in browser
+   - Add `NEXT_PUBLIC_VAPID_PUBLIC_KEY` separately on Vercel
+   - Same value as `VAPID_PUBLIC_KEY`, but exposed to client
+
+**Security Notes:**
+- NEVER commit `.env.local` or `.env` files containing real keys
+- Private key is SECRET - only add on Vercel as encrypted environment variable
+- Public key can be exposed to client (it's meant to be public)
+- Rotate keys periodically for security
+- Each environment (Preview, Production) should have separate keys
 
 ### Local Development with Suno Callbacks
 
