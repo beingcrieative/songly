@@ -43,6 +43,73 @@ npm run test        # Run Vitest unit tests
 npm run test:e2e    # Run Playwright E2E tests
 ```
 
+## Git Workflow (Pull Request Model)
+
+This repository uses a professional pull request workflow. **Never push directly to main.**
+
+### Creating a New Feature Branch
+
+```bash
+# Ensure you're on main and up to date
+git checkout main
+git pull origin main
+
+# Create a new feature branch with descriptive name
+git checkout -b feature/your-feature-name
+# Examples: feature/add-recording, fix/lyrics-bug, refactor/song-api
+```
+
+### Working on Your Feature
+
+```bash
+# Make changes to your code
+# ...
+
+# Stage and commit changes
+git add .
+git commit -m "feat: descriptive commit message"
+
+# Push your branch to remote
+git push -u origin feature/your-feature-name
+```
+
+### Creating a Pull Request
+
+```bash
+# Create PR using GitHub CLI
+gh pr create --title "Add your feature" --body "Description of changes"
+
+# Or create PR via GitHub web interface
+# Visit: https://github.com/beingcrieative/songly/compare
+```
+
+### Before Creating a PR
+
+Always ensure:
+1. Code builds successfully: `npm run build`
+2. Linter passes: `npm run lint`
+3. Tests pass: `npm run test`
+4. Schema changes are pushed: `npx instant-cli push` (if applicable)
+
+### Merging Pull Requests
+
+```bash
+# After PR is approved and all checks pass:
+gh pr merge <pr-number> --squash  # Squash and merge
+# OR
+gh pr merge <pr-number> --merge   # Regular merge
+# OR use GitHub web interface
+```
+
+### Branch Naming Conventions
+
+- `feature/` - New features (e.g., `feature/add-voice-recording`)
+- `fix/` - Bug fixes (e.g., `fix/lyrics-generation-error`)
+- `refactor/` - Code refactoring (e.g., `refactor/extract-suno-client`)
+- `docs/` - Documentation updates (e.g., `docs/update-readme`)
+- `test/` - Test additions/updates (e.g., `test/add-lyrics-tests`)
+- `chore/` - Maintenance tasks (e.g., `chore/update-dependencies`)
+
 ### InstantDB Schema Management
 
 ```bash
