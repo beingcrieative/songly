@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import type { LyricsChoiceModalProps } from '@/types/library';
+import { trackLyricsVariantSelected, trackLyricsSwipe } from '@/lib/analytics/events';
 
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
@@ -52,6 +53,14 @@ export default function LyricsChoiceModal({
     setLocalSubmitting(true);
     try {
       await onSelectVariant(index);
+
+      // Track selection
+      trackLyricsVariantSelected({
+        songId,
+        variantIndex: index,
+        timeToSelect: Date.now() - modalOpenTime,
+      });
+
       onClose();
     } catch (error) {
       console.error('Failed to select variant:', error);
@@ -63,13 +72,19 @@ export default function LyricsChoiceModal({
 
   const nextVariant = () => {
     if (selectedIndex < variants.length - 1) {
-      setSelectedIndex((i) => i + 1);
+      const fromIndex = selectedIndex;
+      const toIndex = selectedIndex + 1;
+      trackLyricsSwipe({ songId, direction: 'left', fromIndex, toIndex });
+      setSelectedIndex(toIndex);
     }
   };
 
   const prevVariant = () => {
     if (selectedIndex > 0) {
-      setSelectedIndex((i) => i - 1);
+      const fromIndex = selectedIndex;
+      const toIndex = selectedIndex - 1;
+      trackLyricsSwipe({ songId, direction: 'right', fromIndex, toIndex });
+      setSelectedIndex(toIndex);
     }
   };
 

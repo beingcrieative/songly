@@ -18,6 +18,7 @@ import {
   trackLibraryOpen,
   trackLibraryPlay,
   trackLibraryShare,
+  trackGenerationRetry,
 } from "@/lib/analytics/events";
 import { useI18n } from "@/providers/I18nProvider";
 
@@ -150,6 +151,15 @@ export default function LibraryPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || 'Retry mislukt');
       }
+
+      const data = await res.json();
+
+      // Track retry
+      trackGenerationRetry({
+        songId,
+        phase,
+        retryCount: data.retryCount || 1,
+      });
 
       // Success feedback
       alert('Opnieuw proberen gestart!');
