@@ -95,6 +95,12 @@ export async function POST(request: NextRequest) {
     // Task 3.11: Update conversation or create lyrics entity in InstantDB
     if (conversationId && lyricVariants.length > 0) {
       try {
+        console.log('=== UPDATING CONVERSATION WITH LYRICS ===');
+        console.log('Conversation ID:', conversationId);
+        console.log('Task ID:', taskId);
+        console.log('Variants count:', lyricVariants.length);
+        console.log('First variant preview:', lyricVariants[0]?.substring(0, 100) + '...');
+
         // Store ALL variants as JSON array, plus first one for backward compatibility
         await adminDb.transact([
           adminDb.tx.conversations[conversationId].update({
@@ -108,8 +114,9 @@ export async function POST(request: NextRequest) {
 
         console.log('✅ Updated conversation with generated lyrics');
         console.log(`   Stored ${lyricVariants.length} variant(s)`);
+        console.log('   lyricsStatus:', callbackType === 'complete' ? 'complete' : 'generating');
       } catch (error) {
-        console.error('Failed to update conversation:', error);
+        console.error('❌ Failed to update conversation:', error);
       }
     }
 
