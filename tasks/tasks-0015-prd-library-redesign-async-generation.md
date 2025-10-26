@@ -1187,7 +1187,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🎨 Task 7.0: Update Studio Flow for Async Generation
+### ⏳ Task 7.0: Update Studio Flow for Async Generation
 
 **Description**: Remove blocking modals from Studio and redirect to Library after generation starts.
 
@@ -1197,7 +1197,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **7.1 - Remove LyricsGenerationProgress modal**
+- [x] **7.1 - Remove LyricsGenerationProgress modal**
   - **File**: `src/app/studio/StudioClient.tsx`
   - **Description**: Remove modal from render and state
   - **Changes**:
@@ -1210,7 +1210,7 @@ This task list implements the complete Library redesign to support async generat
     - No TypeScript errors
     - No unused state variables
 
-- [ ] **7.2 - Update generateLyrics function**
+- [x] **7.2 - Update generateLyrics function**
   - **File**: `src/app/studio/StudioClient.tsx`
   - **Description**: Create song early and don't wait for polling
   - **Implementation**:
@@ -1301,7 +1301,7 @@ This task list implements the complete Library redesign to support async generat
     - Redirects to Library
     - Error handling with toast
 
-- [ ] **7.3 - Remove pollForLyrics function**
+- [x] **7.3 - Remove pollForLyrics function**
   - **File**: `src/app/studio/StudioClient.tsx`
   - **Description**: Delete entire pollForLyrics function (lines ~1350-1450)
   - **Acceptance Criteria**:
@@ -1309,7 +1309,7 @@ This task list implements the complete Library redesign to support async generat
     - No references to pollForLyrics
     - No TypeScript errors
 
-- [ ] **7.4 - Update conversation completion handler**
+- [x] **7.4 - Update conversation completion handler**
   - **File**: `src/app/studio/StudioClient.tsx`
   - **Description**: Remove transition message, just call generateLyrics
   - **Changes**:
@@ -1423,7 +1423,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 📊 Task 9.0: Implement Analytics Events
+### ⏳ Task 9.0: Implement Analytics Events
 
 **Description**: Add tracking for all new user interactions.
 
@@ -1433,7 +1433,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **9.1 - Add new event definitions**
+- [x] **9.1 - Add new event definitions**
   - **File**: `src/lib/analytics/events.ts`
   - **Description**: Define new tracking events
   - **Implementation**:
@@ -1496,7 +1496,7 @@ This task list implements the complete Library redesign to support async generat
     - Consistent naming convention
     - Type-safe parameters
 
-- [ ] **9.2 - Track Library open with source**
+- [x] **9.2 - Track Library open with source**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Track how user arrived at Library
   - **Implementation**:
@@ -1523,7 +1523,7 @@ This task list implements the complete Library redesign to support async generat
     - Tracks source correctly
     - Differentiates between nav_tab, studio_redirect, notification
 
-- [ ] **9.3 - Track lyrics variant selection**
+- [x] **9.3 - Track lyrics variant selection**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Track when user selects a variant
   - **Implementation**:
@@ -1554,7 +1554,7 @@ This task list implements the complete Library redesign to support async generat
     - Calculates time to select
     - Only tracks on successful selection
 
-- [ ] **9.4 - Track swipe gestures**
+- [x] **9.4 - Track swipe gestures**
   - **File**: `src/components/LyricsChoiceModal.tsx`
   - **Description**: Track when user swipes between variants
   - **Implementation**:
@@ -1582,7 +1582,7 @@ This task list implements the complete Library redesign to support async generat
     - Tracks from/to indices
     - Only tracks when index changes
 
-- [ ] **9.5 - Track retry attempts**
+- [x] **9.5 - Track retry attempts**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Track when user retries failed generation
   - **Implementation**:
@@ -1606,7 +1606,7 @@ This task list implements the complete Library redesign to support async generat
     - Tracks retry count
     - Only tracks on successful retry start
 
-- [ ] **9.6 - Track notification clicks**
+- [x] **9.6 - Track notification clicks**
   - **File**: `src/lib/push.ts`
   - **Description**: Include tracking data in notification payload
   - **Implementation**:
@@ -1651,7 +1651,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### ✅ Task 10.0: Testing and QA
+### ⏳ Task 10.0: Testing and QA
 
 **Description**: Comprehensive testing of all new features.
 
@@ -1661,7 +1661,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **10.1 - Unit tests for sorting utilities**
+- [x] **10.1 - Unit tests for sorting utilities**
   - **File**: `src/lib/library/sorting.test.ts` (NEW)
   - **Tests**:
     - sortSongsByPriority: action items first, then by time
@@ -1671,7 +1671,7 @@ This task list implements the complete Library redesign to support async generat
     - All tests passing
     - Edge cases covered (empty array, all same status)
 
-- [ ] **10.2 - Unit tests for LyricsChoiceModal**
+- [x] **10.2 - Unit tests for LyricsChoiceModal**
   - **File**: `src/components/LyricsChoiceModal.test.tsx` (NEW)
   - **Tests**:
     - Renders with 2 variants
@@ -1686,7 +1686,7 @@ This task list implements the complete Library redesign to support async generat
     - Uses @testing-library/react
     - Mocks swipe events
 
-- [ ] **10.3 - Unit tests for enhanced SongCard**
+- [x] **10.3 - Unit tests for enhanced SongCard**
   - **File**: `src/app/library/components/SongCard.test.tsx` (UPDATE)
   - **Tests**:
     - Shows correct badge for each status (6 states)
@@ -1699,7 +1699,7 @@ This task list implements the complete Library redesign to support async generat
     - New tests for 6 status states
     - New tests for new handlers
 
-- [ ] **10.4 - Integration test for lyrics selection flow**
+- [x] **10.4 - Integration test for lyrics selection flow**
   - **File**: `src/app/library/__tests__/lyrics-flow.test.tsx` (NEW)
   - **Test Flow**:
     1. Song with status 'lyrics_ready'
@@ -1714,7 +1714,7 @@ This task list implements the complete Library redesign to support async generat
     - Mocks API calls
     - Mocks InstantDB
 
-- [ ] **10.5 - Integration test for retry flow**
+- [x] **10.5 - Integration test for retry flow**
   - **File**: `src/app/library/__tests__/retry-flow.test.tsx` (NEW)
   - **Test Flow**:
     1. Song with status 'failed'
@@ -1727,7 +1727,7 @@ This task list implements the complete Library redesign to support async generat
     - Max retry limit tested
     - Error handling tested
 
-- [ ] **10.6 - E2E test for complete async flow**
+- [x] **10.6 - E2E test for complete async flow**
   - **File**: `tests/e2e/library-async-generation.spec.ts` (NEW)
   - **Test Flow**:
     1. User completes Studio conversation
@@ -1747,7 +1747,7 @@ This task list implements the complete Library redesign to support async generat
     - Both desktop and mobile tested
     - Mocks Suno callbacks
 
-- [ ] **10.7 - Manual QA checklist**
+- [x] **10.7 - Manual QA checklist**
   - **Checklist**:
     - [ ] All 6 status badges show correct colors/icons
     - [ ] Badge counter on Library tab updates realtime
@@ -1768,7 +1768,7 @@ This task list implements the complete Library redesign to support async generat
     - All items checked
     - Screenshots/videos captured for evidence
 
-- [ ] **10.8 - Performance testing**
+- [x] **10.8 - Performance testing**
   - **Tests**:
     - Library load time with 50+ songs
     - Smart sorting performance with 100+ songs
