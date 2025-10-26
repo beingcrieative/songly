@@ -165,3 +165,45 @@ export function trackLibraryDelete(payload: { songId?: string; conversationId?: 
 export function trackLibraryShare(payload: { songId: string; publicId: string }) {
   trackLibrary('library_share', payload);
 }
+
+// PRD-0015: New analytics events for async generation flow
+
+export function trackStatusBadgeShown(payload: {
+  status: string;
+  songId: string;
+}) {
+  track('status_badge_shown', payload);
+}
+
+export function trackLyricsVariantSelected(payload: {
+  songId: string;
+  variantIndex: number;
+  timeToSelect: number; // ms since modal opened
+}) {
+  track('lyrics_variant_selected', payload);
+}
+
+export function trackLyricsSwipe(payload: {
+  songId: string;
+  direction: 'left' | 'right';
+  fromIndex: number;
+  toIndex: number;
+}) {
+  track('lyrics_swipe', payload);
+}
+
+export function trackGenerationRetry(payload: {
+  songId: string;
+  phase: 'lyrics' | 'music';
+  retryCount: number;
+}) {
+  track('generation_retry', payload);
+}
+
+export function trackNotificationClick(payload: {
+  type: 'lyrics_ready' | 'music_ready';
+  songId: string;
+  timeToClick: number; // ms since notification sent
+}) {
+  track('notification_click', payload);
+}

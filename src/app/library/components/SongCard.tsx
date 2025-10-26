@@ -1,6 +1,9 @@
 "use client";
 
 import { createSnippet } from "@/lib/library/utils";
+import SongStatusBadge from "@/components/SongStatusBadge";
+import { parseGenerationProgress } from "@/types/generation";
+import type { SongStatus } from "@/types/generation";
 
 interface SongVariant {
   trackId: string;
@@ -18,28 +21,106 @@ interface SongCardProps {
     status?: string | null;
     imageUrl?: string | null;
     updatedAt?: number | null;
+    lastViewedAt?: number | null;
     lyricsSnippet?: string | null;
     variants?: SongVariant[];
     selectedVariantId?: string | null;
     isPublic?: boolean | null;
     publicId?: string | null;
+    // Async generation fields
+    generationProgress?: string | null;
+    lyricsVariants?: string | null;
+    notificationsSent?: string | null;
   };
   onPlay: (variant: SongVariant) => void;
   onOpen: () => void;
   onSelectVariant: (variantId: string) => void;
   onShare: () => void;
   onDelete: () => void;
+  onChooseLyrics?: () => void; // NEW
+  onRetry?: () => void; // NEW
   actionState?: {
     isSharing?: boolean;
     isDeleting?: boolean;
+    isRetrying?: boolean; // NEW
   };
 }
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  ready: { label: "Klaar", className: "bg-emerald-50 text-emerald-600" },
-  generating: { label: "Bezig", className: "bg-amber-50 text-amber-600" },
-  failed: { label: "Mislukt", className: "bg-rose-50 text-rose-600" },
-};
+interface StatusCTA {
+  label: string;
+  action: 'play' | 'choose_lyrics' | 'retry' | 'view_details';
+  color: 'rose' | 'emerald' | 'rose-outline' | 'ghost';
+  disabled?: boolean;
+}
+
+function getPrimaryCTA(status: string | null | undefined, hasAudio: boolean): StatusCTA {
+  switch (status) {
+    case 'lyrics_ready':
+      return { label: 'Kies Lyrics →', action: 'choose_lyrics', color: 'rose' };
+    case 'ready':
+      return { label: '▶️ Speel af', action: 'play', color: 'emerald', disabled: !hasAudio };
+    case 'failed':
+      return { label: '🔄 Probeer opnieuw', action: 'retry', color: 'rose-outline' };
+    case 'generating_lyrics':
+    case 'generating_music':
+      return { label: 'Details bekijken', action: 'view_details', color: 'ghost' };
+    default:
+      return { label: 'Afspelen', action: 'play', color: 'rose', disabled: !hasAudio };
+  }
+}
+
+function getMetadataText(
+  song: { status?: string | null; updatedAt?: number | null; lastViewedAt?: number | null; generationProgress?: string | null }
+): string {
+  const progress = parseGenerationProgress(song.generationProgress);
+
+  // Format relative time in Dutch
+  const formatTimeAgo = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'zojuist';
+    if (minutes === 1) return '1 minuut geleden';
+    if (minutes < 60) return `${minutes} minuten geleden`;
+    if (hours === 1) return '1 uur geleden';
+    if (hours < 24) return `${hours} uur geleden`;
+    if (days === 1) return 'gisteren';
+    return `${days} dagen geleden`;
+  };
+
+  switch (song.status) {
+    case 'lyrics_ready':
+      if (progress?.lyricsCompletedAt) {
+        return `Teksten klaar ${formatTimeAgo(progress.lyricsCompletedAt)}`;
+      }
+      break;
+    case 'ready':
+      if (progress?.musicCompletedAt) {
+        return `Klaar ${formatTimeAgo(progress.musicCompletedAt)}`;
+      }
+      break;
+    case 'generating_lyrics':
+      if (progress?.lyricsStartedAt) {
+        return `Tekst genereren sinds ${formatTimeAgo(progress.lyricsStartedAt)}`;
+      }
+      break;
+    case 'generating_music':
+      if (progress?.musicStartedAt) {
+        return `Muziek genereren sinds ${formatTimeAgo(progress.musicStartedAt)}`;
+      }
+      break;
+  }
+
+  // Fallback to updatedAt
+  if (song.updatedAt) {
+    return `Bijgewerkt ${formatTimeAgo(song.updatedAt)}`;
+  }
+
+  return 'Bijgewerkt onbekend';
+}
 
 export function SongCard({
   song,
@@ -48,25 +129,38 @@ export function SongCard({
   onSelectVariant,
   onShare,
   onDelete,
+  onChooseLyrics,
+  onRetry,
   actionState,
 }: SongCardProps) {
   const variants = song.variants || [];
   const selectedVariant = variants.find((v) => v.trackId === song.selectedVariantId) || variants[0];
-  const statusInfo = song.status ? STATUS_LABELS[song.status] : undefined;
   const snippet = createSnippet(song.lyricsSnippet, 140);
-  const updatedLabel = song.updatedAt
-    ? new Date(song.updatedAt).toLocaleDateString("nl-NL", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  const hasAudio = !!(selectedVariant?.streamAudioUrl || selectedVariant?.audioUrl);
+  const primaryCTA = getPrimaryCTA(song.status, hasAudio);
+  const metadataText = getMetadataText(song);
+  const progress = parseGenerationProgress(song.generationProgress);
 
   const handlePlay = () => {
     if (selectedVariant) {
       onPlay(selectedVariant);
+    }
+  };
+
+  const handlePrimaryAction = () => {
+    switch (primaryCTA.action) {
+      case 'play':
+        handlePlay();
+        break;
+      case 'choose_lyrics':
+        onChooseLyrics?.();
+        break;
+      case 'retry':
+        onRetry?.();
+        break;
+      case 'view_details':
+        onOpen();
+        break;
     }
   };
 
@@ -85,10 +179,8 @@ export function SongCard({
           </div>
         )}
         <div className="absolute left-3 top-3 flex items-center gap-2 text-xs">
-          {statusInfo && (
-            <span className={`rounded-full px-3 py-1 font-semibold ${statusInfo.className}`}>
-              {statusInfo.label}
-            </span>
+          {song.status && (
+            <SongStatusBadge status={song.status as SongStatus} />
           )}
           {song.isPublic ? (
             <span className="rounded-full bg-indigo-50 px-3 py-1 font-semibold text-indigo-600">
@@ -122,30 +214,59 @@ export function SongCard({
           </label>
         )}
 
+        {/* Error display for failed state */}
+        {song.status === 'failed' && (progress?.lyricsError || progress?.musicError) && (
+          <div className="rounded-lg bg-red-50 p-2 text-xs text-red-700">
+            <p className="font-semibold">Fout opgetreden:</p>
+            <p className="mt-1 line-clamp-2">
+              {progress.musicError || progress.lyricsError}
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
+          {/* Primary CTA based on status */}
           <button
             type="button"
-            onClick={handlePlay}
-            className="rounded-full bg-rose-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-600"
-            disabled={!selectedVariant?.streamAudioUrl && !selectedVariant?.audioUrl}
+            onClick={handlePrimaryAction}
+            disabled={primaryCTA.disabled || actionState?.isRetrying}
+            className={`rounded-full px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              primaryCTA.color === 'emerald'
+                ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                : primaryCTA.color === 'rose'
+                  ? 'bg-rose-500 text-white hover:bg-rose-600'
+                  : primaryCTA.color === 'rose-outline'
+                    ? 'border border-rose-300 text-rose-600 hover:bg-rose-50'
+                    : 'border border-slate-200 text-slate-700 hover:border-slate-300'
+            }`}
           >
-            Afspelen
+            {actionState?.isRetrying && primaryCTA.action === 'retry' ? 'Bezig…' : primaryCTA.label}
           </button>
-          <button
-            type="button"
-            onClick={onOpen}
-            className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-          >
-            Open in Studio
-          </button>
-          <button
-            type="button"
-            onClick={onShare}
-            disabled={actionState?.isSharing}
-            className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {actionState?.isSharing ? "Bezig…" : song.isPublic ? "Deel link kopiëren" : "Deel link"}
-          </button>
+
+          {/* Open in Studio (only if not primary action) */}
+          {primaryCTA.action !== 'view_details' && (
+            <button
+              type="button"
+              onClick={onOpen}
+              className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Open in Studio
+            </button>
+          )}
+
+          {/* Share button (only for ready songs) */}
+          {song.status === 'ready' && (
+            <button
+              type="button"
+              onClick={onShare}
+              disabled={actionState?.isSharing}
+              className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {actionState?.isSharing ? "Bezig…" : song.isPublic ? "Deel link kopiëren" : "Deel link"}
+            </button>
+          )}
+
+          {/* Delete button */}
           <button
             type="button"
             onClick={onDelete}
@@ -157,7 +278,7 @@ export function SongCard({
         </div>
 
         <div className="mt-auto text-xs text-slate-500">
-          {updatedLabel ? `Bijgewerkt ${updatedLabel}` : "Bijgewerkt onbekend"}
+          {metadataText}
         </div>
       </div>
     </div>

@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import NavTabs from "@/components/mobile/NavTabs";
 import { useLibrarySongs, useLibraryConversations } from "@/lib/library/queries";
+import { sortSongsByPriority } from "@/lib/library/sorting";
 import SongCard from "./components/SongCard";
 import ConversationCard from "./components/ConversationCard";
 import Filters from "./components/Filters";
+import LyricsChoiceModal from "@/components/LyricsChoiceModal";
+import { parseLyricVariants } from "@/types/generation";
 import {
   trackLibraryDelete,
   trackLibraryOpen,
   trackLibraryPlay,
   trackLibraryShare,
+  trackGenerationRetry,
 } from "@/lib/analytics/events";
 import { useI18n } from "@/providers/I18nProvider";
-
-type TabKey = "songs" | "conversations";
 
 interface CurrentPlaybackState {
   id: string;
@@ -35,13 +37,17 @@ export default function LibraryPage() {
   const { strings } = useI18n();
 
   const SONG_STATUS_OPTIONS = [
-    { value: "all", label: strings.library.statusAll },
-    { value: "ready", label: strings.library.statusReady },
-    { value: "generating", label: strings.library.statusGenerating },
-    { value: "failed", label: strings.library.statusFailed },
+    { value: "all", label: "Alle" },
+    { value: "lyrics_ready", label: "Klaar om te kiezen" },
+    { value: "ready", label: "Klaar om te spelen" },
+    { value: "generating_lyrics", label: "Tekst genereren" },
+    { value: "generating_music", label: "Muziek genereren" },
+    { value: "failed", label: "Mislukt" },
+    { value: "complete", label: "Voltooid" },
   ];
 
   const SONG_SORT_OPTIONS = [
+    { value: "action", label: "Actie vereist" },
     { value: "recent", label: strings.library.sortRecent },
     { value: "az", label: strings.library.sortAZ },
     { value: "played", label: strings.library.sortPlayed },
@@ -60,16 +66,19 @@ export default function LibraryPage() {
     { value: "az", label: strings.library.sortAZ },
   ];
 
-  const [activeTab, setActiveTab] = useState<TabKey>("songs");
+  const searchParams = useSearchParams();
   const [songSearch, setSongSearch] = useState("");
   const [songStatus, setSongStatus] = useState("all");
-  const [songSort, setSongSort] = useState("recent");
+  const [songSort, setSongSort] = useState("action");
   const [conversationSearch, setConversationSearch] = useState("");
   const [conversationStatus, setConversationStatus] = useState("all");
   const [conversationSort, setConversationSort] = useState("recent");
   const [shareLoadingId, setShareLoadingId] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
+  const [retryLoadingId, setRetryLoadingId] = useState<string | null>(null);
   const [currentPlayback, setCurrentPlayback] = useState<CurrentPlaybackState | null>(null);
+  const [lyricsModalOpen, setLyricsModalOpen] = useState(false);
+  const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<any>(null);
 
   const songsQuery = useLibrarySongs(userId, {
     search: songSearch,
@@ -83,14 +92,83 @@ export default function LibraryPage() {
     sort: conversationSort as any,
   });
 
-  const songs = songsQuery.data?.songs ?? [];
+  const songs = useMemo(() => {
+    const rawSongs = songsQuery.data?.songs ?? [];
+
+    // Apply smart sorting when "action" sort is selected
+    if (songSort === 'action') {
+      return sortSongsByPriority(rawSongs);
+    }
+
+    return rawSongs;
+  }, [songsQuery.data?.songs, songSort]);
+
   const conversations = conversationsQuery.data?.conversations ?? [];
 
   useEffect(() => {
     if (userId) {
-      trackLibraryOpen({ userId });
+      const source = searchParams.get('fromStudio') ? 'studio_redirect' : 'nav_tab';
+      trackLibraryOpen({ userId, source: source as any });
     }
-  }, [userId]);
+  }, [userId, searchParams]);
+
+  const handleChooseLyrics = (song: any) => {
+    setSelectedSongForLyrics(song);
+    setLyricsModalOpen(true);
+  };
+
+  const handleSelectVariant = async (variantIndex: number) => {
+    if (!selectedSongForLyrics) return;
+
+    const res = await fetch(
+      `/api/library/songs/${selectedSongForLyrics.id}/select-lyrics`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantIndex }),
+      }
+    );
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Failed to select lyrics');
+    }
+  };
+
+  const handleRetry = async (songId: string, phase: 'lyrics' | 'music') => {
+    setRetryLoadingId(songId);
+    try {
+      const res = await fetch(
+        `/api/library/songs/${songId}/retry`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phase }),
+        }
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Retry mislukt');
+      }
+
+      const data = await res.json();
+
+      // Track retry
+      trackGenerationRetry({
+        songId,
+        phase,
+        retryCount: data.retryCount || 1,
+      });
+
+      // Success feedback
+      alert('Opnieuw proberen gestart!');
+    } catch (error: any) {
+      alert(error.message || 'Retry mislukt');
+    } finally {
+      setRetryLoadingId(null);
+    }
+  };
 
   if (auth.isLoading) {
     return (
@@ -219,13 +297,19 @@ export default function LibraryPage() {
           onShare={() => handleShareSong(song)}
           onDelete={() => handleDeleteSong(song.id)}
           onSelectVariant={(variantId) => handleSelectVariant(song.id, variantId)}
+          onChooseLyrics={() => handleChooseLyrics(song)}
+          onRetry={() => {
+            const phase = song.status === 'failed' ? 'music' : 'lyrics';
+            handleRetry(song.id, phase);
+          }}
           actionState={{
             isSharing: shareLoadingId === song.id,
             isDeleting: deleteLoadingId === song.id,
+            isRetrying: retryLoadingId === song.id,
           }}
         />
       )),
-    [songs, router, shareLoadingId, deleteLoadingId]
+    [songs, router, shareLoadingId, deleteLoadingId, retryLoadingId]
   );
 
   const conversationCards = useMemo(
@@ -249,78 +333,29 @@ export default function LibraryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:py-12">
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{strings.library.title}</h1>
             <p className="text-sm text-slate-600">
               {strings.library.description}
             </p>
           </div>
-          <div className="flex rounded-full bg-white p-1 shadow">
-            <button
-              type="button"
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === "songs"
-                  ? "bg-rose-500 text-white"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-              onClick={() => setActiveTab("songs")}
-            >
-              {strings.library.tabSongs}
-            </button>
-            <button
-              type="button"
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === "conversations"
-                  ? "bg-rose-500 text-white"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-              onClick={() => setActiveTab("conversations")}
-            >
-              {strings.library.tabConversations}
-            </button>
-          </div>
         </header>
 
-        {activeTab === "songs" ? (
-          <>
-            <Filters
-              search={songSearch}
-              onSearchChange={setSongSearch}
-              status={songStatus}
-              onStatusChange={setSongStatus}
-              statusOptions={SONG_STATUS_OPTIONS}
-              sort={songSort}
-              onSortChange={setSongSort}
-              sortOptions={SONG_SORT_OPTIONS}
-              placeholder={strings.library.searchSongsPlaceholder}
-            />
-            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
-            </section>
-          </>
-        ) : (
-          <>
-            <Filters
-              search={conversationSearch}
-              onSearchChange={setConversationSearch}
-              status={conversationStatus}
-              onStatusChange={setConversationStatus}
-              statusOptions={CONVERSATION_STATUS_OPTIONS}
-              sort={conversationSort}
-              onSortChange={setConversationSort}
-              sortOptions={CONVERSATION_SORT_OPTIONS}
-              placeholder={strings.library.searchConversationsPlaceholder}
-            />
-            <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {conversationCards.length ? (
-                conversationCards
-              ) : (
-                <EmptyState message={strings.library.emptyConversations} />
-              )}
-            </section>
-          </>
-        )}
+        <Filters
+          search={songSearch}
+          onSearchChange={setSongSearch}
+          status={songStatus}
+          onStatusChange={setSongStatus}
+          statusOptions={SONG_STATUS_OPTIONS}
+          sort={songSort}
+          onSortChange={setSongSort}
+          sortOptions={SONG_SORT_OPTIONS}
+          placeholder={strings.library.searchSongsPlaceholder}
+        />
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
+        </section>
       </main>
 
       {currentPlayback && (
@@ -333,6 +368,17 @@ export default function LibraryPage() {
           />
         </div>
       )}
+
+      {/* Lyrics Choice Modal */}
+      <LyricsChoiceModal
+        isOpen={lyricsModalOpen}
+        onClose={() => setLyricsModalOpen(false)}
+        variants={parseLyricVariants(selectedSongForLyrics?.lyricsVariants)}
+        songId={selectedSongForLyrics?.id || ''}
+        songTitle={selectedSongForLyrics?.title || 'Ongetiteld'}
+        onSelectVariant={handleSelectVariant}
+      />
+
       <NavTabs />
     </div>
   );
