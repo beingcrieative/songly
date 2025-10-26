@@ -319,6 +319,44 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Check database for callback results (if callback already arrived)
+    const { getAdminDb } = await import('@/lib/adminDb');
+    const adminDb = getAdminDb();
+
+    if (adminDb) {
+      try {
+        const { conversations } = await adminDb.query({
+          conversations: {
+            $: { where: { lyricsTaskId: taskId } } as any,
+          },
+        });
+
+        if (conversations.length > 0) {
+          const conv = conversations[0];
+
+          // Check if we have variants from callback
+          if (conv.lyricsVariants && conv.lyricsStatus === 'complete') {
+            try {
+              const variants = JSON.parse(conv.lyricsVariants);
+              if (Array.isArray(variants) && variants.length > 0) {
+                console.log('Found lyrics variants in DB from callback:', variants.length);
+                return NextResponse.json({
+                  status: 'complete',
+                  lyrics: variants.join('\n\n---\n\n'),
+                  variants,
+                  taskId,
+                });
+              }
+            } catch (e) {
+              console.warn('Failed to parse lyricsVariants from DB:', e);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking DB for lyrics:', error);
+      }
+    }
+
     const endpoints = [
       // Most likely variants
       { method: 'POST' as const, url: `${SUNO_API_BASE}/lyrics/get-lyrics-generation-details`, body: { taskId } },

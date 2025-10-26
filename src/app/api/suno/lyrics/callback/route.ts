@@ -95,17 +95,19 @@ export async function POST(request: NextRequest) {
     // Task 3.11: Update conversation or create lyrics entity in InstantDB
     if (conversationId && lyricVariants.length > 0) {
       try {
-        // Option 1: Store in conversation entity
+        // Store ALL variants as JSON array, plus first one for backward compatibility
         await adminDb.transact([
           adminDb.tx.conversations[conversationId].update({
-            generatedLyrics: lyricVariants[0],
+            generatedLyrics: lyricVariants[0], // First variant for backward compat
+            lyricsVariants: JSON.stringify(lyricVariants), // ALL variants as JSON
             lyricsTaskId: taskId,
-            lyricsStatus: status === 'SUCCESS' ? 'complete' : status,
+            lyricsStatus: callbackType === 'complete' ? 'complete' : 'generating',
             updatedAt: Date.now(),
           }),
         ]);
 
         console.log('✅ Updated conversation with generated lyrics');
+        console.log(`   Stored ${lyricVariants.length} variant(s)`);
       } catch (error) {
         console.error('Failed to update conversation:', error);
       }
@@ -124,13 +126,15 @@ export async function POST(request: NextRequest) {
           const conv = conversations[0];
           await adminDb.transact([
             adminDb.tx.conversations[conv.id].update({
-              generatedLyrics: lyricVariants[0],
-              lyricsStatus: status === 'SUCCESS' ? 'complete' : status,
+              generatedLyrics: lyricVariants[0], // First variant for backward compat
+              lyricsVariants: JSON.stringify(lyricVariants), // ALL variants as JSON
+              lyricsStatus: callbackType === 'complete' ? 'complete' : 'generating',
               updatedAt: Date.now(),
             }),
           ]);
 
           console.log('✅ Found and updated conversation by taskId');
+          console.log(`   Stored ${lyricVariants.length} variant(s)`);
         } else {
           console.warn('⚠️ No conversation found for taskId:', taskId, 'from:', userAgent);
         }
