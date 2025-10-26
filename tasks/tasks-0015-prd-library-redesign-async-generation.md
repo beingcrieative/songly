@@ -1322,7 +1322,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🍞 Task 8.0: Add Toast Notification System
+### ✅ Task 8.0: Add Toast Notification System
 
 **Description**: Install and configure toast library (sonner) for user feedback.
 
@@ -1332,14 +1332,14 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **8.1 - Install sonner**
+- [x] **8.1 - Install sonner**
   - **Command**: `npm install sonner`
   - **Description**: Install lightweight toast library
   - **Acceptance Criteria**:
     - Package installed
     - No dependency conflicts
 
-- [ ] **8.2 - Add Toaster to root layout**
+- [x] **8.2 - Add Toaster to root layout**
   - **File**: `src/app/layout.tsx`
   - **Description**: Add Toaster component to app root
   - **Implementation**:
@@ -1362,7 +1362,7 @@ This task list implements the complete Library redesign to support async generat
     - Positioned at top center
     - Styled with rich colors
 
-- [ ] **8.3 - Create toast utility wrapper**
+- [x] **8.3 - Create toast utility wrapper**
   - **File**: `src/lib/toast.ts` (NEW)
   - **Description**: Wrapper for consistent toast usage
   - **Implementation**:
@@ -1400,7 +1400,7 @@ This task list implements the complete Library redesign to support async generat
     - Supports variants (default, success, error)
     - Re-exports toast for direct usage
 
-- [ ] **8.4 - Add toast to Studio generation start**
+- [x] **8.4 - Add toast to Studio generation start**
   - **File**: `src/app/studio/StudioClient.tsx`
   - **Description**: Use toast in generateLyrics (already in Task 7.2)
   - **Acceptance Criteria**:
@@ -1408,7 +1408,7 @@ This task list implements the complete Library redesign to support async generat
     - Toast shows on error
     - Messages in Dutch
 
-- [ ] **8.5 - Add toast to Library actions**
+- [x] **8.5 - Add toast to Library actions**
   - **File**: `src/app/library/page.tsx`
   - **Description**: Replace alert() calls with toast
   - **Changes**:

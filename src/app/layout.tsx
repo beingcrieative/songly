@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { Toaster } from 'sonner';
 import './globals.css';
 import ClientBoot from '@/components/ClientBoot';
 import { I18nProvider } from '@/providers/I18nProvider';
@@ -62,6 +63,7 @@ export default function RootLayout({
           <I18nProvider>
             <ClientBoot />
             {children}
+            <Toaster position="top-center" richColors />
           </I18nProvider>
         </RootProvider>
       </body>
