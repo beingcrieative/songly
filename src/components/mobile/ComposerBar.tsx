@@ -51,7 +51,7 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
 
   return (
     <div className="w-full">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <input
             type="text"
@@ -76,13 +76,13 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
           />
           <button
             type="button"
-            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-500 hover:text-[color:var(--color-secondary)]"
+            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-400 hover:text-gray-600 active:text-gray-700"
             aria-label="Toetsenbord verbergen"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => inputRef.current?.blur()}
           >
             {/* keyboard-hide icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M4 4h16v10H4zM6 6h2v2H6zm4 0h2v2h-2zm4 0h2v2h-2zM6 9h12v1H6zm6 7l-3 3h6z" />
             </svg>
           </button>
@@ -92,11 +92,11 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
-          className="h-12 w-12 rounded-lg text-white shadow-lg transition-all hover:shadow-xl disabled:bg-gray-300 disabled:cursor-not-allowed"
-          style={{ backgroundImage: 'var(--gradient-primary)' }}
+          className="h-12 w-12 flex items-center justify-center rounded-xl text-white shadow-md transition-all hover:shadow-lg active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none"
+          style={{ backgroundImage: disabled || !value.trim() ? undefined : 'var(--gradient-primary)' }}
           aria-label="Verstuur"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="translate-x-[1px]">
             <path d="M22 2L11 13" />
             <path d="M22 2L15 22 11 13 2 9l20-7z" />
           </svg>

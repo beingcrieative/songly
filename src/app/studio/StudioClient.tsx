@@ -752,16 +752,40 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   }, []);
 
   // Auto-scroll to the bottom when messages grow
+  // Only auto-scroll if user is already near the bottom (within 200px)
+  const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
-    });
+    if (messages.length !== prevMessagesLengthRef.current) {
+      prevMessagesLengthRef.current = messages.length;
+
+      requestAnimationFrame(() => {
+        if (!chatContainerRef.current || !bottomRef.current) return;
+
+        const container = chatContainerRef.current;
+        const isNearBottom =
+          container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+
+        // Only auto-scroll if user is already near bottom or it's a new conversation
+        if (isNearBottom || messages.length <= 2) {
+          bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      });
+    }
   }, [messages.length]);
 
   // Also re-scroll on keyboard or composer height changes (mobile viewport shifts)
+  // But only if user was already at the bottom
   useEffect(() => {
     requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ block: 'end' });
+      if (!chatContainerRef.current || !bottomRef.current) return;
+
+      const container = chatContainerRef.current;
+      const isNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+      if (isNearBottom) {
+        bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
     });
   }, [isKeyboardOpen, composerHeight]);
 
@@ -2320,7 +2344,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }`}
         style={{
           WebkitOverflowScrolling: 'touch' as any,
-          paddingBottom: isMobile ? Math.max(composerHeight + 16, 180) : undefined,
+          paddingBottom: isMobile ? composerHeight + 24 : undefined,
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
