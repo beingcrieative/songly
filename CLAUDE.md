@@ -139,10 +139,27 @@ SUNO_API_KEY=<key>                # For lyrics and music generation
 # Suno Webhook (for local dev, use ngrok)
 SUNO_CALLBACK_URL=https://<domain>/api/suno/callback
 
+# Web Push Notifications (VAPID)
+# Generate with: npx web-push generate-vapid-keys
+VAPID_PUBLIC_KEY=<public-key>
+VAPID_PRIVATE_KEY=<private-key>
+VAPID_SUBJECT=mailto:your-email@example.com
+
 # Optional Configuration
 MAX_CONVERSATION_ROUNDS=8         # Default conversation length before lyrics
 APP_ENFORCE_SESSION=false         # Set to 'true' to require session cookies
+NEXT_PUBLIC_ENABLE_ASYNC_GENERATION=false  # Enable async background generation
 ```
+
+### Generating VAPID Keys for Push Notifications
+
+Push notifications require VAPID keys for authentication. Generate them once:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Copy the output to your `.env` file. **Important:** Keep the private key secret and never commit it to version control.
 
 ### Local Development with Suno Callbacks
 

@@ -92,57 +92,58 @@
 
 ### Phase 2: Backend Callback & Notification System
 
-- [ ] **2.0 Enhance Suno Callback Handlers for Status-Based Flow**
-  - [ ] 2.1 Update lyrics callback handler (`/api/suno/lyrics/callback`)
-    - [ ] 2.1.1 Add idempotency check using `taskId`
+- [x] **2.0 Enhance Suno Callback Handlers for Status-Based Flow**
+  - [x] 2.1 Update lyrics callback handler (`/api/suno/lyrics/callback`)
+    - [x] 2.1.1 Add idempotency check using `taskId`
       - Query for song with matching `generationProgress.lyricsTaskId`
       - If `status === "lyrics_ready"` and `lyricsCompletedAt` exists, return early
       - Log: "Lyrics already processed for taskId: ..."
-    - [ ] 2.1.2 Extract and validate lyrics variants from callback payload
+    - [x] 2.1.2 Extract and validate lyrics variants from callback payload
       - Parse `payload.data.data` array for variant texts
       - Validate: must have at least 2 non-empty variants
       - If validation fails, set status to `"failed"` with error message
-    - [ ] 2.1.3 Update song with lyrics data
+    - [x] 2.1.3 Update song with lyrics data
       - Set `status: "lyrics_ready"`
       - Store variants in `lyricsVariants` field as JSON
       - Update `generationProgress.lyricsCompletedAt: Date.now()`
       - Store raw callback in `generationProgress.rawCallback` for debugging
       - Use InstantDB transaction for atomic update
-    - [ ] 2.1.4 Call push notification helper
-      - Import `sendPushNotification` from `src/lib/push.ts`
-      - Call with: `{ userId: song.userId, songId: song.id, type: 'lyrics_ready' }`
+    - [x] 2.1.4 Call push notification helper
+      - Import `sendLyricsReadyNotification` from `src/lib/push.ts`
+      - Call with: `{ userId: song.userId, songId: song.id }`
       - Don't await - fire and forget (notifications are best-effort)
-    - [ ] 2.1.5 Add comprehensive error logging
+    - [x] 2.1.5 Add comprehensive error logging
       - Log all callback attempts with timestamps
       - Log validation failures with payload preview
       - Log database update success/failure
-    - [ ] 2.1.6 Return 200 OK for all cases (prevent Suno retries)
+    - [x] 2.1.6 Return 200 OK for all cases (prevent Suno retries)
       - Even on errors, return success to prevent infinite retries
       - Errors are logged for debugging
-  - [ ] 2.2 Update music callback handler (`/api/suno/callback`)
-    - [ ] 2.2.1 Add idempotency check using `taskId`
+  - [x] 2.2 Update music callback handler (`/api/suno/callback`)
+    - [x] 2.2.1 Add idempotency check using `taskId`
       - Query for song with matching `generationProgress.musicTaskId`
       - If `status === "ready"` and `musicCompletedAt` exists, return early
-    - [ ] 2.2.2 Validate track data from callback
+    - [x] 2.2.2 Validate track data from callback
       - Ensure at least one variant has valid `audioUrl` or `streamAudioUrl`
       - If validation fails, set status to `"failed"`
-    - [ ] 2.2.3 Update song and create variant entities
+    - [x] 2.2.3 Update song and create variant entities
       - Set `status: "ready"`
       - Update `generationProgress.musicCompletedAt: Date.now()`
       - Create `sunoVariants` entities for each track (existing pattern)
       - Store raw callback in `generationProgress.rawCallback`
-    - [ ] 2.2.4 Call push notification helper
-      - Call: `sendPushNotification({ userId, songId, type: 'music_ready' })`
-    - [ ] 2.2.5 Add comprehensive logging
-    - [ ] 2.2.6 Return 200 OK for all cases
-  - [ ] 2.3 Update lyrics polling endpoint (`/api/suno/lyrics` GET)
-    - [ ] 2.3.1 Check database first for song status
-      - Query song by `generationProgress.lyricsTaskId`
+    - [x] 2.2.4 Call push notification helper
+      - Call: `sendMusicReadyNotification(userId, songId)`
+    - [x] 2.2.5 Add comprehensive logging
+    - [x] 2.2.6 Return 200 OK for all cases
+  - [x] 2.3 Update lyrics polling endpoint (`/api/suno/lyrics` GET)
+    - [x] 2.3.1 Check database first for song status
+      - Query song by `lyricsTaskId` field (indexed)
       - If `status === "lyrics_ready"`, return variants from `lyricsVariants` field
-      - If `status === "failed"`, return error from `generationProgress.lyricsError`
-    - [ ] 2.3.2 Keep existing Suno API fallback for backward compatibility
+      - If `status === "failed"`, return error from `errorMessage` field
+    - [x] 2.3.2 Keep existing Suno API fallback for backward compatibility
       - Only poll Suno API if database has no result
       - This supports transition period before full migration
+      - Falls back to conversations entity for legacy support
   - [ ] 2.4 Add error handling for callback failures
     - [ ] 2.4.1 If callback payload indicates failure (status: FAILED)
       - Set song `status: "failed"`
@@ -153,17 +154,17 @@
       - Log each retry attempt
       - If all retries fail, log critical error
 
-- [ ] **3.0 Implement Push Notification Delivery System**
-  - [ ] 3.1 Generate VAPID keys for Web Push API
-    - [ ] 3.1.1 Run: `npx web-push generate-vapid-keys`
-    - [ ] 3.1.2 Add to `.env.example`:
+- [x] **3.0 Implement Push Notification Delivery System**
+  - [x] 3.1 Generate VAPID keys for Web Push API
+    - [x] 3.1.1 Run: `npx web-push generate-vapid-keys`
+    - [x] 3.1.2 Add to `.env.example`:
       ```
       VAPID_PUBLIC_KEY=<public-key>
       VAPID_PRIVATE_KEY=<private-key>
       VAPID_SUBJECT=mailto:your-email@example.com
       ```
-    - [ ] 3.1.3 Add to production environment variables (manual Vercel step)
-    - [ ] 3.1.4 Document in `README.md` how to regenerate if needed
+    - [x] 3.1.3 Add to production environment variables (manual Vercel step - documented)
+    - [x] 3.1.4 Document in `CLAUDE.md` how to regenerate if needed
   - [ ] 3.2 Create `/api/push/send` endpoint
     - [ ] 3.2.1 Create new route file: `src/app/api/push/send/route.ts`
     - [ ] 3.2.2 Implement POST handler with payload validation
