@@ -2,9 +2,17 @@
 const CACHE_NAME = 'studio-cache-v1';
 const OFFLINE_URL = '/offline.html';
 
+// Task 3.4.4: Pre-cache notification icons and badges
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([OFFLINE_URL]))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll([
+        OFFLINE_URL,
+        '/icons/icon-192x192.png',
+        '/icons/icon-72x72.png',
+        '/icons/badge-72x72.png',
+      ])
+    )
   );
   self.skipWaiting();
 });
@@ -71,14 +79,55 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Task 3.4.1: Enhanced push event handler with proper icon, badge, and actions
 self.addEventListener('push', (event) => {
   try {
+    // Parse notification data with error handling
     const data = event.data ? event.data.json() : {};
+
     const title = data.title || 'Liedje klaar!';
-    const options = { body: data.body || 'Je song is gereed om te beluisteren.', data };
+    const body = data.body || 'Je song is gereed om te beluisteren.';
+    const url = data.url || '/library';
+    const icon = data.icon || '/icons/icon-192x192.png';
+    const badge = data.badge || '/icons/badge-72x72.png';
+
+    // Notification options with all features
+    const options = {
+      body,
+      icon,
+      badge,
+      data: {
+        ...data,
+        url, // Ensure URL is in data for click handler
+        timestamp: Date.now(),
+      },
+      tag: data.type ? `${data.type}-${data.songId || 'unknown'}` : 'song-update',
+      requireInteraction: false, // Don't require explicit dismissal
+      vibrate: [200, 100, 200], // Vibration pattern for mobile
+      actions: [
+        {
+          action: 'view',
+          title: 'Bekijk liedje',
+          icon: '/icons/icon-72x72.png',
+        },
+        {
+          action: 'dismiss',
+          title: 'Sluiten',
+        },
+      ],
+    };
+
     event.waitUntil(self.registration.showNotification(title, options));
-  } catch (_) {
-    // ignore
+  } catch (error) {
+    console.error('[SW] Push notification error:', error);
+    // Show generic notification on error
+    event.waitUntil(
+      self.registration.showNotification('Liedje klaar!', {
+        body: 'Er is een update voor je liedje.',
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/badge-72x72.png',
+      })
+    );
   }
 });
 
@@ -86,8 +135,59 @@ self.addEventListener('sync', (event) => {
   // Placeholder for background sync of queued uploads
 });
 
+// Task 3.4.2: Enhanced notificationclick handler with action support
 self.addEventListener('notificationclick', (event) => {
-  const url = (event.notification && event.notification.data && event.notification.data.url) || '/';
   event.notification.close();
-  event.waitUntil(clients.openWindow(url));
+
+  // Handle action button clicks
+  if (event.action === 'dismiss') {
+    // User clicked dismiss - just close the notification
+    return;
+  }
+
+  // Extract deep link URL from notification data
+  const url = event.notification?.data?.url || '/library';
+
+  // Task 3.4.2: Focus existing window if app already open, otherwise open new
+  event.waitUntil(
+    clients
+      .matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+      .then((clientList) => {
+        // Try to find an existing window with the app open
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            // Navigate to the notification URL and focus the window
+            return client.focus().then((client) => {
+              if ('navigate' in client) {
+                return client.navigate(url);
+              }
+              return client;
+            });
+          }
+        }
+
+        // No existing window found - open a new one
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
+      .catch((error) => {
+        console.error('[SW] Notification click error:', error);
+        // Fallback: try to open window anyway
+        return clients.openWindow(url);
+      })
+  );
+});
+
+// Task 3.4.3: Track notification dismissals
+self.addEventListener('notificationclose', (event) => {
+  // Track dismissals for analytics (optional)
+  const data = event.notification?.data;
+  if (data?.type && data?.songId) {
+    console.log('[SW] Notification dismissed:', data.type, data.songId);
+    // Future: Could send analytics event here
+  }
 });
