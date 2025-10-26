@@ -188,7 +188,7 @@ This task list implements the complete Library redesign to support async generat
 
 ---
 
-### 🎨 Task 2.0: Enhance SongCard Component with New Status States
+### ✅ Task 2.0: Enhance SongCard Component with New Status States
 
 **Description**: Update SongCard to display all 6 status states with appropriate badges, CTAs, and metadata.
 
@@ -198,7 +198,7 @@ This task list implements the complete Library redesign to support async generat
 
 #### Sub-tasks:
 
-- [ ] **2.1 - Import and integrate SongStatusBadge**
+- [x] **2.1 - Import and integrate SongStatusBadge**
   - **File**: `src/app/library/components/SongCard.tsx`
   - **Description**: Replace basic status labels with SongStatusBadge component
   - **Implementation**:
@@ -215,7 +215,7 @@ This task list implements the complete Library redesign to support async generat
     - Animations work (spinner for generating, pulse for ready states)
     - Replaces old STATUS_LABELS constant
 
-- [ ] **2.2 - Add status-specific CTAs**
+- [x] **2.2 - Add status-specific CTAs**
   - **File**: `src/app/library/components/SongCard.tsx`
   - **Description**: Show different primary action based on status
   - **Implementation**:
@@ -241,7 +241,7 @@ This task list implements the complete Library redesign to support async generat
     - CTAs are disabled during loading states
     - Colors match PRD design (rose primary, emerald success)
 
-- [ ] **2.3 - Add onChooseLyrics and onRetry handlers**
+- [x] **2.3 - Add onChooseLyrics and onRetry handlers**
   - **File**: `src/app/library/components/SongCard.tsx`
   - **Description**: Add new prop handlers for lyrics selection and retry actions
   - **Implementation**:
@@ -264,7 +264,7 @@ This task list implements the complete Library redesign to support async generat
     - Called when respective buttons clicked
     - Loading states prevent multiple clicks
 
-- [ ] **2.4 - Display generation metadata**
+- [x] **2.4 - Display generation metadata**
   - **File**: `src/app/library/components/SongCard.tsx`
   - **Description**: Show relevant timestamps based on status
   - **Implementation**:
@@ -298,7 +298,7 @@ This task list implements the complete Library redesign to support async generat
     - Uses Dutch relative time ("2 minuten geleden")
     - Falls back to updatedAt if progress data missing
 
-- [ ] **2.5 - Add error display for failed state**
+- [x] **2.5 - Add error display for failed state**
   - **File**: `src/app/library/components/SongCard.tsx`
   - **Description**: Show error message from generationProgress when status is "failed"
   - **Implementation**:
