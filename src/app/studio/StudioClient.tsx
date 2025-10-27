@@ -1343,7 +1343,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               musicRetryCount: 0,
               rawCallback: null,
             }),
-            songSettings: JSON.stringify(songSettings),
             prompt,
             templateId: selectedTemplateId,
             createdAt: Date.now(),
