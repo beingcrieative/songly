@@ -46,13 +46,16 @@ export default function SongDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const songId = (params?.id as string) || "";
+  const auth = db.useAuth();
 
-  const { data, isLoading, error } = db.useQuery({
-    songs: {
-      $: { where: { id: songId }, limit: 1 } as any,
-      variants: { $: { order: { order: 'asc' } } },
-    },
-  });
+  const { data, isLoading, error } = db.useQuery(
+    auth.user?.id ? {
+      songs: {
+        $: { where: { id: songId }, limit: 1 } as any,
+        variants: { $: { order: { order: 'asc' } } },
+      },
+    } : {}
+  );
 
   const song: Song | undefined = data?.songs?.[0];
   const relationVariants = useMemo(() => {

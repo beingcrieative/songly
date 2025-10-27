@@ -53,9 +53,9 @@ export function useLyricVersions({
     };
   }
 
-  // Use InstantDB query
+  // Use InstantDB query - only when enabled and queryConfig exists
   const { data, isLoading, error } = db.useQuery(
-    enabled && queryConfig ? queryConfig : null
+    enabled && queryConfig ? queryConfig : {}
   );
 
   const versions = (data?.lyric_versions || []) as LyricVersion[];
