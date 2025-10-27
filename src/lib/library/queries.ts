@@ -65,16 +65,15 @@ export function useLibrarySongs(
   const limit = options.limit ?? 24;
   const offset = options.offset ?? 0;
 
-  // Build where clauses - include a filter that will never match if no userId
+  // Build where clauses - only execute query when userId is available
   const whereClauses: Record<string, unknown>[] = [];
 
-  // If userId is undefined, add an impossible condition to return no results
-  // This ensures the query structure remains consistent
+  // Only add user filter when userId exists (prevents permission errors on mobile)
   if (userId) {
     whereClauses.push({ "user.id": userId });
   } else {
-    // Add impossible condition to return no results but keep query structure consistent
-    whereClauses.push({ id: "__never_match__" });
+    // Return empty query when no userId (conditional execution)
+    return { data: { songs: [] }, isLoading: false, error: null };
   }
 
   if (options.status && options.status !== "all") {
@@ -120,16 +119,15 @@ export function useLibraryConversations(
   const limit = options.limit ?? 20;
   const offset = options.offset ?? 0;
 
-  // Build where clauses - include a filter that will never match if no userId
+  // Build where clauses - only execute query when userId is available
   const whereClauses: Record<string, unknown>[] = [];
 
-  // If userId is undefined, add an impossible condition to return no results
-  // This ensures the query structure remains consistent
+  // Only add user filter when userId exists (prevents permission errors on mobile)
   if (userId) {
     whereClauses.push({ "user.id": userId });
   } else {
-    // Add impossible condition to return no results but keep query structure consistent
-    whereClauses.push({ id: "__never_match__" });
+    // Return empty query when no userId (conditional execution)
+    return { data: { conversations: [] }, isLoading: false, error: null };
   }
 
   if (options.status && options.status !== "all") {
@@ -159,4 +157,17 @@ export function useLibraryConversations(
 
   // Always call the hook with the same query structure (Rules of Hooks)
   return db.useQuery(query);
+}
+
+// Mobile-specific hooks for library data access
+export function useMobileLibrarySongs(userId: string | undefined, options: LibrarySongsOptions) {
+  // For mobile, we could implement API-based fetching here
+  // For now, return the same as desktop since queries are now conditional
+  return useLibrarySongs(userId, options);
+}
+
+export function useMobileLibraryConversations(userId: string | undefined, options: LibraryConversationsOptions) {
+  // For mobile, we could implement API-based fetching here
+  // For now, return the same as desktop since queries are now conditional
+  return useLibraryConversations(userId, options);
 }
