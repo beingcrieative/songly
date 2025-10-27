@@ -65,11 +65,16 @@ export function useLibrarySongs(
   const limit = options.limit ?? 24;
   const offset = options.offset ?? 0;
 
-  // Build where clauses only if userId exists
+  // Build where clauses - include a filter that will never match if no userId
   const whereClauses: Record<string, unknown>[] = [];
 
+  // If userId is undefined, add an impossible condition to return no results
+  // This ensures the query structure remains consistent
   if (userId) {
     whereClauses.push({ "user.id": userId });
+  } else {
+    // Add impossible condition to return no results but keep query structure consistent
+    whereClauses.push({ id: "__never_match__" });
   }
 
   if (options.status && options.status !== "all") {
@@ -104,9 +109,8 @@ export function useLibrarySongs(
     },
   } as const;
 
-  // Always call the hook (Rules of Hooks)
-  // If no userId, query will have no user filter and return empty results
-  return db.useQuery(userId ? query : { songs: {} });
+  // Always call the hook with the same query structure (Rules of Hooks)
+  return db.useQuery(query);
 }
 
 export function useLibraryConversations(
@@ -116,11 +120,16 @@ export function useLibraryConversations(
   const limit = options.limit ?? 20;
   const offset = options.offset ?? 0;
 
-  // Build where clauses only if userId exists
+  // Build where clauses - include a filter that will never match if no userId
   const whereClauses: Record<string, unknown>[] = [];
 
+  // If userId is undefined, add an impossible condition to return no results
+  // This ensures the query structure remains consistent
   if (userId) {
     whereClauses.push({ "user.id": userId });
+  } else {
+    // Add impossible condition to return no results but keep query structure consistent
+    whereClauses.push({ id: "__never_match__" });
   }
 
   if (options.status && options.status !== "all") {
@@ -148,7 +157,6 @@ export function useLibraryConversations(
     },
   } as const;
 
-  // Always call the hook (Rules of Hooks)
-  // If no userId, query will have no user filter and return empty results
-  return db.useQuery(userId ? query : { conversations: {} });
+  // Always call the hook with the same query structure (Rules of Hooks)
+  return db.useQuery(query);
 }
