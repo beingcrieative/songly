@@ -7,11 +7,11 @@ import {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { songId: string } }
+  { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
     const { phase } = await req.json();
-    const { songId } = params;
+    const { songId } = await params;
 
     if (!['lyrics', 'music'].includes(phase)) {
       return NextResponse.json(
@@ -60,10 +60,17 @@ export async function POST(
     // Update progress
     const updatedProgress = {
       ...progress,
-      [(retryCountField)]: currentRetries + 1,
-      [(`${phase}Error`)]: null,
-      [(`${phase}StartedAt`)]: Date.now(),
     };
+
+    if (phase === 'lyrics') {
+      updatedProgress.lyricsRetryCount = currentRetries + 1;
+      updatedProgress.lyricsError = null;
+      updatedProgress.lyricsStartedAt = Date.now();
+    } else {
+      updatedProgress.musicRetryCount = currentRetries + 1;
+      updatedProgress.musicError = null;
+      updatedProgress.musicStartedAt = Date.now();
+    }
 
     // Update status
     const newStatus = phase === 'lyrics'
@@ -73,7 +80,7 @@ export async function POST(
     await admin.transact([
       admin.tx.songs[songId].update({
         status: newStatus,
-        generationProgress: stringifyGenerationProgress(updatedProgress),
+        generationProgress: stringifyGenerationProgress(updatedProgress as any),
       }),
     ]);
 

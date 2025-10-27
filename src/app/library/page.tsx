@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
@@ -66,7 +66,6 @@ export default function LibraryPage() {
     { value: "az", label: strings.library.sortAZ },
   ];
 
-  const searchParams = useSearchParams();
   const [songSearch, setSongSearch] = useState("");
   const [songStatus, setSongStatus] = useState("all");
   const [songSort, setSongSort] = useState("action");
@@ -107,10 +106,9 @@ export default function LibraryPage() {
 
   useEffect(() => {
     if (userId) {
-      const source = searchParams.get('fromStudio') ? 'studio_redirect' : 'nav_tab';
-      trackLibraryOpen({ userId, source: source as any });
+      trackLibraryOpen({ userId });
     }
-  }, [userId, searchParams]);
+  }, [userId]);
 
   const handleChooseLyrics = (song: any) => {
     setSelectedSongForLyrics(song);
@@ -274,7 +272,7 @@ export default function LibraryPage() {
     }
   };
 
-  const handleSelectVariant = async (songId: string, variantId: string) => {
+  const handleSelectAudioVariant = async (songId: string, variantId: string) => {
     try {
       await fetch(`/api/library/songs/${songId}/share`, {
         method: "PATCH",
@@ -296,7 +294,7 @@ export default function LibraryPage() {
           onOpen={() => router.push(`/studio?songId=${song.id}`)}
           onShare={() => handleShareSong(song)}
           onDelete={() => handleDeleteSong(song.id)}
-          onSelectVariant={(variantId) => handleSelectVariant(song.id, variantId)}
+          onSelectVariant={(variantId) => handleSelectAudioVariant(song.id, variantId)}
           onChooseLyrics={() => handleChooseLyrics(song)}
           onRetry={() => {
             const phase = song.status === 'failed' ? 'music' : 'lyrics';

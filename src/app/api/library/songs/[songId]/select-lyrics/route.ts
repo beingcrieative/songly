@@ -9,11 +9,11 @@ import {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { songId: string } }
+  { params }: { params: Promise<{ songId: string }> }
 ) {
   try {
     const { variantIndex } = await req.json();
-    const { songId } = params;
+    const { songId } = await params;
 
     // Validate
     if (typeof variantIndex !== 'number') {
@@ -75,7 +75,7 @@ export async function POST(
         status: 'generating_music',
         lyrics: updatedVariants[variantIndex].text,
         lyricsVariants: stringifyLyricVariants(updatedVariants),
-        generationProgress: stringifyGenerationProgress(updatedProgress),
+        generationProgress: stringifyGenerationProgress(updatedProgress as any),
       }),
     ]);
 
