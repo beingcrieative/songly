@@ -168,26 +168,7 @@ export default function LibraryPage() {
     }
   };
 
-  if (auth.isLoading) {
-    return (
-      <>
-        <div className="flex min-h-[70vh] items-center justify-center text-slate-500">
-          {strings.library.loading}
-        </div>
-        <NavTabs />
-      </>
-    );
-  }
-
-  if (!auth.user) {
-    return (
-      <>
-        <LoginScreen />
-        <NavTabs />
-      </>
-    );
-  }
-
+  // All remaining handlers and useMemos BEFORE early returns to ensure consistent hook order
   const handlePlay = async (songId: string, variant: { trackId: string; streamAudioUrl?: string | null; audioUrl?: string | null; title?: string | null; imageUrl?: string | null }) => {
     setCurrentPlayback({
       id: variant.trackId,
@@ -327,6 +308,26 @@ export default function LibraryPage() {
       )),
     [conversations, router, deleteLoadingId]
   );
+
+  if (auth.isLoading) {
+    return (
+      <>
+        <div className="flex min-h-[70vh] items-center justify-center text-slate-500">
+          {strings.library.loading}
+        </div>
+        <NavTabs />
+      </>
+    );
+  }
+
+  if (!auth.user) {
+    return (
+      <>
+        <LoginScreen />
+        <NavTabs />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
