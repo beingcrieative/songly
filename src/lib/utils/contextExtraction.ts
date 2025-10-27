@@ -72,6 +72,7 @@ BELANGRIJK:
     });
     const content = data.choices?.[0]?.message?.content || '{}';
     console.log('[contextExtraction] Received response, content length:', content.length);
+    console.log('[contextExtraction] Raw content:', content.slice(0, 500));
 
     // Try to parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -104,6 +105,7 @@ BELANGRIJK:
 
     // Fallback: return empty context if parsing fails
     console.warn('[contextExtraction] No valid JSON found in response');
+    console.warn('[contextExtraction] Full response content:', content);
     return createEmptyContext();
   } catch (error: any) {
     console.error('[contextExtraction] Error:', {
@@ -233,6 +235,7 @@ function tryParseLooseJson(raw: string): any {
     } catch {}
     // Give a helpful error for upstream logs
     console.error('Loose JSON parse failed. Input (truncated):', s.slice(0, 400));
+    console.error('Loose JSON parse failed. Full input:', s);
     throw e;
   }
 }

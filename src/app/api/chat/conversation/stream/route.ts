@@ -8,6 +8,7 @@ import {
 import { calculateReadinessScore } from '@/lib/utils/readinessScore';
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+// Remove API key from logs for security
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
 
 export const runtime = 'nodejs';
@@ -84,6 +85,11 @@ export async function POST(request: NextRequest) {
                 console.log(`user: ${singleLine(lastUserMsg)}`);
               }
               console.log(`aiagent: ${singleLine(meta.message)}`);
+              console.log('[DEBUG] Emitting meta event:', {
+                messageLength: meta.message?.length || 0,
+                readinessScore: meta.readinessScore,
+                extractedContextKeys: meta.extractedContext ? Object.keys(meta.extractedContext) : [],
+              });
               controller.enqueue(encoder.encode(`event: meta\n` + `data: ${escapeSse(JSON.stringify(meta))}\n\n`));
               continue;
             }
@@ -141,10 +147,8 @@ async function buildFinalMeta(
   conversationRound: number,
   existingContext: string | null,
 ) {
-  // Extract concept lyrics block
-  const conceptLyrics = parseConceptLyrics(aiMessage);
-  // Visible message without the concept block
-  const visibleMessage = aiMessage.replace(/###CONCEPT_LYRICS v\d+###[\s\S]*?###END###/g, '').trim();
+  // No concept lyrics extraction - just use the message as-is
+  const visibleMessage = aiMessage.trim();
 
   // Compute context & readiness
   let extractedContext = (existingContext ? parseExtractedContext(existingContext) : null) ?? { memories: [], emotions: [], partnerTraits: [] };
@@ -163,24 +167,8 @@ async function buildFinalMeta(
     roundNumber: conversationRound + 1,
     readinessScore: score.totalScore,
     extractedContext,
-    conceptLyrics,
+    conceptLyrics: null, // No concept lyrics
   };
 }
 
-function parseConceptLyrics(message: string): any | null {
-  try {
-    const match = message.match(/###CONCEPT_LYRICS v(\d+)###\s*([\s\S]*?)\s*###END###/);
-    if (!match) return null;
-    const jsonContent = match[2].trim();
-    const parsed = JSON.parse(jsonContent);
-    return {
-      version: parsed.version || parseInt(match[1]),
-      title: parsed.title || 'Liefdesliedje',
-      lyrics: parsed.lyrics || '',
-      style: parsed.style || 'romantic ballad',
-      notes: parsed.notes || '',
-    };
-  } catch {
-    return null;
-  }
-}
+// Removed parseConceptLyrics function - no longer needed
