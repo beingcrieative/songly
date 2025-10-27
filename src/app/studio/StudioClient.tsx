@@ -429,15 +429,17 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const { data: convData } = useConversationData(conversationId, isMobile);
 
   // PRD-0016: Query user's songs for concurrent generation checking
-  const { data: userSongsData } = db.useQuery({
-    songs: {
-      $: {
-        where: {
-          'user.id': user?.user?.id || '',
+  const { data: userSongsData } = db.useQuery(
+    user?.user?.id ? {
+      songs: {
+        $: {
+          where: {
+            'user.id': user.user.id,
+          },
         },
       },
-    },
-  });
+    } : {}
+  );
 
   // Timeout fallback: if session isn't ready after 5 seconds, proceed anyway
   useEffect(() => {
