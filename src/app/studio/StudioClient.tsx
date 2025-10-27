@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { LyricsCompare } from "@/components/LyricsCompare";
-import { LyricsGenerationProgress } from "@/components/LyricsGenerationProgress";
 import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
@@ -47,6 +46,13 @@ import LoginScreen from "@/components/auth/LoginScreen";
 import { useSessionReady } from "@/components/auth/SessionBridge";
 import { createSnippet, serializeConceptForStorage } from "@/lib/library/utils";
 import { useI18n } from "@/providers/I18nProvider";
+import { showToast } from "@/lib/toast";
+import { stringifyGenerationProgress } from "@/types/generation";
+import { getBaseUrl } from "@/lib/utils/getBaseUrl";
+import { useRouter } from "next/navigation";
+import { getUserTier, getConcurrentLimit } from "@/lib/utils/userTier";
+import { checkConcurrentLimit } from "@/lib/utils/concurrentGenerations";
+import { TOAST_MESSAGES } from "@/lib/config";
 
 // DEV_MODE: When true, bypasses authentication (set NEXT_PUBLIC_DEV_MODE=false for production)
 const DEV_MODE = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
@@ -265,6 +271,7 @@ function useSongData(currentSong: { songId?: string | null } | null, isMobile: b
 }
 
 export default function StudioClient({ isMobile }: { isMobile: boolean }) {
+  const router = useRouter();
   const { strings } = useI18n();
   const [messages, setMessages] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -308,9 +315,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const [pendingLyricVariants, setPendingLyricVariants] = useState<string[]>([]);
   const [isSavingLyricSelection, setIsSavingLyricSelection] = useState(false);
   const [pendingLyricSource, setPendingLyricSource] = useState<'suno' | 'suno-refine'>('suno');
-  // Task 3.0: Lyrics generation progress tracking
-  const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
-  const [lyricsPollingAttempts, setLyricsPollingAttempts] = useState(0);
   const [isParameterSheetOpen, setIsParameterSheetOpen] = useState(false);
   const [isMobileLyricsOpen, setIsMobileLyricsOpen] = useState(false);
   // Task 6.1: Error state
@@ -423,6 +427,17 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   // IMPORTANT: Always call ALL hooks unconditionally at the top, before any early returns
   const { data: songData } = useSongData(currentSong, isMobile);
   const { data: convData } = useConversationData(conversationId, isMobile);
+
+  // PRD-0016: Query user's songs for concurrent generation checking
+  const { data: userSongsData } = db.useQuery({
+    songs: {
+      $: {
+        where: {
+          'user.id': user?.user?.id || '',
+        },
+      },
+    },
+  });
 
   // Timeout fallback: if session isn't ready after 5 seconds, proceed anyway
   useEffect(() => {
@@ -1088,7 +1103,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           } = finalMeta;
           setExtractedContext(ctx);
           setReadinessScore(readinessScore);
-          if (conceptFromMeta) setConceptLyrics(conceptFromMeta);
+          // PRD-0016: Concept lyrics not needed - using Suno for generation
+          // if (conceptFromMeta) setConceptLyrics(conceptFromMeta);
 
           if (!DEV_MODE && conversationId) {
             try {
@@ -1106,7 +1122,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
                 roundNumber: currentRound,
                 readinessScore,
                 extractedContext: ctx,
-                concept: conceptFromMeta ?? null,
+                // PRD-0016: Concept lyrics not needed - using Suno for generation
+                // concept: conceptFromMeta ?? null,
               });
             } catch (e) {
               console.warn('Failed to persist assistant message (stream)', e);
@@ -1193,7 +1210,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
     setExtractedContext(data.extractedContext);
     setReadinessScore(data.readinessScore);
-    if (data.conceptLyrics) setConceptLyrics(data.conceptLyrics);
+    // PRD-0016: Concept lyrics not needed - using Suno for generation
+    // if (data.conceptLyrics) setConceptLyrics(data.conceptLyrics);
 
     if (!DEV_MODE && conversationId) {
       try {
@@ -1211,7 +1229,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           roundNumber: currentRound,
           readinessScore: data.readinessScore,
           extractedContext: data.extractedContext,
-          concept: data.conceptLyrics ?? null,
+          // PRD-0016: Concept lyrics not needed - using Suno for generation
+          // concept: data.conceptLyrics ?? null,
         });
       } catch (error) {
         console.warn("Failed to persist assistant message", error);
@@ -1225,6 +1244,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
   /**
    * Transition to lyrics generation phase
+   * PRD-0016: No transition message, immediate redirect
    */
   const transitionToLyricsGeneration = async () => {
     setConversationPhase('generating');
@@ -1238,294 +1258,144 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }
     }
 
-    // Show transition message
-    const transitionMessage = {
-      role: "assistant" as const,
-      content: `Dank je wel voor het delen van deze mooie herinneringen! 💕\n\nIk heb nu genoeg inspiratie om een persoonlijk liefdesliedje te schrijven.\n\nGeef me een momentje...`,
-    };
-    setMessages((prev) => [...prev, transitionMessage]);
-
-    // Generate lyrics
+    // Generate lyrics immediately (no transition message)
     await generateLyrics();
   };
 
   /**
-   * Task 4.6, 4.7: Generate lyrics using Suno API instead of DeepSeek
+   * PRD-0016: Async generation flow
+   * Creates song entity immediately and redirects to Library without waiting
    */
   const generateLyrics = async () => {
     try {
-      // Task 3.0: Show generation progress
-      setIsGeneratingLyrics(true);
-      setLyricsPollingAttempts(0);
+      // PRD-0016 Task 3.1: Check concurrent generation limit
+      const userTier = getUserTier(user?.user);
+      const concurrentLimit = getConcurrentLimit(user?.user);
+      const userSongs = userSongsData?.songs || [];
+      const limitCheck = checkConcurrentLimit(userSongs, concurrentLimit);
 
-      // Task 4.6: Get selected template or use default
+      if (limitCheck.limitReached) {
+        console.log('[PRD-0016] Concurrent generation limit reached:', {
+          tier: userTier,
+          limit: concurrentLimit,
+          current: limitCheck.currentCount,
+        });
+
+        // Show appropriate toast based on user tier
+        const toastMessage = userTier === 'free'
+          ? TOAST_MESSAGES.CONCURRENT_LIMIT_FREE
+          : TOAST_MESSAGES.CONCURRENT_LIMIT_PREMIUM;
+
+        showToast({
+          title: toastMessage.title,
+          description: toastMessage.description,
+          variant: 'error',
+        });
+
+        return; // Don't start new generation
+      }
+
+      // Get selected template or use default
       const template = selectedTemplateId
         ? getTemplateById(selectedTemplateId)
-        : getTemplateById('romantic-ballad'); // Fallback to romantic ballad
+        : getTemplateById('romantic-ballad');
 
       if (!template) {
         throw new Error('No template selected');
       }
 
-      // Task 4.6: Build Suno-optimized prompt with template context
+      // Build Suno-optimized prompt with template context
       const prompt = buildSunoLyricsPrompt(
         extractedContext,
         template,
         songSettings.language || 'Nederlands'
       );
 
-      console.log('Generating lyrics with Suno...');
+      console.log('[PRD-0016] Generating lyrics with async flow...');
       console.log('Template:', template.name);
       console.log('Prompt length:', prompt.length);
+      console.log('User tier:', userTier, '| Concurrent:', limitCheck.currentCount, '/', concurrentLimit);
 
-      // Task 4.7: Call Suno lyrics API
-      const sunoLyricsPayload: any = { prompt };
-      // Use helper to get callback URL with auto-detection on Vercel
-      const lyricsCallback = getLyricsCallbackUrl(conversationId ?? undefined);
-      if (lyricsCallback) {
-        sunoLyricsPayload.callBackUrl = lyricsCallback;
+      // Create song entity IMMEDIATELY with status 'generating_lyrics'
+      const newSongId = id();
+      const userId = user?.user?.id;
+
+      if (!userId) {
+        throw new Error('User not authenticated');
       }
 
-      const response = await fetch("/api/suno/lyrics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sunoLyricsPayload),
+      // Create song with generating_lyrics status
+      await db.transact([
+        db.tx.songs[newSongId]
+          .update({
+            title: extractedContext?.occasionType || 'Jouw Liedje',
+            status: 'generating_lyrics',
+            generationProgress: stringifyGenerationProgress({
+              lyricsTaskId: null, // Will be set by callback
+              lyricsStartedAt: Date.now(),
+              lyricsCompletedAt: null,
+              lyricsError: null,
+              lyricsRetryCount: 0,
+              musicTaskId: null,
+              musicStartedAt: null,
+              musicCompletedAt: null,
+              musicError: null,
+              musicRetryCount: 0,
+              rawCallback: null,
+            }),
+            extractedContext: stringifyExtractedContext(extractedContext),
+            songSettings: JSON.stringify(songSettings),
+            prompt,
+            templateId: selectedTemplateId,
+            createdAt: Date.now(),
+          })
+          .link({
+            conversation: conversationId || undefined,
+            user: userId,
+          }),
+      ]);
+
+      console.log('[PRD-0016] Song entity created:', newSongId);
+
+      // Call Suno API (fire and forget - don't await)
+      const callbackUrl = `${getBaseUrl()}/api/suno/lyrics/callback?songId=${newSongId}`;
+
+      fetch('/api/suno/lyrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          callBackUrl: callbackUrl,
+        }),
+      }).catch(error => {
+        console.error('[PRD-0016] Suno lyrics request error:', error);
+        // Error will be handled by callback timeout logic
       });
 
-      const data = await response.json();
+      console.log('[PRD-0016] Suno API called, callback URL:', callbackUrl);
 
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      // Show success toast
+      showToast({
+        title: 'Je liedje wordt gegenereerd! ✨',
+        description: 'Je ontvangt een notificatie wanneer de lyrics klaar zijn.',
+        variant: 'success',
+      });
 
-      // Task 4.8: For now, poll for results (callback is async)
-      // In production, the callback will update the conversation directly
-      const taskId = data.taskId;
+      // Redirect to Library IMMEDIATELY
+      console.log('[PRD-0016] Redirecting to /library?songId=' + newSongId);
+      router.push(`/library?songId=${newSongId}`);
 
-      if (!taskId) {
-        throw new Error('No task ID returned from Suno');
-      }
-
-      // Start polling for lyrics
-      try {
-        await pollForLyrics(taskId);
-      } catch (e) {
-        console.error('Lyrics polling failed:', e);
-        setGenerationError((e as Error).message || 'Lyrics generation timed out');
-        setLyricsOptions([]);
-        setSelectedLyricIndex(null);
-        setPendingLyricVariants([]);
-        setLyricsTaskId(null);
-        setLatestLyrics(null);
-        setConversationPhase('gathering');
-
-        // Task 5.2: Track regeneration due to timeout/error
-        trackLyricsRegenerated({
-          conversationId: conversationId || undefined,
-          reason: 'timeout',
-        });
-        throw e;
-      }
     } catch (error: any) {
-      console.error("Lyrics generation error:", error);
-      // Task 3.0: Hide generation progress on error
-      setIsGeneratingLyrics(false);
-      setLyricsPollingAttempts(0);
-      setGenerationError(error.message || 'Er ging iets mis bij het genereren van de lyrics.');
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `Sorry, er ging iets mis bij het genereren van de lyrics: ${error.message}\n\nLaten we nog wat meer context verzamelen.`,
-        },
-      ]);
-      setConversationPhase('gathering');
+      console.error('[PRD-0016] Lyrics generation error:', error);
+      showToast({
+        title: 'Er ging iets mis',
+        description: error.message || 'Probeer het opnieuw.',
+        variant: 'error',
+      });
       throw error;
     }
   };
 
-  /**
-   * Poll Suno API for lyrics generation status
-   */
-  const pollForLyrics = async (taskId: string, options?: { refinement?: boolean }) => {
-    let attempts = 0;
-    const maxAttempts = 24; // 24 * 5s = 120s timeout
-    setLyricsTaskId(taskId);
-    void syncLyricsTaskId(taskId);
-
-    const poll = async (): Promise<void> => {
-      attempts++;
-      // Task 3.0: Update polling attempts in state
-      setLyricsPollingAttempts(attempts);
-
-      if (attempts > maxAttempts) {
-        // Task 3.0: Hide progress on timeout
-        setIsGeneratingLyrics(false);
-        setLyricsPollingAttempts(0);
-        setLyricsTaskId(null);
-        void syncLyricsTaskId(null);
-        setPendingLyricVariants([]);
-        throw new Error('Lyrics generation timed out');
-      }
-
-      const response = await fetch(`/api/suno/lyrics?taskId=${taskId}`);
-      const data = await response.json();
-
-      console.log(`[Lyrics Poll] Attempt ${attempts}/${maxAttempts}:`, {
-        status: data.status,
-        hasLyrics: !!data.lyrics,
-        hasVariants: !!data.variants,
-        variantsCount: Array.isArray(data.variants) ? data.variants.length : 0,
-      });
-
-      if (data.status === 'complete' && (data.lyrics || data.variants)) {
-        // Success! Show lyrics
-        const isRefinement = !!options?.refinement;
-        const messageText = isRefinement
-          ? "Ik heb de lyrics verbeterd op basis van je feedback. De bijgewerkte versie staat rechts. ✨"
-          : "Ik heb een eerste versie van je liedje geschreven. Je ziet de volledige lyrics rechts in het paneel. ✨";
-
-        const noticeMessage = {
-          role: "assistant" as const,
-          content: messageText,
-        };
-
-        setMessages((prev) => [...prev, noticeMessage]);
-
-        const variantArray = Array.isArray((data as any).variants)
-          ? (data as any).variants.filter((entry: any) => typeof entry === 'string' && entry.trim().length > 0)
-          : [];
-        const hasVariants = variantArray.length >= 2;
-
-        console.log('[Lyrics Poll] ✅ Generation complete!', {
-          variantsCount: variantArray.length,
-          hasVariants,
-          willShowCompare: hasVariants,
-        });
-
-        if (hasVariants) {
-          setPendingLyricVariants(variantArray);
-          setLyricsOptions(variantArray.slice(0, 2));
-          setSelectedLyricIndex(null);
-          setLatestLyrics(null);
-          setRefineUsed(false);
-          setManualEdited(false);
-          setPendingLyricSource(isRefinement ? 'suno-refine' : 'suno');
-
-          // Task 5.2: Track lyrics options shown
-          trackLyricsOptionsShown({
-            taskId,
-            variantCount: variantArray.length,
-            conversationId: conversationId || undefined,
-          });
-
-          // Open lyrics panel on mobile to show comparison UI
-          if (isMobile) {
-            console.log('[Lyrics Poll] Opening mobile lyrics panel to show comparison');
-            setIsMobileLyricsOpen(true);
-          }
-        } else if (data.lyrics) {
-          const finalLyrics = String(data.lyrics);
-          setPendingLyricVariants([]);
-          setLyricsOptions([]);
-          setSelectedLyricIndex(null);
-          setLatestLyrics({
-            lyrics: finalLyrics,
-            title: 'Jouw Liefdesliedje',
-            style: templateConfig?.style || '',
-          });
-          if (currentSong?.songId) {
-            await updateSongRecord(currentSong.songId, {
-              lyrics: finalLyrics,
-              lyricsSnippet: createSnippet(finalLyrics, 180),
-            });
-          }
-          setRefineUsed(false);
-          setManualEdited(false);
-          setLyricsTaskId(null);
-          void syncLyricsTaskId(null);
-          setPendingLyricSource('suno');
-          await generateLyricVersion(
-            {
-              lyrics: finalLyrics,
-              title: 'Jouw Liefdesliedje',
-              style: templateConfig?.style || '',
-            },
-            {
-              source: isRefinement ? 'suno-refine' : 'suno',
-              variantIndex: 0,
-              taskId,
-              isRefinement: isRefinement,
-            }
-          );
-        }
-        if (isRefinement) {
-          setRefinementCount((prev) => {
-            const next = prev + 1;
-            console.log('[analytics] refinement_count', next);
-            return next;
-          });
-        }
-        setConversationPhase(isRefinement ? 'refining' : 'complete');
-
-        // Update conversation phase
-        if (!DEV_MODE && conversationId) {
-          try {
-            await updateConversationRecord({
-              conversationPhase: isRefinement ? 'refining' : 'complete',
-            });
-          } catch (error) {
-            console.warn('Failed to persist conversation phase', error);
-          }
-        }
-
-        // Task 3.0: Hide generation progress on success
-        setIsGeneratingLyrics(false);
-        setLyricsPollingAttempts(0);
-
-        return; // Exit polling
-      } else if (data.status === 'failed') {
-        // Task 3.0: Hide generation progress on failure
-        setIsGeneratingLyrics(false);
-        setLyricsPollingAttempts(0);
-        setLyricsTaskId(null);
-        void syncLyricsTaskId(null);
-        setPendingLyricVariants([]);
-        throw new Error('Lyrics generation failed');
-      }
-
-      // Still generating, wait and poll again
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      return poll();
-    };
-
-    // Allow a short grace period before the first poll to avoid hammering the API
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    await poll();
-  };
-
-  /**
-   * Task 3.0: Cancel lyrics generation
-   */
-  const handleCancelLyricsGeneration = () => {
-    setIsGeneratingLyrics(false);
-    setLyricsPollingAttempts(0);
-    setLyricsTaskId(null);
-    void syncLyricsTaskId(null);
-    setPendingLyricVariants([]);
-
-    // Show cancellation message
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: "Lyrics generatie is geannuleerd. Laten we verdergaan met ons gesprek.",
-      },
-    ]);
-
-    // Return to gathering phase
-    setConversationPhase('gathering');
-  };
 
   /**
    * Legacy chat handler (fallback when two-agent system is disabled)
@@ -2795,14 +2665,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           </div>
         </div>
       )}
-
-      {/* Task 3.0: Lyrics generation progress overlay */}
-      <LyricsGenerationProgress
-        isGenerating={isGeneratingLyrics}
-        isRefining={isRefiningLyrics}
-        pollingAttempts={lyricsPollingAttempts}
-        onCancel={handleCancelLyricsGeneration}
-      />
 
       {/* Variant selector modal */}
       {showVariantSelector && variants.length > 0 && (
