@@ -1328,7 +1328,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       await db.transact([
         db.tx.songs[newSongId]
           .update({
-            title: extractedContext?.occasionType || 'Jouw Liedje',
+            title: 'Jouw Liedje', // Temporary title, will be updated by Suno callback
             status: 'generating_lyrics',
             generationProgress: stringifyGenerationProgress({
               lyricsTaskId: null, // Will be set by callback
@@ -1343,7 +1343,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               musicRetryCount: 0,
               rawCallback: null,
             }),
-            extractedContext: stringifyExtractedContext(extractedContext),
             songSettings: JSON.stringify(songSettings),
             prompt,
             templateId: selectedTemplateId,
@@ -1627,7 +1626,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         hasUsedRefineBefore: refineUsed,
       });
 
-      await pollForLyrics(taskId, { refinement: true });
+      // PRD-0016: No polling - webhook will update lyrics when ready
+      console.log('[PRD-0016] Lyrics refinement started, webhook will update:', taskId);
     } catch (error: any) {
       console.error("Lyrics refinement error:", error);
       setMessages((prev) => [
