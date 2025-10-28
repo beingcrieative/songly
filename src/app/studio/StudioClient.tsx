@@ -1185,15 +1185,26 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
     try {
       // Feature flag: Use two-agent system or fallback to old system
-      console.log('[Chat Debug]', {
-        ENABLE_TWO_AGENT_SYSTEM,
-        conversationPhase,
-        willUseNewSystem: ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering'
-      });
+      console.log('═══════════════════════════════════════');
+      console.log('[DEBUG] handleSendMessage START');
+      console.log('[DEBUG] User input:', userInput);
+      console.log('[DEBUG] Current round:', newRoundNumber);
+      console.log('[DEBUG] Conversation ID:', conversationId);
+      console.log('[DEBUG] Conversation Phase:', conversationPhase);
+      console.log('[DEBUG] ENABLE_TWO_AGENT_SYSTEM:', ENABLE_TWO_AGENT_SYSTEM);
+      console.log('[DEBUG] isMobile:', isMobile);
 
-      if (ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering') {
+      const shouldUseNewSystem = ENABLE_TWO_AGENT_SYSTEM && conversationPhase === 'gathering';
+      console.log('[DEBUG] shouldUseNewSystem:', shouldUseNewSystem);
+      console.log('═══════════════════════════════════════');
+
+      if (shouldUseNewSystem) {
+        console.log('[DEBUG] → Using handleConversationPhase (new system)');
         await handleConversationPhase(userMessage, newRoundNumber, userInput);
       } else {
+        console.log('[DEBUG] → Using handleLegacyChat (fallback)');
+        console.log('[DEBUG] Reason: ENABLE_TWO_AGENT_SYSTEM=' + ENABLE_TWO_AGENT_SYSTEM +
+                    ', conversationPhase=' + conversationPhase);
         await handleLegacyChat(userMessage);
       }
     } catch (error: any) {
@@ -1220,11 +1231,17 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     currentRound: number,
     userInput: string
   ) => {
+    console.log('[DEBUG] handleConversationPhase called');
     // Prefer streaming endpoint for better UX; fallback to non-streaming
     const tryStreaming = async (): Promise<boolean> => {
       try {
+        console.log('[DEBUG] Attempting streaming endpoint...');
         const placeholderIdx = messages.length + 1; // after we append user message
         setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+
+        console.log('[DEBUG] Calling /api/chat/conversation/stream with:');
+        console.log('[DEBUG]   messages.length:', messages.length);
+        console.log('[DEBUG]   conversationRound:', currentRound - 1);
 
         const res = await fetch('/api/chat/conversation/stream', {
           method: 'POST',
@@ -1236,7 +1253,11 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }),
         });
 
-        if (!res.ok || !res.body) throw new Error('stream not available');
+        console.log('[DEBUG] /api/chat/conversation/stream response status:', res.status);
+        if (!res.ok || !res.body) {
+          console.warn('[DEBUG] Stream not available - status:', res.status, 'has body:', !!res.body);
+          throw new Error('stream not available');
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1327,9 +1348,11 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }
         }
 
+        console.log('[DEBUG] Streaming succeeded!');
         return true;
-      } catch (e) {
-        console.error('[conversation] Streaming failed:', e);
+      } catch (e: any) {
+        console.error('[DEBUG] Streaming failed:', e);
+        console.error('[DEBUG] Error message:', e?.message);
         // Remove placeholder on failure
         setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
         return false;
@@ -1337,18 +1360,20 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     };
 
     const streamed = await tryStreaming();
-    console.log('[conversation] tryStreaming() returned:', streamed);
+    console.log('[DEBUG] tryStreaming() returned:', streamed);
     if (streamed) {
-      console.log('[conversation] Streaming succeeded, skipping fallback');
+      console.log('[DEBUG] ✅ Streaming succeeded, skipping fallback');
       return;
     }
 
     // Fallback: non-streaming API
-    console.log('[conversation] Stream failed, using fallback non-streaming API');
+    console.log('[DEBUG] ⚠️ Stream failed, using fallback non-streaming API...');
+    console.log('[DEBUG] Calling /api/chat/conversation (fallback)...');
     let response: Response;
     let data: any;
 
     try {
+      console.log('[DEBUG] Sending fallback request to /api/chat/conversation...');
       response = await fetch("/api/chat/conversation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1359,9 +1384,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }),
       });
 
+      console.log('[DEBUG] /api/chat/conversation response status:', response.status);
       data = await response.json();
+      console.log('[DEBUG] /api/chat/conversation response data keys:', Object.keys(data));
     } catch (fetchError: any) {
-      console.error('[conversation] Fallback API fetch failed:', fetchError);
+      console.error('[DEBUG] Fallback API fetch failed:', fetchError);
+      console.error('[DEBUG] Error details:', fetchError?.message);
       const errorMessage = {
         role: "assistant" as const,
         content: "Sorry, er ging iets mis. Probeer het opnieuw.",
@@ -1422,8 +1450,21 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }
     }
 
-    if (shouldTransitionToGeneration(currentRound, data.readinessScore, userInput)) {
+    console.log('[DEBUG] Checking shouldTransitionToGeneration:');
+    console.log('[DEBUG]   currentRound:', currentRound);
+    console.log('[DEBUG]   readinessScore:', data.readinessScore);
+    console.log('[DEBUG]   userInput:', userInput);
+
+    const shouldTransition = shouldTransitionToGeneration(currentRound, data.readinessScore, userInput);
+    console.log('[DEBUG] shouldTransition:', shouldTransition);
+    console.log('[DEBUG]   MIN_CONVERSATION_ROUNDS:', MIN_CONVERSATION_ROUNDS);
+    console.log('[DEBUG]   MAX_CONVERSATION_ROUNDS:', MAX_CONVERSATION_ROUNDS);
+
+    if (shouldTransition) {
+      console.log('[DEBUG] ✅ Transitioning to lyrics generation!');
       await transitionToLyricsGeneration();
+    } else {
+      console.log('[DEBUG] ⏭️ Not transitioning yet (rounds or score insufficient)');
     }
   };
 
@@ -1432,18 +1473,22 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
    * PRD-0016: No transition message, immediate redirect
    */
   const transitionToLyricsGeneration = async () => {
+    console.log('[DEBUG] 🎬 transitionToLyricsGeneration called!');
     setConversationPhase('generating');
 
     // Update conversation phase in DB
     if (!DEV_MODE && conversationId) {
       try {
+        console.log('[DEBUG] Updating conversation phase to generating...');
         await updateConversationRecord({ conversationPhase: 'generating' });
+        console.log('[DEBUG] ✅ Conversation phase updated');
       } catch (error) {
-        console.warn('Failed to update conversation phase', error);
+        console.warn('[DEBUG] ⚠️ Failed to update conversation phase', error);
       }
     }
 
     // Generate lyrics immediately (no transition message)
+    console.log('[DEBUG] Calling generateLyrics...');
     await generateLyrics();
   };
 
@@ -1452,12 +1497,19 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
    * Creates song entity immediately and redirects to Library without waiting
    */
   const generateLyrics = async () => {
+    console.log('[DEBUG] 🎵 generateLyrics() called!');
     try {
       // PRD-0016 Task 3.1: Check concurrent generation limit
+      console.log('[DEBUG] Checking concurrent generation limit...');
       const userTier = getUserTier(user?.user);
       const concurrentLimit = getConcurrentLimit(user?.user);
       const userSongs = userSongsData?.songs || [];
       const limitCheck = checkConcurrentLimit(userSongs, concurrentLimit);
+
+      console.log('[DEBUG] User tier:', userTier);
+      console.log('[DEBUG] Concurrent limit:', concurrentLimit);
+      console.log('[DEBUG] Current songs:', userSongs.length);
+      console.log('[DEBUG] Limit check:', limitCheck);
 
       if (limitCheck.limitReached) {
         console.log('[PRD-0016] Concurrent generation limit reached:', {
@@ -1502,14 +1554,20 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       console.log('User tier:', userTier, '| Concurrent:', limitCheck.currentCount, '/', concurrentLimit);
 
       // Create song entity IMMEDIATELY with status 'generating_lyrics'
+      console.log('[DEBUG] Creating song entity...');
       const newSongId = id();
       const userId = user?.user?.id;
+
+      console.log('[DEBUG] Song ID:', newSongId);
+      console.log('[DEBUG] User ID:', userId);
+      console.log('[DEBUG] isMobile:', isMobile);
 
       if (!userId) {
         throw new Error('User not authenticated');
       }
 
       // Create song with generating_lyrics status
+      console.log('[DEBUG] Calling db.transact() to create song...');
       await db.transact([
         db.tx.songs[newSongId]
           .update({
@@ -1538,11 +1596,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           }),
       ]);
 
-      console.log('[PRD-0016] Song entity created:', newSongId);
+      console.log('[DEBUG] ✅ Song entity created:', newSongId);
 
       // Call Suno API (fire and forget - don't await)
       const callbackUrl = `${getBaseUrl()}/api/suno/lyrics/callback?songId=${newSongId}`;
+      console.log('[DEBUG] Callback URL:', callbackUrl);
 
+      console.log('[DEBUG] Calling /api/suno/lyrics (fire-and-forget)...');
       fetch('/api/suno/lyrics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1551,13 +1611,14 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           callBackUrl: callbackUrl,
         }),
       }).catch(error => {
-        console.error('[PRD-0016] Suno lyrics request error:', error);
+        console.error('[DEBUG] ⚠️ Suno lyrics request error:', error);
         // Error will be handled by callback timeout logic
       });
 
-      console.log('[PRD-0016] Suno API called, callback URL:', callbackUrl);
+      console.log('[DEBUG] ✅ Suno API called (fire-and-forget initiated)');
 
       // Show success toast
+      console.log('[DEBUG] Showing success toast...');
       showToast({
         title: 'Je liedje wordt gegenereerd! ✨',
         description: 'Je ontvangt een notificatie wanneer de lyrics klaar zijn.',
@@ -1565,7 +1626,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       });
 
       // Redirect to Library IMMEDIATELY
-      console.log('[PRD-0016] Redirecting to /library?songId=' + newSongId);
+      console.log('[DEBUG] 🚀 Redirecting to /library?songId=' + newSongId);
       router.push(`/library?songId=${newSongId}`);
 
     } catch (error: any) {
@@ -1584,6 +1645,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
    * Legacy chat handler (fallback when two-agent system is disabled)
    */
   const handleLegacyChat = async (userMessage: any) => {
+    console.log('[DEBUG] ⚠️ handleLegacyChat called (old system)');
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1593,7 +1655,9 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }),
     });
 
+    console.log('[DEBUG] /api/chat response status:', response.status);
     const data = await response.json();
+    console.log('[DEBUG] /api/chat response data:', Object.keys(data));
 
     if (data.error) {
       throw new Error(data.error);
