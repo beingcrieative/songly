@@ -301,6 +301,7 @@ export default function LibraryPage() {
           updatedAt={conversation.updatedAt}
           readinessScore={conversation.readinessScore}
           phase={conversation.conversationPhase}
+          messages={conversation.messages}
           onOpen={() => router.push(`/studio?conversationId=${conversation.id}`)}
           onDelete={() => handleDeleteConversation(conversation.id)}
           isDeleting={deleteLoadingId === conversation.id}
@@ -331,7 +332,7 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:py-12">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
         <header className="flex flex-col gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{strings.library.title}</h1>
@@ -341,19 +342,42 @@ export default function LibraryPage() {
           </div>
         </header>
 
-        <Filters
-          search={songSearch}
-          onSearchChange={setSongSearch}
-          status={songStatus}
-          onStatusChange={setSongStatus}
-          statusOptions={SONG_STATUS_OPTIONS}
-          sort={songSort}
-          onSortChange={setSongSort}
-          sortOptions={SONG_SORT_OPTIONS}
-          placeholder={strings.library.searchSongsPlaceholder}
-        />
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
+        {/* Songs Section */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-slate-900">Liedjes</h2>
+          <Filters
+            search={songSearch}
+            onSearchChange={setSongSearch}
+            status={songStatus}
+            onStatusChange={setSongStatus}
+            statusOptions={SONG_STATUS_OPTIONS}
+            sort={songSort}
+            onSortChange={setSongSort}
+            sortOptions={SONG_SORT_OPTIONS}
+            placeholder={strings.library.searchSongsPlaceholder}
+          />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
+          </div>
+        </section>
+
+        {/* Conversations Section */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-slate-900">Gesprekken</h2>
+          <Filters
+            search={conversationSearch}
+            onSearchChange={setConversationSearch}
+            status={conversationStatus}
+            onStatusChange={setConversationStatus}
+            statusOptions={CONVERSATION_STATUS_OPTIONS}
+            sort={conversationSort}
+            onSortChange={setConversationSort}
+            sortOptions={CONVERSATION_SORT_OPTIONS}
+            placeholder="Zoek gesprekken..."
+          />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {conversationCards.length ? conversationCards : <EmptyState message="Nog geen gesprekken opgeslagen" />}
+          </div>
         </section>
       </main>
 

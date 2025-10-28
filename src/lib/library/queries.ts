@@ -152,6 +152,12 @@ export function useLibraryConversations(
         limit,
         offset,
       } as any,
+      messages: {
+        $: {
+          order: { createdAt: "asc" as const },
+          limit: 3, // Show last 3 messages for preview
+        } as any,
+      },
     },
   } as const;
 

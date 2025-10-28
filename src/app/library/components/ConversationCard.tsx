@@ -8,6 +8,7 @@ interface ConversationCardProps {
   updatedAt?: number;
   readinessScore?: number | null;
   phase?: ConversationPhase | null;
+  messages?: Array<{ role: string; content: string; createdAt: number }>;
   onOpen: () => void;
   onDelete?: () => void;
   isDeleting?: boolean;
@@ -26,6 +27,7 @@ export function ConversationCard({
   updatedAt,
   readinessScore,
   phase,
+  messages,
   onOpen,
   onDelete,
   isDeleting,
@@ -42,6 +44,9 @@ export function ConversationCard({
         minute: "2-digit",
       })
     : null;
+
+  // Show recent conversation messages if available
+  const recentMessages = messages?.slice(-2) || []; // Show last 2 messages
 
   return (
     <div className="flex flex-col rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
@@ -60,6 +65,30 @@ export function ConversationCard({
       </div>
       {snippet && (
         <p className="mt-3 line-clamp-4 text-sm text-slate-600 whitespace-pre-line">{snippet}</p>
+      )}
+
+      {/* Conversation preview */}
+      {recentMessages.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recente berichten</p>
+          <div className="space-y-1">
+            {recentMessages.map((message, idx) => (
+              <div key={idx} className="flex gap-2">
+                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                  message.role === 'user'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-green-100 text-green-700'
+                }`}>
+                  {message.role === 'user' ? 'Jij' : 'AI'}
+                </span>
+                <p className="text-xs text-slate-600 line-clamp-1 flex-1">
+                  {message.content.replace(/\n/g, ' ').substring(0, 60)}
+                  {message.content.length > 60 ? '...' : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
         <span>{lastUpdate ? `Bijgewerkt ${lastUpdate}` : "Bijgewerkt onbekend"}</span>
