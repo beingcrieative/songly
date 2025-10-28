@@ -124,6 +124,7 @@ function calculateMusicStyleScore(musicStyle: string | undefined): number {
  * Specificity Score: 0-0.10
  * Based on average length and detail of user messages.
  * Longer, more detailed messages indicate richer content.
+ * Uses a more generous scale that reflects realistic conversation patterns.
  */
 function calculateSpecificityScore(messages: Array<{ role: string; content: string }>): number {
   const userMessages = messages.filter((m) => m.role === 'user');
@@ -140,14 +141,16 @@ function calculateSpecificityScore(messages: Array<{ role: string; content: stri
 
   const avgWordCount = totalWords / userMessages.length;
 
-  // Scoring:
-  // < 5 words avg: 0.00 (very brief)
-  // 5-10 words avg: 0.03
-  // 10-20 words avg: 0.07
-  // 20+ words avg: 0.10 (detailed)
-  if (avgWordCount < 5) return 0.0;
-  if (avgWordCount < 10) return 0.03;
-  if (avgWordCount < 20) return 0.07;
+  // More generous scoring that reflects realistic conversational patterns:
+  // < 3 words avg: 0.01 (very brief single words)
+  // 3-6 words avg: 0.03 (short phrases)
+  // 6-15 words avg: 0.06 (medium length responses)
+  // 15-30 words avg: 0.08 (longer responses)
+  // 30+ words avg: 0.10 (very detailed responses)
+  if (avgWordCount < 3) return 0.01;
+  if (avgWordCount < 6) return 0.03;
+  if (avgWordCount < 15) return 0.06;
+  if (avgWordCount < 30) return 0.08;
   return 0.10;
 }
 
@@ -164,8 +167,9 @@ export function isReadyForLyrics(
   roundNumber: number,
   minRounds: number = 6
 ): boolean {
-  // Must meet minimum rounds AND have perfect score (100%)
-  return roundNumber >= minRounds && score >= 1.0;
+  // Must meet minimum rounds AND have a good readiness score (70%+)
+  // This is more realistic than requiring a perfect 100% score
+  return roundNumber >= minRounds && score >= 0.70;
 }
 
 /**
