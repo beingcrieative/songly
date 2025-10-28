@@ -111,8 +111,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '40');
-    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '700');
+    const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '60');
+    // Suno API accepts ~200 words max, which is approximately 1200 characters
+    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '1200');
     const promptLength = finalPrompt.length;
 
     if (promptLength < minChars) {

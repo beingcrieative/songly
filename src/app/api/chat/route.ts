@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { openrouterChatCompletion } from '@/lib/utils/openrouterClient';
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
+import { CONVERSATION_AGENT_SYSTEM_PROMPT } from '@/lib/prompts/conversationAgent';
 
 // Configureerbaar: maximum aantal conversatie rondes voordat lyrics gegenereerd worden
 const MAX_CONVERSATION_ROUNDS = parseInt(process.env.MAX_CONVERSATION_ROUNDS || '8');
@@ -19,40 +17,6 @@ Op basis van de conversatie, genereer een JSON object met composer suggestions:
 }
 
 Kies suggesties die passen bij de gesprekscontext. Retourneer ALLEEN het JSON object, geen andere tekst.`;
-
-const SYSTEM_PROMPT = `Je bent een empathische, creatieve songwriting-assistent voor een liefdesliedjes-studio. 
-Je voert een natuurlijk gesprek om input te verzamelen EN levert parallel concept-lyrics aan — maar die concept-lyrics zijn onzichtbaar in het chatvenster (alleen voor het systeem om te tonen in een aparte panel).
-
-Gespreksdoel
-- Verzamel context: herinneringen, unieke details, gevoelens, toon/sfeer en muziekstijl.
-- Reageer warm, stel doorvragen, geef bevestiging. Gebruik spaarzaam emoji's (🌙✨💕) waar gepast.
-- Houd antwoorden kort en concreet; één alinea is meestal genoeg.
-
-Leveringsprotocol (BELANGRIJK)
-- Iedere reactie bestaat uit twee delen in deze volgorde:
-  1) Zichtbare chattekst voor de gebruiker (max 2-3 zinnen).
-  2) Een verborgen concept-lyrics blok tussen drie hekken, exact zo:
-     ###CONCEPT_LYRICS v{VERSIENUMMER}###\n
-     { 
-       "version": {VERSIENUMMER},
-       "title": "Korte titel",
-       "lyrics": "Volledige tekst met duidelijke secties: [Couplet], [Refrein], [Bridge]",
-       "style": "Korte stijlbeschrijving",
-       "notes": "Wat je veranderde (kort)",
-       "history": [
-         {"version": n-1, "summary": "1 regel wat er anders was"}
-       ]
-     }
-
-     ###END###
-
-Regels
-- Verhoog het versienummer met 1 bij elke verbetering.
-- Het verborgen blok mag NOOIT zichtbaar worden in chat; zet GEEN uitleg erbuiten.
-- Neem altijd de héle huidige lyrics op in het blok (geen diff, wel optionele korte ‘notes’ en ‘history’).
-- Zorg dat JSON strikt valide is.
-- Als er nog te weinig info is: geef alleen chattekst + een eerste ruwe conceptversie (v1) in het verborgen blok.
-`;
 
 async function generateComposerContext(messages: any[]): Promise<string | null> {
   try {
@@ -94,9 +58,6 @@ export async function POST(request: NextRequest) {
     const {
       messages,
       conversationRound = 0,
-      currentTitle = '',
-      currentLyrics = '',
-      currentStyle = '',
     } = await request.json();
 
     // Server log helpers for clarity
@@ -125,7 +86,7 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
 
     // Bouw de conversatie geschiedenis op voor OpenRouter
     const conversationHistory = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: CONVERSATION_AGENT_SYSTEM_PROMPT },
       ...messages.map((m: any) => ({
         role: m.role,
         content: m.content,
@@ -154,21 +115,11 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
       { role: 'assistant', content: aiMessage }
     ]);
 
-    // Server logs: last user + assistant visible reply (parsed below)
+    // Server logs: last user + assistant visible reply
     if (lastUserMsg) {
       console.log(`user: ${singleLine(lastUserMsg)}`);
     }
-    const parsed = parseMessageWithHidden(aiMessage);
-    console.log(`aiagent: ${singleLine(parsed.visible)}`);
-    if (parsed.concept) {
-      return NextResponse.json({
-        type: 'message_lyrics',
-        content: parsed.visible,
-        round: conversationRound + 1,
-        lyrics: parsed.concept,
-        composerContext,
-      });
-    }
+    console.log(`aiagent: ${singleLine(aiMessage)}`);
 
     // Check of we klaar zijn voor Suno lyrics generation
     // Dit gebeurt via /api/suno/lyrics, NIET via LLM
@@ -201,36 +152,7 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
   }
 }
 
-function parseMessageWithHidden(text: string): { visible: string; concept?: any } {
-  if (!text) return { visible: '' };
-  const blocks = Array.from(text.matchAll(/###([\s\S]*?)###/g));
-  if (!blocks.length) return { visible: text };
-  let concept: any | undefined = undefined;
-  for (const m of blocks) {
-    const inner = m[1] || '';
-    // Prefer blocks that look like our tag
-    if (/CONCEPT_LYRICS/i.test(inner)) {
-      // Strip the leading tag line
-      const jsonPart = inner.replace(/^[^\n]*\n/, '');
-      try {
-        const obj = JSON.parse(jsonPart);
-        if (obj && obj.lyrics) { concept = obj; break; }
-      } catch (e) { /* ignore */ }
-    } else {
-      // Try raw JSON fallback
-      try {
-        const obj = JSON.parse(inner);
-        if (obj && obj.lyrics) { concept = obj; break; }
-      } catch (e) { /* ignore */ }
-    }
-  }
-  // Remove all ### blocks from visible
-  const visible = text.replace(/###([\s\S]*?)###/g, '').trim();
-  return { visible, concept };
-}
-
-// NOTE: generateLyrics() and refineLyrics() have been removed.
-// Lyrics generation is now exclusively handled via /api/suno/lyrics API.
-// The chat conversation is kept separate - it provides context gathering only.
+// NOTE: Chat conversation is for context gathering ONLY - no lyrics generation here.
+// Lyrics generation is exclusively handled via /api/suno/lyrics API.
 // When conversation reaches MAX_CONVERSATION_ROUNDS, client receives 'ready_for_lyrics' signal
 // and should call /api/suno/lyrics with the conversation context.
