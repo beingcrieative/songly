@@ -26,6 +26,7 @@ import ChatHeader from "@/components/mobile/ChatHeader";
 import ChatBubble from "@/components/ChatBubble";
 import ComposerBar from "@/components/mobile/ComposerBar";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+import { isNearBottom, scrollToElement } from "@/lib/utils/scrollHelpers";
 import {
   AdvancedSettings,
   DEFAULT_ADVANCED_SETTINGS,
@@ -237,6 +238,60 @@ async function mobileUpdateSong(songId: string, payload: MobileSongUpdatePayload
   });
 }
 
+/**
+ * Task 2.1: Fetch messages for a conversation with pagination
+ * Mobile version: calls /api/mobile/messages
+ */
+async function mobileFetchMessages(conversationId: string, limit = 50, offset = 0) {
+  const params = new URLSearchParams({
+    conversationId,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return mobileRequest<{
+    messages: any[];
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  }>(`/api/mobile/messages?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
+/**
+ * Task 2.1: Fetch messages for a conversation
+ * Desktop version: uses InstantDB query
+ */
+async function desktopFetchMessages(conversationId: string) {
+  const { messages } = await db.queryOnce({
+    messages: {
+      $: {
+        where: {
+          "conversation.id": conversationId,
+        },
+      } as any,
+    },
+  });
+
+  if (!messages) {
+    return { messages: [], total: 0, hasMore: false };
+  }
+
+  // Sort by createdAt ascending (oldest first)
+  const sortedMessages = messages.sort((a: any, b: any) => {
+    const aTime = a.createdAt || 0;
+    const bTime = b.createdAt || 0;
+    return aTime - bTime;
+  });
+
+  return {
+    messages: sortedMessages,
+    total: sortedMessages.length,
+    hasMore: false,
+  };
+}
+
 function useConversationData(conversationId: string | null, isMobile: boolean) {
   if (isMobile) {
     return { data: null as any };
@@ -279,6 +334,15 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [latestComposerContext, setLatestComposerContext] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Task 2.2: Message history loading state
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [allMessagesLoaded, setAllMessagesLoaded] = useState(false);
+  const [totalMessageCount, setTotalMessageCount] = useState(0);
+  const [messageOffset, setMessageOffset] = useState(0);
+
+  // Task 3.2: Non-blocking AI response loading indicator
+  const [isWaitingForAI, setIsWaitingForAI] = useState(false);
 
   // Two-agent system state
   const [conversationPhase, setConversationPhase] = useState<ConversationPhase>('gathering');
@@ -751,6 +815,50 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     }
   }, [user.isLoading, user.user, isMobile, hasHydratedConversation, sessionReady]);
 
+  // Task 2.2: Load all messages when conversation is hydrated
+  useEffect(() => {
+    if (!conversationId) return;
+
+    // For mobile, wait until conversation is hydrated
+    if (isMobile && !hasHydratedConversation) return;
+
+    // Skip if already loading or if we've already loaded messages for this conversation
+    if (isLoadingMessages || messages.length > 0) return;
+
+    const loadMessages = async () => {
+      setIsLoadingMessages(true);
+      const startTime = Date.now();
+
+      try {
+        let result;
+        if (isMobile) {
+          console.log('[Task 2.2] Fetching messages for mobile, conversationId:', conversationId);
+          result = await mobileFetchMessages(conversationId, 50, 0);
+        } else {
+          console.log('[Task 2.2] Fetching messages for desktop, conversationId:', conversationId);
+          result = await desktopFetchMessages(conversationId);
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[Task 2.2] Loaded ${result.messages.length} messages in ${duration}ms`);
+
+        // Set messages in state
+        setMessages(result.messages || []);
+        setTotalMessageCount(result.total || 0);
+        setAllMessagesLoaded(!result.hasMore);
+        setMessageOffset(result.messages?.length || 0);
+      } catch (error: any) {
+        console.error('[Task 2.2] Failed to load messages:', error);
+        // Don't block the UI - just log the error
+        // User can still send new messages
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    loadMessages();
+  }, [conversationId, hasHydratedConversation, isMobile]);
+
   // Chat container + bottom sentinel for scroll management
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -768,8 +876,8 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     return () => ro.disconnect();
   }, []);
 
-  // Auto-scroll to the bottom when messages grow
-  // Only auto-scroll if user is already near the bottom (within 200px)
+  // Task 4.3: Auto-scroll to the bottom when messages grow
+  // Task 4.4: Sticky scroll - only auto-scroll if user is already near the bottom
   const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
     if (messages.length !== prevMessagesLengthRef.current) {
@@ -778,30 +886,29 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       requestAnimationFrame(() => {
         if (!chatContainerRef.current || !bottomRef.current) return;
 
-        const container = chatContainerRef.current;
-        const isNearBottom =
-          container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+        // Task 4.4: Use isNearBottom helper with 200px threshold
+        const nearBottom = isNearBottom(chatContainerRef.current, 200);
 
         // Only auto-scroll if user is already near bottom or it's a new conversation
-        if (isNearBottom || messages.length <= 2) {
-          bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (nearBottom || messages.length <= 2) {
+          // Task 4.3: Use scrollToElement helper for smooth scrolling
+          scrollToElement(bottomRef.current, 'smooth', 'end');
         }
       });
     }
   }, [messages.length]);
 
-  // Also re-scroll on keyboard or composer height changes (mobile viewport shifts)
+  // Task 4.5: Re-scroll on keyboard or composer height changes (mobile viewport shifts)
   // But only if user was already at the bottom
   useEffect(() => {
     requestAnimationFrame(() => {
       if (!chatContainerRef.current || !bottomRef.current) return;
 
-      const container = chatContainerRef.current;
-      const isNearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      // Tighter threshold (100px) for keyboard changes
+      const nearBottom = isNearBottom(chatContainerRef.current, 100);
 
-      if (isNearBottom) {
-        bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      if (nearBottom) {
+        scrollToElement(bottomRef.current, 'smooth', 'end');
       }
     });
   }, [isKeyboardOpen, composerHeight]);
@@ -955,6 +1062,74 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     return false;
   };
 
+  /**
+   * Task 2.4: Load more historical messages (batch loading)
+   */
+  const handleLoadMoreMessages = async () => {
+    if (!conversationId || isLoadingMessages || allMessagesLoaded) return;
+
+    setIsLoadingMessages(true);
+
+    // Task 2.5: Track scroll position before loading
+    const container = chatContainerRef.current;
+    if (!container) {
+      setIsLoadingMessages(false);
+      return;
+    }
+
+    const scrollHeightBefore = container.scrollHeight;
+    const scrollTopBefore = container.scrollTop;
+
+    try {
+      const limit = 30; // Load 30 messages per batch
+      const offset = messageOffset;
+
+      let result;
+      if (isMobile) {
+        console.log(`[Task 2.4] Loading more messages (mobile), offset: ${offset}, limit: ${limit}`);
+        result = await mobileFetchMessages(conversationId, limit, offset);
+      } else {
+        // Desktop loads all at once, so this shouldn't be called
+        // But handle it just in case
+        console.log('[Task 2.4] Desktop should have loaded all messages already');
+        setAllMessagesLoaded(true);
+        setIsLoadingMessages(false);
+        return;
+      }
+
+      if (result.messages && result.messages.length > 0) {
+        // Prepend older messages to the beginning of the array
+        setMessages((prev) => [...result.messages, ...prev]);
+        setMessageOffset(offset + result.messages.length);
+        setAllMessagesLoaded(!result.hasMore);
+
+        console.log(`[Task 2.4] Loaded ${result.messages.length} more messages`);
+
+        // Task 2.5: Restore scroll position after new messages are rendered
+        // Use requestAnimationFrame to wait for DOM update
+        requestAnimationFrame(() => {
+          if (!container) return;
+
+          const scrollHeightAfter = container.scrollHeight;
+          const heightAdded = scrollHeightAfter - scrollHeightBefore;
+
+          // Scroll down by the amount of height added to maintain relative position
+          container.scrollTop = scrollTopBefore + heightAdded;
+
+          console.log(`[Task 2.5] Preserved scroll position: added ${heightAdded}px`);
+        });
+      } else {
+        // No more messages
+        setAllMessagesLoaded(true);
+      }
+    } catch (error: any) {
+      console.error('[Task 2.4] Failed to load more messages:', error);
+      // Don't block UI - just log error
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     const currentUser = DEV_MODE
       ? (user.user || { id: 'dev-user-123', email: 'dev@example.com' })
@@ -967,10 +1142,14 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       content: inputValue,
     };
 
+    // Task 3.1: Add user message immediately (already done)
     setMessages((prev) => [...prev, userMessage]);
     const userInput = inputValue; // Save before clearing
     setInputValue("");
+
+    // Task 3.2: Set loading state but don't block input
     setIsLoading(true);
+    setIsWaitingForAI(true);
 
     // Increment round number
     const newRoundNumber = roundNumber + 1;
@@ -1017,6 +1196,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }
     } catch (error: any) {
       console.error("Chat error:", error);
+      // Task 3.4: Show error message with option to retry
       setMessages((prev) => [
         ...prev,
         {
@@ -1026,6 +1206,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       ]);
     } finally {
       setIsLoading(false);
+      setIsWaitingForAI(false);
     }
   };
 
@@ -2201,6 +2382,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       className={`flex flex-1 flex-col bg-[radial-gradient(circle_at_0%_0%,rgba(32,178,170,0.08),transparent_55%),var(--color-bg-light)] md:bg-transparent ${
         showCompactChat ? 'backdrop-blur-sm' : ''
       }`}
+      style={{
+        // Task 1.2: Use small viewport height on mobile to account for keyboard
+        height: isMobile ? '100svh' : undefined,
+      }}
     >
       {/* Header */}
       {isMobile ? (
@@ -2234,7 +2419,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }`}
         style={{
           WebkitOverflowScrolling: 'touch' as any,
-          paddingBottom: isMobile ? composerHeight + 24 : undefined,
+          // Task 1.2: Dynamic padding increases when keyboard is open
+          paddingBottom: isMobile
+            ? composerHeight + 24 + (isKeyboardOpen ? 16 : 0)
+            : undefined,
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
@@ -2243,6 +2431,59 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               title={strings.studio.welcomeTitle}
               description={strings.studio.welcomeDescription}
             />
+          )}
+
+          {/* Task 2.3: Load More History Button */}
+          {!allMessagesLoaded && messages.length > 0 && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={handleLoadMoreMessages}
+                disabled={isLoadingMessages}
+                className="flex items-center gap-2 rounded-full border border-gray-300 bg-white/90 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-white hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isLoadingMessages ? (
+                  <>
+                    <svg
+                      className="h-4 w-4 animate-spin text-gray-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Laden...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="h-4 w-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z"
+                      />
+                    </svg>
+                    📜 Meer berichten laden
+                  </>
+                )}
+              </button>
+            </div>
           )}
 
           {messages.map((message, idx) => (
@@ -2323,12 +2564,17 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       {/* Composer Controls + Input Area */}
       <div
         ref={composerRef}
-        className={`border-t border-gray-200 bg-white ${
+        className={`bg-white ${
           showCompactChat ? 'px-3 py-2' : 'p-4'
         } ${
           isMobile
-            ? `sticky ${isKeyboardOpen ? 'bottom-0 z-[70]' : 'bottom-[64px] z-30'} px-4 py-3 shadow-[0_-8px_20px_-12px_rgba(17,24,39,0.35)] pb-safe`
+            ? `sticky ${isKeyboardOpen ? 'bottom-0 z-[70]' : 'bottom-[64px] z-30'} px-4 py-3 pb-safe`
             : ''
+        } ${
+          // Task 1.3: Enhanced visual indicator when keyboard is open
+          isMobile && isKeyboardOpen
+            ? 'border-t-2 border-t-green-400/50 shadow-[0_-12px_24px_-8px_rgba(17,24,39,0.45)]'
+            : 'border-t border-gray-200 shadow-[0_-8px_20px_-12px_rgba(17,24,39,0.35)]'
         }`}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-2' : 'max-w-3xl space-y-3'}`}>
@@ -2348,11 +2594,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
               value={inputValue}
               onChange={setInputValue}
               onSubmit={handleSendMessage}
-              disabled={isLoading}
+              disabled={false} // Task 3.3: Keep input enabled during AI response
               placeholder={
                 conversationPhase === 'complete'
                   ? 'Klaar! Wil je het liedje verfijnen?'
-                  : 'Typ je bericht...'
+                  : isWaitingForAI
+                    ? 'AI aan het typen...'
+                    : 'Typ je bericht...'
               }
             />
           ) : (
@@ -2365,9 +2613,11 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
                 placeholder={
                   conversationPhase === 'complete'
                     ? "Klaar! Wil je het liedje verfijnen?"
-                    : "Typ je bericht..."
+                    : isWaitingForAI
+                      ? "AI aan het typen..."
+                      : "Typ je bericht..."
                 }
-                disabled={isLoading}
+                disabled={false} // Task 3.3: Keep input enabled during AI response
                 className={`flex-1 rounded-xl border-2 px-3 py-2 md:px-4 md:py-3 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:bg-gray-100`}
                 style={{ borderColor: 'rgba(74, 222, 128, 0.35)' }}
               />
