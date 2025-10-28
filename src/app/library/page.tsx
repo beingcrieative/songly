@@ -266,8 +266,9 @@ export default function LibraryPage() {
   };
 
   const songCards = useMemo(
-    () =>
-      songs.map((song: any) => (
+    () => {
+      if (!songs || songs.length === 0) return [];
+      return songs.map((song: any) => (
         <SongCard
           key={song.id}
           song={song}
@@ -287,13 +288,15 @@ export default function LibraryPage() {
             isRetrying: retryLoadingId === song.id,
           }}
         />
-      )),
+      ));
+    },
     [songs, router, shareLoadingId, deleteLoadingId, retryLoadingId]
   );
 
   const conversationCards = useMemo(
-    () =>
-      conversations.map((conversation: any) => (
+    () => {
+      if (!conversations || conversations.length === 0) return [];
+      return conversations.map((conversation: any) => (
         <ConversationCard
           key={conversation.id}
           title={conversation.conceptTitle || null}
@@ -306,7 +309,8 @@ export default function LibraryPage() {
           onDelete={() => handleDeleteConversation(conversation.id)}
           isDeleting={deleteLoadingId === conversation.id}
         />
-      )),
+      ));
+    },
     [conversations, router, deleteLoadingId]
   );
 
