@@ -2421,10 +2421,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }`}
         style={{
           WebkitOverflowScrolling: 'touch' as any,
-          // Task 1.2: Dynamic padding increases when keyboard is open
-          paddingBottom: isMobile
-            ? composerHeight + 24 + (isKeyboardOpen ? 16 : 0)
-            : undefined,
+          overscrollBehavior: 'contain',
+          // Use fixed padding to prevent layout shifts when keyboard opens/closes
+          // This accounts for the composer height + padding
+          paddingBottom: isMobile ? 140 : undefined,
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>

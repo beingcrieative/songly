@@ -50,8 +50,8 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
   };
 
   return (
-    <div className="w-full">
-      <div className="flex items-center gap-2">
+    <div className="w-full border-t border-gray-200 bg-white">
+      <div className="flex items-center gap-2 p-3">
         <div className="relative flex-1">
           <input
             type="text"
@@ -71,12 +71,11 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            className="w-full h-12 rounded-xl border-2 pl-4 pr-12 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:bg-gray-100"
-            style={{ borderColor: 'rgba(74, 222, 128, 0.35)' }}
+            className="h-10 w-full rounded-lg border border-gray-300 pl-3 pr-10 text-sm shadow-sm focus:outline-none focus-visible:border-[var(--color-primary)] focus-visible:ring-1 focus-visible:ring-[var(--color-primary)] disabled:bg-gray-50"
           />
           <button
             type="button"
-            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-gray-400 hover:text-gray-600 active:text-gray-700"
+            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400 hover:text-gray-600 active:text-gray-700"
             aria-label="Toetsenbord verbergen"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => inputRef.current?.blur()}
@@ -92,11 +91,11 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
-          className="h-12 w-12 flex items-center justify-center rounded-xl text-white shadow-md transition-all hover:shadow-lg active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none"
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-white shadow-sm transition-all hover:shadow-md active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none"
           style={{ backgroundImage: disabled || !value.trim() ? undefined : 'var(--gradient-primary)' }}
           aria-label="Verstuur"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="translate-x-[1px]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M22 2L11 13" />
             <path d="M22 2L15 22 11 13 2 9l20-7z" />
           </svg>
