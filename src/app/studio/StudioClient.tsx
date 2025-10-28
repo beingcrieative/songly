@@ -264,7 +264,7 @@ async function mobileFetchMessages(conversationId: string, limit = 50, offset = 
  * Desktop version: uses InstantDB query
  */
 async function desktopFetchMessages(conversationId: string) {
-  const { messages } = await db.queryOnce({
+  const result = await db.queryOnce({
     messages: {
       $: {
         where: {
@@ -274,7 +274,9 @@ async function desktopFetchMessages(conversationId: string) {
     },
   });
 
-  if (!messages) {
+  const messages = result.data?.messages;
+
+  if (!messages || messages.length === 0) {
     return { messages: [], total: 0, hasMore: false };
   }
 
