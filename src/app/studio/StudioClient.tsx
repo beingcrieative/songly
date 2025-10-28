@@ -2422,7 +2422,6 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         style={{
           WebkitOverflowScrolling: 'touch' as any,
           overscrollBehavior: 'contain',
-          scrollAnchorAdjustment: 'auto',
           // Use fixed padding to prevent layout shifts when keyboard opens/closes
           // This accounts for the composer height + padding
           paddingBottom: isMobile ? 140 : undefined,
