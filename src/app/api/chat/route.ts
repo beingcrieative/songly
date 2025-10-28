@@ -136,21 +136,7 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
     if (conversationRound >= MAX_CONVERSATION_ROUNDS - 2) {
       conversationHistory.push({
         role: 'system',
-        content: `Je hebt nu ${conversationRound} rondes gesproken. Als je genoeg informatie hebt om een mooi liefdesliedje te schrijven, genereer dan de lyrics. Zo niet, stel nog 1-2 vragen.`,
-      });
-    }
-
-    // Check of we klaar zijn voor lyrics generatie
-    if (conversationRound >= MAX_CONVERSATION_ROUNDS) {
-      // Genereer lyrics
-      return await generateLyrics(messages);
-    }
-
-    // Als we al concept lyrics hebben, prioriteer iteratieve verfijning na elke user input
-    if (currentLyrics && typeof currentLyrics === 'string' && currentLyrics.trim().length > 0) {
-      return await refineLyrics({
-        messages,
-        previous: { title: currentTitle, lyrics: currentLyrics, style: currentStyle },
+        content: `Je hebt nu ${conversationRound} rondes gesproken. Als je genoeg informatie hebt verzameld, kun je aangeven dat we klaar zijn voor lyrics generatie. Zo niet, stel nog 1-2 vragen.`,
       });
     }
 
@@ -184,16 +170,20 @@ Vertel me eens: wat is een mooie herinnering die je hebt met je partner? Het mag
       });
     }
 
-    // Check of de AI klaar is om lyrics te genereren
-    // Dit kan door te kijken of het bericht aangeeft dat er genoeg info is
-    const shouldGenerateLyrics =
-      conversationRound >= MAX_CONVERSATION_ROUNDS - 1 ||
-      aiMessage.toLowerCase().includes('lyrics') ||
-      aiMessage.toLowerCase().includes('liedje schrijven') ||
-      aiMessage.toLowerCase().includes('genoeg informatie');
+    // Check of we klaar zijn voor Suno lyrics generation
+    // Dit gebeurt via /api/suno/lyrics, NIET via LLM
+    const isReadyForSunoLyrics =
+      conversationRound >= MAX_CONVERSATION_ROUNDS - 1;
 
-    if (shouldGenerateLyrics) {
-      return await generateLyrics(messages);
+    if (isReadyForSunoLyrics) {
+      console.log('Chat conversation ready for Suno lyrics generation via /api/suno/lyrics');
+      return NextResponse.json({
+        type: 'ready_for_lyrics',
+        content: aiMessage,
+        round: conversationRound + 1,
+        composerContext,
+        message: 'Ready to generate lyrics via Suno API - client should call /api/suno/lyrics'
+      });
     }
 
     return NextResponse.json({
@@ -239,98 +229,8 @@ function parseMessageWithHidden(text: string): { visible: string; concept?: any 
   return { visible, concept };
 }
 
-async function generateLyrics(messages: any[]) {
-  const userMessages = messages
-    .filter((m: any) => m.role === 'user')
-    .map((m: any) => m.content)
-    .join('\n');
-
-  const lyricsPrompt = `Je bent een professionele liedjesschrijver gespecialiseerd in oprechte, persoonlijke liefdesliedjes.
-
-Op basis van dit gesprek met de gebruiker, schrijf een prachtig liefdesliedje:
-
-${userMessages}
-
-Genereer een compleet liedje met deze structuur:
-- Couplet 1 (4 regels)
-- Refrein (4 regels)
-- Couplet 2 (4 regels)
-- Refrein (herhaling)
-- Bridge (4 regels)
-- Refrein (finale)
-
-Het liedje moet:
-- Authentiek zijn en de gegeven details weerspiegelen
-- Emotioneel en oprecht zijn
-- Makkelijk te zingen zijn
-- Romantisch maar niet cliché
-
-Formatteer je antwoord EXACT als dit JSON object (geen andere tekst):
-{
-  "title": "Korte, krachtige titel",
-  "lyrics": "Volledige songtekst met duidelijke secties:\n\n[Couplet 1]\n...\n\n[Refrein]\n...\n\n[Couplet 2]\n...\n\n[Refrein]\n...\n\n[Bridge]\n...\n\n[Refrein]\n...",
-  "style": "Beschrijving van muziekstijl (bijv. 'romantic acoustic ballad', 'upbeat love song')"
-}`;
-
-  const data = await openrouterChatCompletion({
-    messages: [{ role: 'user', content: lyricsPrompt }],
-    title: 'Liefdesliedje Maker - Lyrics Generation',
-    temperature: 0.9,
-  });
-  const full = data.choices?.[0]?.message?.content || '';
-  const parsed = parseMessageWithHidden(full);
-  if (parsed.concept) {
-    return NextResponse.json({ type: 'message_lyrics', content: parsed.visible, lyrics: parsed.concept });
-  }
-  // fallback – indien geen verborgen blok
-  return NextResponse.json({ type: 'message', content: full, round: undefined });
-}
-
-async function refineLyrics({
-  messages,
-  previous,
-}: {
-  messages: any[];
-  previous: { title?: string; lyrics: string; style?: string };
-}) {
-  const userMessages = messages
-    .filter((m: any) => m.role === 'user')
-    .map((m: any) => m.content)
-    .join('\n');
-
-  const prompt = `Je bent een ervaren songwriter. Je krijgt bestaande concept-lyrics en feedback van de gebruiker. Verbeter de tekst gericht: behoud de structuur en sterke regels, pas suggesties toe, maak flow en rijm consistent, en blijf persoonlijk.
-
-Eerdere versie (titel, stijl en lyrics):
-TITEL: ${previous.title || '—'}
-STIJL: ${previous.style || '—'}
-LYRICS:\n${previous.lyrics}
-
-Feedback/gebruiker-input:
-${userMessages}
-
-Leveringsprotocol (zichtbaar + verborgen):
-1) Begin met een korte zichtbare boodschap (1-2 zinnen) die samenvat wat je verbeterd hebt.
-2) Voeg daarna een verborgen blok toe tussen ###, exact zo:
-###CONCEPT_LYRICS v{VERSIENUMMER}###
-{ 
-  "version": {VERSIENUMMER},
-  "title": "Titel (kort, krachtig)",
-  "lyrics": "Volledige verbeterde songtekst met secties (gebruik [Couplet], [Refrein], [Bridge])",
-  "style": "Korte stijlbeschrijving",
-  "notes": "1 zin over de belangrijkste aanpassing",
-  "history": [ {"version": {VERSIENUMMER-1}, "summary": "korte samenvatting"} ]
-}
-###END###`;
-
-  const data = await openrouterChatCompletion({
-    messages: [{ role: 'user', content: prompt }],
-    title: 'Liefdesliedje Maker - Lyrics Refinement',
-    temperature: 0.9,
-  });
-  const full = data.choices?.[0]?.message?.content || '';
-  const parsed = parseMessageWithHidden(full);
-  if (parsed.concept) {
-    return NextResponse.json({ type: 'message_lyrics', content: parsed.visible, lyrics: parsed.concept });
-  }
-  return NextResponse.json({ type: 'message', content: full, round: undefined });
-}
+// NOTE: generateLyrics() and refineLyrics() have been removed.
+// Lyrics generation is now exclusively handled via /api/suno/lyrics API.
+// The chat conversation is kept separate - it provides context gathering only.
+// When conversation reaches MAX_CONVERSATION_ROUNDS, client receives 'ready_for_lyrics' signal
+// and should call /api/suno/lyrics with the conversation context.
