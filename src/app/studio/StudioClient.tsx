@@ -1350,7 +1350,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
         console.log('[DEBUG] Streaming succeeded!');
         return true;
-      } catch (e) {
+      } catch (e: any) {
         console.error('[DEBUG] Streaming failed:', e);
         console.error('[DEBUG] Error message:', e?.message);
         // Remove placeholder on failure
