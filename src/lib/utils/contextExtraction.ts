@@ -70,51 +70,70 @@ BELANGRIJK:
       title: 'Liefdesliedje Maker - Context Extraction',
       maxTokens: 220,
     });
-    const content = data.choices?.[0]?.message?.content || '{}';
-    console.log('[contextExtraction] Received response, content length:', content.length);
-    console.log('[contextExtraction] Raw content:', content.slice(0, 500));
+    const content = data.choices?.[0]?.message?.content || '';
+    console.log('[contextExtraction] OpenRouter response received, content length:', content.length);
+
+    // Check if response is empty or just whitespace
+    if (!content || content.trim().length === 0) {
+      console.warn('[contextExtraction] OpenRouter returned empty response, falling back to rule-based extraction');
+      return extractContextRulesBased(messages);
+    }
 
     // Try to parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      // Attempt robust JSON parsing with common LLM cleanup steps
-      const raw = jsonMatch[0];
-      const extracted = tryParseLooseJson(raw);
+      try {
+        // Attempt robust JSON parsing with common LLM cleanup steps
+        const raw = jsonMatch[0];
+        const extracted = tryParseLooseJson(raw);
 
-      // Validate and ensure all required fields exist
-      const extractedContext = {
-        memories: Array.isArray(extracted.memories) ? extracted.memories : [],
-        emotions: Array.isArray(extracted.emotions) ? extracted.emotions : [],
-        partnerTraits: Array.isArray(extracted.partnerTraits) ? extracted.partnerTraits : [],
-        relationshipLength: extracted.relationshipLength || undefined,
-        musicStyle: extracted.musicStyle || undefined,
-        specialMoments: Array.isArray(extracted.specialMoments) ? extracted.specialMoments : undefined,
-        language: extracted.language || undefined,
-        vocalGender: extracted.vocalGender || undefined,
-        vocalAge: extracted.vocalAge || undefined,
-        vocalDescription: extracted.vocalDescription || undefined,
-      };
+        // Validate and ensure all required fields exist
+        const extractedContext = {
+          memories: Array.isArray(extracted.memories) ? extracted.memories : [],
+          emotions: Array.isArray(extracted.emotions) ? extracted.emotions : [],
+          partnerTraits: Array.isArray(extracted.partnerTraits) ? extracted.partnerTraits : [],
+          relationshipLength: extracted.relationshipLength || undefined,
+          musicStyle: extracted.musicStyle || undefined,
+          specialMoments: Array.isArray(extracted.specialMoments) ? extracted.specialMoments : undefined,
+          language: extracted.language || undefined,
+          vocalGender: extracted.vocalGender || undefined,
+          vocalAge: extracted.vocalAge || undefined,
+          vocalDescription: extracted.vocalDescription || undefined,
+        };
 
-      // If language was not detected by AI, infer it from conversation
-      if (!extractedContext.language) {
-        extractedContext.language = inferLanguageFromMessages(messages);
+        // If language was not detected by AI, infer it from conversation
+        if (!extractedContext.language) {
+          extractedContext.language = inferLanguageFromMessages(messages);
+        }
+
+        // Check if context has meaningful data
+        if (extractedContext.memories.length > 0 || extractedContext.emotions.length > 0 || extractedContext.partnerTraits.length > 0) {
+          console.log('[contextExtraction] Successfully extracted context from OpenRouter');
+          return extractedContext;
+        } else {
+          console.warn('[contextExtraction] OpenRouter extraction returned empty arrays, falling back to rule-based extraction');
+          return extractContextRulesBased(messages);
+        }
+      } catch (parseError) {
+        console.error('[contextExtraction] JSON parsing failed:', parseError);
+        console.warn('[contextExtraction] Falling back to rule-based extraction due to parse error');
+        return extractContextRulesBased(messages);
       }
-
-      return extractedContext;
     }
 
-    // Fallback: return empty context if parsing fails
-    console.warn('[contextExtraction] No valid JSON found in response');
-    console.warn('[contextExtraction] Full response content:', content);
-    return createEmptyContext();
+    // No valid JSON found - fall back to rule-based extraction
+    console.warn('[contextExtraction] No valid JSON found in OpenRouter response, falling back to rule-based extraction');
+    console.warn('[contextExtraction] Response preview:', content.slice(0, 200));
+    return extractContextRulesBased(messages);
   } catch (error: any) {
-    console.error('[contextExtraction] Error:', {
+    console.error('[contextExtraction] OpenRouter API error:', {
       message: error?.message,
       name: error?.name,
-      stack: error?.stack?.split('\n').slice(0, 3).join(' | ')
+      code: error?.code,
     });
-    // Return empty context on error rather than throwing
-    return createEmptyContext();
+    console.warn('[contextExtraction] Falling back to rule-based extraction due to API error');
+    // Fallback to rule-based extraction when API fails
+    return extractContextRulesBased(messages);
   }
 }
 
@@ -246,6 +265,115 @@ function createEmptyContext(): ExtractedContext {
     emotions: [],
     partnerTraits: [],
   };
+}
+
+/**
+ * Rule-based context extraction that doesn't rely on LLM.
+ * Uses pattern matching to extract memories, emotions, and traits from conversation.
+ * This is a fallback when OpenRouter API fails or returns empty responses.
+ */
+function extractContextRulesBased(messages: Array<{ role: string; content: string }>): ExtractedContext {
+  const conversationText = messages
+    .filter((m) => m.role === 'user')
+    .map((m) => m.content)
+    .join(' ');
+
+  console.log('[contextExtraction] Using rule-based extraction fallback');
+
+  // Extract memories using common memory indicators
+  const memoryIndicators = /(?:we|ik en|mijn partner|hij|zij|je|je partner)\s+(?:ontmoetten|waren|gingen|deden|hadden|stonden|zaten|lagen|zeiden|gegeven|zag|voelde|bleef)/gi;
+  const memories: string[] = [];
+
+  // Look for specific memorable phrases
+  const sentenceFragments = conversationText.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  for (const fragment of sentenceFragments) {
+    if (memoryIndicators.test(fragment)) {
+      const cleaned = fragment.trim();
+      if (cleaned.length > 5 && cleaned.length < 200) {
+        memories.push(cleaned);
+      }
+    }
+  }
+
+  // Extract emotions using common emotional keywords
+  const emotionKeywords = {
+    love: ['liefde', 'love', 'amore'],
+    joy: ['vreugde', 'joy', 'blij', 'happy', 'gelukkig'],
+    warmth: ['warm', 'gezellig', 'cozy', 'warmth'],
+    gratitude: ['dankbaar', 'grateful', 'dankbaarheid'],
+    longing: ['verlangen', 'longing', 'missen', 'miss'],
+    comfort: ['troost', 'comfort', 'steun', 'support'],
+    nostalgia: ['nostalgie', 'nostalgic', 'herinnereing'],
+    tenderness: ['tederheid', 'tender', 'gentle', 'zacht'],
+  };
+
+  const emotions: string[] = [];
+  for (const [emotionName, keywords] of Object.entries(emotionKeywords)) {
+    const pattern = new RegExp(keywords.join('|'), 'gi');
+    if (pattern.test(conversationText)) {
+      emotions.push(emotionName);
+    }
+  }
+
+  // Extract partner traits using common descriptive patterns
+  const traitKeywords = {
+    patience: ['geduld', 'geduldig', 'patient', 'patience'],
+    kindness: ['aardig', 'lief', 'kind', 'kindness', 'zorgzaam'],
+    humor: ['grappig', 'humor', 'funny', 'humor', 'lachen'],
+    strength: ['sterk', 'strong', 'kracht', 'strength'],
+    intelligence: ['slim', 'intelligent', 'clever', 'intelligent'],
+    beauty: ['mooi', 'beautiful', 'beauty', 'mooi', 'pretty'],
+    loyalty: ['trouw', 'loyal', 'loyaliteit', 'loyalty'],
+    creativity: ['creatief', 'creative', 'creativiteit', 'creativity'],
+    generosity: ['genereus', 'generous', 'mild', 'giving'],
+    optimism: ['optimist', 'optimistic', 'positief', 'positive'],
+  };
+
+  const traits: string[] = [];
+  for (const [traitName, keywords] of Object.entries(traitKeywords)) {
+    const pattern = new RegExp(keywords.join('|'), 'gi');
+    if (pattern.test(conversationText)) {
+      traits.push(traitName);
+    }
+  }
+
+  // Try to detect music style preferences
+  let musicStyle: string | undefined;
+  const styleKeywords = {
+    'romantic': ['romantisch', 'romantic', 'liefdevol', 'sweet'],
+    'upbeat': ['upbeat', 'energiek', 'vrolijk', 'happy'],
+    'acoustic': ['akoestisch', 'acoustic', 'gitaar', 'guitar'],
+    'calm': ['rustig', 'calm', 'peaceful', 'vreedzaam'],
+    'melancholic': ['melancholisch', 'melancholic', 'droevig', 'sad'],
+    'energetic': ['energiek', 'energetic', 'krachtig', 'powerful'],
+  };
+
+  for (const [style, keywords] of Object.entries(styleKeywords)) {
+    const pattern = new RegExp(keywords.join('|'), 'gi');
+    if (pattern.test(conversationText)) {
+      musicStyle = style;
+      break;
+    }
+  }
+
+  const language = inferLanguageFromMessages(messages);
+
+  const context: ExtractedContext = {
+    memories: Array.from(new Set(memories)).slice(0, 5), // Limit to 5 unique memories
+    emotions: Array.from(new Set(emotions)), // Remove duplicates
+    partnerTraits: Array.from(new Set(traits)), // Remove duplicates
+    musicStyle,
+    language,
+  };
+
+  console.log('[contextExtraction] Rule-based extraction result:', {
+    memoriesCount: context.memories.length,
+    emotionsCount: context.emotions.length,
+    traitsCount: context.partnerTraits.length,
+    musicStyle: context.musicStyle,
+  });
+
+  return context;
 }
 
 /**
