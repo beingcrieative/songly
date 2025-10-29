@@ -183,7 +183,7 @@ export function ProjectSelector({
                 {(project.songCount || 0) + (project.conversationCount || 0)} items
               </p>
             </div>
-            {onEditProject && (
+            {onEditProject && project.id && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
