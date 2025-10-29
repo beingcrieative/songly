@@ -87,7 +87,7 @@ export function getStaggerDelay(index: number, baseDelay: number = 0.05): number
  * Generate CSS animation keyframes for status transitions
  */
 export function generateStatusTransitionKeyframes(from: string, to: string): string {
-  const transitions: Record<string, Record<string, string>> = {
+  const transitions: Record<string, string> = {
     "pending->generating_lyrics": `
       0% { background-color: rgb(241, 245, 249); }
       50% { background-color: rgb(191, 219, 254); }
