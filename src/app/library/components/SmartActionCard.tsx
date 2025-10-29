@@ -272,7 +272,7 @@ export function SmartActionCard({
         {(song.status === "generating_lyrics" || song.status === "generating_music") && (
           <div className="absolute bottom-3 right-3 z-10">
             <ProgressRing
-              progress={progress?.estimatedProgress || 0}
+              progress={progress?.lyricsRetryCount || progress?.musicRetryCount || 0}
               size="sm"
               color={actionInfo.color as any}
             />
