@@ -32,6 +32,8 @@ const _schema = i.schema({
       lyricsStatus: i.string().optional(), // Status: generating, complete, failed
       generatedLyrics: i.string().optional(), // First variant (backward compat)
       lyricsVariants: i.string().optional(), // JSON array of all variants from Suno
+      // Project organization (optional)
+      projectId: i.string().indexed().optional(),
     }),
     messages: i.entity({
       content: i.string().optional(),
@@ -77,6 +79,8 @@ const _schema = i.schema({
       lyricsVariants: i.string().optional(), // JSON: [{ text, variantIndex, selected }, ...]
       notificationsSent: i.string().optional(), // JSON array: ["lyrics_ready", "music_ready"]
       lastViewedAt: i.number().indexed().optional(), // Timestamp for "Recently Viewed" sorting
+      // Project organization (optional)
+      projectId: i.string().indexed().optional(),
     }),
     sunoVariants: i.entity({
       songId: i.string().indexed(),
@@ -124,6 +128,16 @@ const _schema = i.schema({
       platform: i.string().optional(),
       allowMarketing: i.boolean().optional(),
       createdAt: i.number().indexed().optional(),
+    }),
+    projects: i.entity({
+      name: i.string().indexed(),
+      description: i.string().optional(),
+      color: i.string().optional(), // Hex color or color name
+      icon: i.string().optional(), // Emoji or icon identifier
+      createdAt: i.number().indexed().optional(),
+      updatedAt: i.number().indexed().optional(),
+      isArchived: i.boolean().indexed().optional(),
+      order: i.number().optional(), // For custom ordering
     }),
   },
   links: {
@@ -227,6 +241,44 @@ const _schema = i.schema({
     pushSubscriptionsUser: {
       forward: { on: 'push_subscriptions', has: 'one', label: 'user' },
       reverse: { on: '$users', has: 'many', label: 'pushSubscriptions' },
+    },
+    projectsUser: {
+      forward: {
+        on: 'projects',
+        has: 'one',
+        label: 'user',
+      },
+      reverse: {
+        on: '$users',
+        has: 'many',
+        label: 'projects',
+      },
+    },
+    songProject: {
+      forward: {
+        on: 'songs',
+        has: 'one',
+        label: 'project',
+        onDelete: 'nullify',
+      },
+      reverse: {
+        on: 'projects',
+        has: 'many',
+        label: 'songs',
+      },
+    },
+    conversationProject: {
+      forward: {
+        on: 'conversations',
+        has: 'one',
+        label: 'project',
+        onDelete: 'nullify',
+      },
+      reverse: {
+        on: 'projects',
+        has: 'many',
+        label: 'conversations',
+      },
     },
   },
   rooms: {
