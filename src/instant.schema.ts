@@ -259,7 +259,7 @@ const _schema = i.schema({
         on: 'songs',
         has: 'one',
         label: 'project',
-        onDelete: 'nullify',
+        onDelete: 'cascade',
       },
       reverse: {
         on: 'projects',
@@ -272,7 +272,7 @@ const _schema = i.schema({
         on: 'conversations',
         has: 'one',
         label: 'project',
-        onDelete: 'nullify',
+        onDelete: 'cascade',
       },
       reverse: {
         on: 'projects',
