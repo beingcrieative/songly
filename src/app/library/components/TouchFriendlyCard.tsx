@@ -60,12 +60,11 @@ export function TouchFriendlyCard({
   return (
     <div
       onClick={onClick}
-      onLongPress={handleLongPress}
       className={`
         rounded-xl border-2 transition-all duration-200 cursor-pointer
         ${paddingClasses[variant]}
         ${isSelectable && isSelected ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-slate-300 active:bg-slate-50"}
-        ${onClick || onLongPress ? "active:scale-95" : ""}
+        ${onClick ? "active:scale-95" : ""}
       `}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : -1}
