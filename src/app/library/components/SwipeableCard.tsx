@@ -42,7 +42,7 @@ export function SwipeableCard({
     },
     threshold: 40,
     enabled,
-  });
+  }) as React.RefObject<HTMLDivElement>;
 
   return (
     <div
