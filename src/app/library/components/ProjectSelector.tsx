@@ -187,7 +187,7 @@ export function ProjectSelector({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onEditProject(project.id);
+                  onEditProject(project.id as string);
                 }}
                 className="rounded p-1 hover:bg-slate-200"
               >
