@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, ChevronDown, FolderOpen } from "lucide-react";
 
 interface Project {
-  id: string;
+  id: string | null;
   name: string;
   description?: string | null;
   color?: string | null;
