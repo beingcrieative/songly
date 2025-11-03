@@ -47,6 +47,18 @@ export async function openrouterChatCompletion(params: {
   const models = getCandidateModels();
   let lastError: any = null;
 
+  // Validate API key before making requests
+  if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.trim() === '') {
+    const error = new Error('OPENROUTER_API_KEY is not set. Please configure it in your .env file or environment variables.');
+    console.error('[OpenRouter] Error:', error.message);
+    throw error;
+  }
+
+  // Validate API key format
+  if (!OPENROUTER_API_KEY.startsWith('sk-or-v1-')) {
+    console.warn('[OpenRouter] Warning: API key format may be incorrect. Expected format: sk-or-v1-...');
+  }
+
   // ALWAYS log API key status (without exposing the full key)
   const keyPreview = OPENROUTER_API_KEY
     ? `${OPENROUTER_API_KEY.substring(0, 8)}...${OPENROUTER_API_KEY.substring(OPENROUTER_API_KEY.length - 4)}`
@@ -98,6 +110,17 @@ export async function openrouterChatCompletion(params: {
             status: res.status,
             error: truncate(errorData?.error?.message || res.statusText || 'Unknown error', 400),
           });
+        }
+        // Handle authentication errors with clearer messages
+        if (res.status === 401) {
+          const authError = errorData?.error?.message || 'Unauthorized';
+          if (authError.includes('User not found') || authError.includes('Invalid API key')) {
+            lastError = new Error('OpenRouter API key is invalid or expired. Please check your OPENROUTER_API_KEY in .env file and restart the dev server.');
+          } else {
+            lastError = new Error(`OpenRouter authentication failed: ${authError}`);
+          }
+          // Don't try other models if auth fails
+          throw lastError;
         }
         if (isCreditError(res.status, errorData?.error?.message)) {
           lastError = new Error(errorData?.error?.message || 'Insufficient credits');

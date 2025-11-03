@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import NavTabs from "@/components/mobile/NavTabs";
-import { useLibrarySongs, useLibraryConversations } from "@/lib/library/queries";
+import { useLibrarySongs, useLibraryConversations, useMobileLibrarySongs, useMobileLibraryConversations } from "@/lib/library/queries";
 import { sortSongsByPriority } from "@/lib/library/sorting";
 import SongCard from "./components/SongCard";
 import ConversationCard from "./components/ConversationCard";
@@ -35,6 +35,20 @@ export default function LibraryPage() {
   const auth = db.useAuth();
   const userId = auth.user?.id;
   const { strings } = useI18n();
+
+  // Detect if running in mobile/PWA mode
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasPwaParam = urlParams.get('pwa') === '1' || urlParams.get('mobile') === '1';
+    const isInStandaloneMode =
+      (window.navigator as any).standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches;
+    
+    setIsMobile(hasPwaParam || isInStandaloneMode);
+  }, []);
 
   const SONG_STATUS_OPTIONS = [
     { value: "all", label: "Alle" },
@@ -79,24 +93,103 @@ export default function LibraryPage() {
   const [lyricsModalOpen, setLyricsModalOpen] = useState(false);
   const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<any>(null);
 
-  const songsQuery = useLibrarySongs(userId, {
-    search: songSearch,
-    status: songStatus as any,
-    sort: songSort as any,
-  });
+  // Wait for auth to load before executing queries
+  // This prevents queries from running with undefined userId
+  const shouldQuery = useMemo(() => !auth.isLoading && !!userId, [auth.isLoading, userId]);
 
-  const conversationsQuery = useLibraryConversations(userId, {
-    search: conversationSearch,
-    status: conversationStatus as any,
-    sort: conversationSort as any,
-  });
+  // Debug logging
+  useEffect(() => {
+    console.log('[Library] Debug info:', {
+      userId,
+      isMobile,
+      authLoading: auth.isLoading,
+      authUser: auth.user,
+      authUserId: auth.user?.id,
+      songStatus,
+      songSort,
+      shouldQuery,
+    });
+
+    // Verify userId matches session
+    if (userId && !auth.isLoading) {
+      fetch('/api/auth/verify', {
+        method: 'GET',
+        credentials: 'include',
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log('[Library] Session verification:', {
+            instantUserId: userId,
+            sessionUserId: data.userId,
+            match: userId === data.userId,
+          });
+        })
+        .catch(err => console.error('[Library] Session verification failed:', err));
+    }
+  }, [userId, isMobile, auth.isLoading, auth.user, songStatus, songSort]);
+
+  // Use mobile or desktop hooks based on context
+  // Only pass userId when auth is ready to prevent empty queries
+  const songsQuery = isMobile
+    ? useMobileLibrarySongs(shouldQuery ? userId : undefined, {
+        search: songSearch,
+        status: songStatus as any,
+        sort: songSort as any,
+      })
+    : useLibrarySongs(shouldQuery ? userId : undefined, {
+        search: songSearch,
+        status: songStatus as any,
+        sort: songSort as any,
+      });
+
+  const conversationsQuery = isMobile
+    ? useMobileLibraryConversations(shouldQuery ? userId : undefined, {
+        search: conversationSearch,
+        status: conversationStatus as any,
+        sort: conversationSort as any,
+      })
+    : useLibraryConversations(shouldQuery ? userId : undefined, {
+        search: conversationSearch,
+        status: conversationStatus as any,
+        sort: conversationSort as any,
+      });
+
+  // Debug logging for query results
+  useEffect(() => {
+    console.log('[Library] Query results:', {
+      songsQueryData: songsQuery.data,
+      songsQueryIsLoading: songsQuery.isLoading,
+      songsQueryError: songsQuery.error,
+      rawSongsCount: songsQuery.data?.songs?.length || 0,
+      conversationsQueryData: conversationsQuery.data,
+      conversationsQueryIsLoading: conversationsQuery.isLoading,
+      conversationsQueryError: conversationsQuery.error,
+      rawConversationsCount: conversationsQuery.data?.conversations?.length || 0,
+    });
+  }, [songsQuery.data, songsQuery.isLoading, songsQuery.error, conversationsQuery.data, conversationsQuery.isLoading, conversationsQuery.error]);
 
   const songs = useMemo(() => {
     const rawSongs = songsQuery.data?.songs ?? [];
 
+    console.log('[Library] Processed songs:', {
+      rawSongsCount: rawSongs.length,
+      songSort,
+      afterSortCount: rawSongs.length,
+      songs: rawSongs.slice(0, 5).map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        status: s.status,
+      })),
+    });
+
     // Apply smart sorting when "action" sort is selected
     if (songSort === 'action') {
-      return sortSongsByPriority(rawSongs);
+      const sorted = sortSongsByPriority(rawSongs);
+      console.log('[Library] After priority sort:', {
+        beforeCount: rawSongs.length,
+        afterCount: sorted.length,
+      });
+      return sorted;
     }
 
     return rawSongs;

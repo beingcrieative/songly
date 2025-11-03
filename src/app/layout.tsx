@@ -13,19 +13,13 @@ const inter = Inter({
   weight: ['400', '500', '700', '900'],
 });
 
+import type { Viewport } from 'next';
+
 export const metadata: Metadata = {
   title: 'Liefdesliedje Studio',
   description:
     'Maak binnen een paar minuten een persoonlijk liefdesliedje met AI-lyrics en muziekcompositie.',
   manifest: '/manifest.webmanifest',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
-    viewportFit: 'cover',
-  },
-  themeColor: '#FF1744',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -44,6 +38,15 @@ export const metadata: Metadata = {
       { url: '/apple-touch-icon-180x180.png', sizes: '180x180', type: 'image/png' },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+  themeColor: '#FF1744',
 };
 
 export default function RootLayout({

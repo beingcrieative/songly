@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : null;
   const title = typeof body.title === "string" ? body.title : null;
-  const lyrics = typeof body.lyrics === "string" ? body.lyrics : "";
+  // Lyrics is now optional for async generation flows where lyrics come later via webhook
+  const lyrics = typeof body.lyrics === "string" ? body.lyrics : (typeof body.lyrics === "undefined" ? "" : "");
   const musicStyle = typeof body.musicStyle === "string" ? body.musicStyle : "";
   const lyricsSnippet =
     typeof body.lyricsSnippet === "string" ? body.lyricsSnippet : "";
@@ -29,9 +30,12 @@ export async function POST(request: NextRequest) {
       : null;
   const templateId =
     typeof body.templateId === "string" ? body.templateId : undefined;
+  const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
 
-  if (!songId || !conversationId || !title || !generationParams) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  // For async generation flows (lyrics come later via webhook), lyrics and generationParams may be optional
+  // But we still need songId, conversationId, and title
+  if (!songId || !conversationId || !title) {
+    return NextResponse.json({ error: "Invalid payload: songId, conversationId, and title are required" }, { status: 400 });
   }
 
   const admin = getAdminDb();
@@ -59,16 +63,26 @@ export async function POST(request: NextRequest) {
 
   const updateData: Record<string, unknown> = {
     title,
-    lyrics,
-    musicStyle,
-    status: "generating",
+    // Lyrics may be empty for async generation flows where lyrics come later via webhook
+    lyrics: lyrics || "",
+    musicStyle: musicStyle || "",
+    status: "generating_lyrics", // Set initial status for async generation
     createdAt: now,
     updatedAt: now,
-    lyricsSnippet,
+    lyricsSnippet: lyricsSnippet || "",
     selectedVariantId: null,
     isPublic: false,
-    generationParams: JSON.stringify(generationParams),
   };
+
+  // GenerationParams may be optional for async flows
+  if (generationParams) {
+    updateData.generationParams = JSON.stringify(generationParams);
+  }
+
+  // Prompt is used for async generation flows
+  if (prompt) {
+    updateData.prompt = prompt;
+  }
 
   if (templateId) {
     updateData.templateId = templateId;
@@ -81,9 +95,23 @@ export async function POST(request: NextRequest) {
         .link({ conversation: conversationId, user: session.userId }),
     ]);
 
+    console.log('✅ Song created successfully:', {
+      songId,
+      userId: session.userId,
+      conversationId,
+      status: updateData.status,
+      title: updateData.title,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    console.error("Failed to create song", error);
+    console.error("❌ Failed to create song:", error);
+    console.error("   Song ID:", songId);
+    console.error("   User ID:", session.userId);
+    console.error("   Conversation ID:", conversationId);
+    console.error("   Error message:", error?.message);
+    console.error("   Error code:", error?.code);
+    
     return NextResponse.json(
       { error: error?.message || "Failed to create song" },
       { status: 500 }

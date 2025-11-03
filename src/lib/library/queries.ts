@@ -1,3 +1,4 @@
+import * as React from "react";
 import { db } from "@/lib/db";
 
 type SortOption = "recent" | "az" | "played" | "action";
@@ -65,15 +66,16 @@ export function useLibrarySongs(
   const limit = options.limit ?? 24;
   const offset = options.offset ?? 0;
 
-  // Build where clauses - only execute query when userId is available
+  // Build where clauses - always call the hook to follow Rules of Hooks
   const whereClauses: Record<string, unknown>[] = [];
 
   // Only add user filter when userId exists (prevents permission errors on mobile)
   if (userId) {
     whereClauses.push({ "user.id": userId });
   } else {
-    // Return empty query when no userId (conditional execution)
-    return { data: { songs: [] }, isLoading: false, error: null };
+    // When no userId, use an impossible filter to return empty results
+    // This ensures we always call db.useQuery (Rules of Hooks compliance)
+    whereClauses.push({ id: "__nonexistent__" });
   }
 
   if (options.status && options.status !== "all") {
@@ -109,7 +111,28 @@ export function useLibrarySongs(
   } as const;
 
   // Always call the hook with the same query structure (Rules of Hooks)
-  return db.useQuery(query);
+  const result = db.useQuery(query);
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[useLibrarySongs] Query state:', {
+      userId,
+      status: options.status,
+      sort: options.sort,
+      search: options.search,
+      isLoading: result.isLoading,
+      error: result.error,
+      songsCount: result.data?.songs?.length || 0,
+      queryWhere: query.songs.$?.where,
+    });
+  }, [userId, options.status, options.sort, options.search, result.isLoading, result.error, result.data?.songs?.length]);
+  
+  // If no userId, return empty result to prevent permission errors
+  if (!userId) {
+    return { data: { songs: [] }, isLoading: false, error: null };
+  }
+  
+  return result;
 }
 
 export function useLibraryConversations(
@@ -119,15 +142,16 @@ export function useLibraryConversations(
   const limit = options.limit ?? 20;
   const offset = options.offset ?? 0;
 
-  // Build where clauses - only execute query when userId is available
+  // Build where clauses - always call the hook to follow Rules of Hooks
   const whereClauses: Record<string, unknown>[] = [];
 
   // Only add user filter when userId exists (prevents permission errors on mobile)
   if (userId) {
     whereClauses.push({ "user.id": userId });
   } else {
-    // Return empty query when no userId (conditional execution)
-    return { data: { conversations: [] }, isLoading: false, error: null };
+    // When no userId, use an impossible filter to return empty results
+    // This ensures we always call db.useQuery (Rules of Hooks compliance)
+    whereClauses.push({ id: "__nonexistent__" });
   }
 
   if (options.status && options.status !== "all") {
@@ -161,18 +185,124 @@ export function useLibraryConversations(
   } as const;
 
   // Always call the hook with the same query structure (Rules of Hooks)
-  return db.useQuery(query);
+  const result = db.useQuery(query);
+  
+  // If no userId, return empty result to prevent permission errors
+  if (!userId) {
+    return { data: { conversations: [] }, isLoading: false, error: null };
+  }
+  
+  return result;
 }
 
-// Mobile-specific hooks for library data access
+// Mobile-specific hooks for library data access (API-based)
 export function useMobileLibrarySongs(userId: string | undefined, options: LibrarySongsOptions) {
-  // For mobile, we could implement API-based fetching here
-  // For now, return the same as desktop since queries are now conditional
-  return useLibrarySongs(userId, options);
+  const [data, setData] = React.useState<{ songs: any[] }>({ songs: [] });
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    console.log('[useMobileLibrarySongs] Fetching songs:', {
+      userId,
+      status: options.status,
+      sort: options.sort,
+      search: options.search,
+      limit: options.limit,
+      offset: options.offset,
+    });
+
+    if (!userId) {
+      console.log('[useMobileLibrarySongs] No userId - returning empty');
+      setData({ songs: [] });
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      search: options.search || '',
+      status: options.status || 'all',
+      sort: options.sort || 'recent',
+      limit: String(options.limit || 24),
+      offset: String(options.offset || 0),
+    });
+
+    const url = `/api/mobile/library/songs?${params}`;
+    console.log('[useMobileLibrarySongs] Fetching from:', url);
+
+    fetch(url)
+      .then(res => {
+        console.log('[useMobileLibrarySongs] Response status:', res.status);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(result => {
+        console.log('[useMobileLibrarySongs] Response data:', {
+          songsCount: result.songs?.length || 0,
+          songs: result.songs?.slice(0, 3).map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            status: s.status,
+            userId: s.user?.id,
+          })),
+        });
+        setData({ songs: result.songs || [] });
+        setError(null);
+      })
+      .catch(err => {
+        console.error('[useMobileLibrarySongs] Error:', err);
+        setError(err);
+        setData({ songs: [] });
+      })
+      .finally(() => setIsLoading(false));
+  }, [userId, options.search, options.status, options.sort, options.limit, options.offset]);
+
+  return { data, isLoading, error };
 }
 
 export function useMobileLibraryConversations(userId: string | undefined, options: LibraryConversationsOptions) {
-  // For mobile, we could implement API-based fetching here
-  // For now, return the same as desktop since queries are now conditional
-  return useLibraryConversations(userId, options);
+  const [data, setData] = React.useState<{ conversations: any[] }>({ conversations: [] });
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    if (!userId) {
+      setData({ conversations: [] });
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      search: options.search || '',
+      status: options.status || 'all',
+      sort: options.sort || 'recent',
+      limit: String(options.limit || 20),
+      offset: String(options.offset || 0),
+    });
+
+    fetch(`/api/mobile/library/conversations?${params}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(result => {
+        setData({ conversations: result.conversations || [] });
+        setError(null);
+      })
+      .catch(err => {
+        console.error('[useMobileLibraryConversations] Error:', err);
+        setError(err);
+        setData({ conversations: [] });
+      })
+      .finally(() => setIsLoading(false));
+  }, [userId, options.search, options.status, options.sort, options.limit, options.offset]);
+
+  return { data, isLoading, error };
 }
