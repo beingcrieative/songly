@@ -25,7 +25,7 @@ export default async function StudioPage({
   // ?pwa=1 indicates PWA mode (should show mobile view)
   const forceMobile = params?.mobile === "1" || params?.pwa === "1";
 
-  const isMobile = forceMobile || hintFlag ?? uaFlag ?? false;
+  const isMobile = forceMobile || (hintFlag ?? uaFlag ?? false);
 
   return <StudioClient isMobile={isMobile} />;
 }
