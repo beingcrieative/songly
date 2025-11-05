@@ -1965,7 +1965,7 @@ export default function StudioClient({ isMobile: initialIsMobile }: { isMobile: 
         specialMoments: ['Onverwachte attentie', 'Kleine gebaren'],
         language: 'Nederlands',
         vocalGender: 'male',
-        vocalAge: 'young-adult',
+        vocalAge: 'young',
         vocalDescription: 'Warme, emotionele stem',
       };
 
