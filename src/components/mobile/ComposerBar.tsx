@@ -66,9 +66,14 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-            onFocus={handleFocus}
-            onBlur={() => {
-              // No-op: user controls keyboard visibility; avoid auto-clearing state
+            onFocus={(e) => {
+              handleFocus();
+              e.currentTarget.style.borderColor = 'var(--color-secondary)';
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(32, 178, 170, 0.1), 0 4px 12px -2px rgba(15, 23, 42, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.12)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
             enterKeyHint="send"
             placeholder={placeholder}
@@ -82,15 +87,6 @@ export default function ComposerBar({ value, onChange, onSubmit, disabled, place
             style={{
               borderColor: 'rgba(15, 23, 42, 0.12)',
               backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            }}
-            onFocus={(e) => {
-              handleFocus();
-              e.currentTarget.style.borderColor = 'var(--color-secondary)';
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(32, 178, 170, 0.1), 0 4px 12px -2px rgba(15, 23, 42, 0.1)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.12)';
-              e.currentTarget.style.boxShadow = 'none';
             }}
           />
           <button
