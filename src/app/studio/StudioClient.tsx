@@ -1947,6 +1947,86 @@ export default function StudioClient({ isMobile: initialIsMobile }: { isMobile: 
     }
   };
 
+  /**
+   * 🚧 DEBUG ONLY: Skip to lyrics generation with mock data
+   * This simulates the end of a conversation and triggers lyrics generation
+   */
+  const handleDebugSkipToLyrics = async () => {
+    console.log('[DEBUG] 🚧 Skip to lyrics generation (DEVELOPMENT ONLY)');
+    
+    try {
+      // Set mock extracted context
+      const mockContext: ExtractedContext = {
+        memories: ['Een verrassende kop koffie in de ochtend', 'Een moment van aandacht'],
+        emotions: ['verrast', 'dankbaar', 'geliefd'],
+        partnerTraits: ['attent', 'liefdevol', 'zorgzaam'],
+        relationshipLength: '2 jaar',
+        musicStyle: 'romantisch',
+        specialMoments: ['Onverwachte attentie', 'Kleine gebaren'],
+        language: 'Nederlands',
+        vocalGender: 'male',
+        vocalAge: 'young-adult',
+        vocalDescription: 'Warme, emotionele stem',
+      };
+
+      setExtractedContext(mockContext);
+      console.log('[DEBUG] ✅ Mock context set');
+
+      // Set default template if none selected
+      if (!selectedTemplateId) {
+        setSelectedTemplateId('romantic-ballad');
+        console.log('[DEBUG] ✅ Default template selected: romantic-ballad');
+      }
+
+      // Ensure conversation exists (create if needed)
+      let activeConversationId = conversationId;
+      if (!activeConversationId) {
+        console.log('[DEBUG] Creating new conversation...');
+
+        // Create conversation in database
+        if (isMobile) {
+          const result = await mobileCreateConversation({
+            conversationPhase: 'gathering',
+            roundNumber: 0,
+            readinessScore: 0,
+            extractedContext: mockContext,
+            songSettings: songSettings,
+            selectedTemplateId: selectedTemplateId || 'romantic-ballad',
+          });
+          activeConversationId = result.conversation.id;
+          console.log('[DEBUG] ✅ Conversation created via mobile API:', activeConversationId);
+        } else {
+          activeConversationId = id();
+          await db.transact([
+            db.tx.conversations[activeConversationId].update({
+              createdAt: Date.now(),
+            }).link({ user: user?.user?.id }),
+          ]);
+          console.log('[DEBUG] ✅ Conversation created via InstantDB:', activeConversationId);
+        }
+        
+        setConversationId(activeConversationId);
+        console.log('[DEBUG] ✅ ConversationId set in state');
+      }
+
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Trigger lyrics generation
+      console.log('[DEBUG] 🎵 Calling generateLyrics()...');
+      await generateLyrics();
+      console.log('[DEBUG] ✅ Skip to lyrics completed!');
+
+    } catch (error: any) {
+      console.error('[DEBUG] ⚠️ Skip to lyrics failed:', error);
+      showToast({
+        title: 'Debug functie gefaald',
+        description: error.message || 'Probeer het opnieuw.',
+        variant: 'error',
+      });
+    }
+  };
+
 
   /**
    * Legacy chat handler (fallback when two-agent system is disabled)
@@ -2783,6 +2863,32 @@ export default function StudioClient({ isMobile: initialIsMobile }: { isMobile: 
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
+          {/* 🚧 DEBUG: Skip to Lyrics Generation Button (Development Only) */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={handleDebugSkipToLyrics}
+                className="flex items-center gap-2 rounded-full border-2 border-orange-400 bg-gradient-to-r from-orange-50 to-yellow-50 px-4 py-2 text-sm font-semibold text-orange-700 shadow-md transition-all hover:from-orange-100 hover:to-yellow-100 hover:shadow-lg active:scale-95"
+              >
+                <span className="text-lg">🚧</span>
+                <span>DEBUG: Skip naar Lyrics</span>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+
           {messages.length === 0 && (
             <WelcomeAnimation
               title={strings.studio.welcomeTitle}
