@@ -130,10 +130,11 @@ type MobileSongCreatePayload = {
   songId: string;
   conversationId: string;
   title: string;
-  lyrics: string;
-  musicStyle: string;
-  generationParams: UserPreferences;
+  lyrics?: string; // Optional for async generation flows
+  musicStyle?: string; // Optional for async generation flows
+  generationParams?: UserPreferences; // Optional for async generation flows
   templateId?: string | null;
+  prompt?: string; // Suno lyrics generation prompt
   taskId?: string | null;
   lyricsSnippet?: string | null;
   status?: string;
