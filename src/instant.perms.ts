@@ -122,6 +122,16 @@ const rules = {
   push_subscriptions: {
     allow: { view: "false", create: "false", update: "false", delete: "false" },
   },
+
+  // Projects: Users can create and manage their own projects
+  projects: {
+    allow: {
+      view: "auth.id != null && auth.id == data.ref('user.id')",
+      create: "auth.id != null",
+      update: "auth.id != null && auth.id == data.ref('user.id')",
+      delete: "auth.id != null && auth.id == data.ref('user.id')",
+    },
+  },
 } satisfies InstantRules;
 
 export default rules;
