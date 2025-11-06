@@ -295,10 +295,13 @@ export async function POST(request: NextRequest) {
     ]);
 
     console.log('✅ Updated song with lyrics variants');
+    console.log('   Song ID:', song.id);
+    console.log('   User ID:', song.user?.id);
     console.log('   Status: lyrics_ready');
     console.log('   Variants:', variants.length);
     console.log('   Completed at:', new Date(updatedProgress.lyricsCompletedAt!).toISOString());
     console.log('   First variant preview:', lyricTexts[0]?.substring(0, 100) + '...');
+    console.log('   Updated At:', Date.now());
 
     // Task 2.1.4: Send push notification (fire-and-forget)
     try {
