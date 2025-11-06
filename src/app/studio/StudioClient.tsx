@@ -1172,32 +1172,18 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           throw new Error('User not authenticated');
         }
 
-        // Create conversation in database
-        if (isMobile) {
-          const result = await mobileCreateConversation({
-            conversationPhase: 'gathering',
-            roundNumber: MIN_CONVERSATION_ROUNDS,
-            readinessScore: 0.85,
-            extractedContext: mockContext,
-            songSettings: songSettings,
-            selectedTemplateId: selectedTemplateId || 'romantic-ballad',
-          });
-          activeConversationId = result.conversation.id;
-          console.log('[DEBUG] ✅ Conversation created via mobile API:', activeConversationId);
-        } else {
-          activeConversationId = id();
-          await db.transact([
-            db.tx.conversations[activeConversationId].update({
-              createdAt: Date.now(),
-              conversationPhase: 'gathering',
-              roundNumber: MIN_CONVERSATION_ROUNDS,
-              readinessScore: 0.85,
-              extractedContext: JSON.stringify(mockContext),
-              selectedTemplateId: selectedTemplateId || 'romantic-ballad',
-            }).link({ user: currentUser.id }),
-          ]);
-          console.log('[DEBUG] ✅ Conversation created via InstantDB:', activeConversationId);
-        }
+        // Always use mobile API for debug (has Admin SDK permissions)
+        // InstantDB client can't set readinessScore due to permissions
+        const result = await mobileCreateConversation({
+          conversationPhase: 'gathering',
+          roundNumber: MIN_CONVERSATION_ROUNDS,
+          readinessScore: 0.85,
+          extractedContext: mockContext,
+          songSettings: songSettings,
+          selectedTemplateId: selectedTemplateId || 'romantic-ballad',
+        });
+        activeConversationId = result.conversation.id;
+        console.log('[DEBUG] ✅ Conversation created via mobile API:', activeConversationId);
 
         setConversationId(activeConversationId);
         console.log('[DEBUG] ✅ ConversationId set in state');
