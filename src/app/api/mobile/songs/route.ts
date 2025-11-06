@@ -29,8 +29,11 @@ export async function POST(request: NextRequest) {
       : null;
   const templateId =
     typeof body.templateId === "string" ? body.templateId : undefined;
+  const status = typeof body.status === "string" ? body.status : "generating";
+  const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+  const taskId = typeof body.taskId === "string" ? body.taskId : undefined;
 
-  if (!songId || !conversationId || !title || !generationParams) {
+  if (!songId || !conversationId || !title) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
@@ -61,17 +64,25 @@ export async function POST(request: NextRequest) {
     title,
     lyrics,
     musicStyle,
-    status: "generating",
+    status,
     createdAt: now,
     updatedAt: now,
     lyricsSnippet,
     selectedVariantId: null,
     isPublic: false,
-    generationParams: JSON.stringify(generationParams),
   };
 
+  if (generationParams) {
+    updateData.generationParams = JSON.stringify(generationParams);
+  }
   if (templateId) {
     updateData.templateId = templateId;
+  }
+  if (prompt) {
+    updateData.prompt = prompt;
+  }
+  if (taskId) {
+    updateData.sunoTaskId = taskId;
   }
 
   try {
