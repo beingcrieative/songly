@@ -130,10 +130,11 @@ type MobileSongCreatePayload = {
   songId: string;
   conversationId: string;
   title: string;
-  lyrics: string;
-  musicStyle: string;
-  generationParams: UserPreferences;
+  lyrics?: string; // Optional for async generation flows
+  musicStyle?: string; // Optional for async generation flows
+  generationParams?: UserPreferences; // Optional for async generation flows
   templateId?: string | null;
+  prompt?: string; // Suno lyrics generation prompt
   taskId?: string | null;
   lyricsSnippet?: string | null;
   status?: string;
@@ -1132,6 +1133,81 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     }
   };
 
+  // 🚧 DEBUG: Skip to lyrics generation (for testing)
+  // TODO: Remove this function before final production deployment
+  const handleDebugSkipToLyrics = async () => {
+    console.log('[DEBUG] 🚧 Skip to lyrics generation');
+
+    try {
+      // Set mock extracted context with high readiness
+      const mockContext: ExtractedContext = {
+        memories: ['Een verrassende kop koffie in de ochtend', 'Een moment van aandacht'],
+        emotions: ['verrast', 'dankbaar', 'geliefd'],
+        partnerTraits: ['attent', 'liefdevol', 'zorgzaam'],
+        relationshipLength: '2 jaar',
+        musicStyle: 'romantisch',
+        specialMoments: ['Onverwachte attentie', 'Kleine gebaren'],
+        language: 'Nederlands',
+        vocalGender: 'male',
+        vocalAge: 'young',
+        vocalDescription: 'Warme, emotionele stem',
+      };
+
+      setExtractedContext(mockContext);
+      setReadinessScore(0.85); // High readiness score
+      console.log('[DEBUG] ✅ Mock context set');
+
+      // Set default template if none selected
+      if (!selectedTemplateId) {
+        setSelectedTemplateId('romantic-ballad');
+        console.log('[DEBUG] ✅ Default template selected: romantic-ballad');
+      }
+
+      // Ensure conversation exists (create if needed)
+      let activeConversationId = conversationId;
+      if (!activeConversationId) {
+        console.log('[DEBUG] Creating new conversation...');
+
+        const currentUser = user.user;
+        if (!currentUser?.id) {
+          throw new Error('User not authenticated');
+        }
+
+        // Always use mobile API for debug (has Admin SDK permissions)
+        // InstantDB client can't set readinessScore due to permissions
+        const result = await mobileCreateConversation({
+          conversationPhase: 'gathering',
+          roundNumber: MIN_CONVERSATION_ROUNDS,
+          readinessScore: 0.85,
+          extractedContext: mockContext,
+          songSettings: songSettings,
+          selectedTemplateId: selectedTemplateId || 'romantic-ballad',
+        });
+        activeConversationId = result.conversation.id;
+        console.log('[DEBUG] ✅ Conversation created via mobile API:', activeConversationId);
+
+        setConversationId(activeConversationId);
+        console.log('[DEBUG] ✅ ConversationId set in state');
+      }
+
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Trigger lyrics generation
+      console.log('[DEBUG] 🎵 Calling generateLyrics()...');
+      await generateLyrics();
+      console.log('[DEBUG] ✅ Skip to lyrics completed!');
+
+    } catch (error: any) {
+      console.error('[DEBUG] ⚠️ Skip to lyrics failed:', error);
+      showToast({
+        title: 'Debug functie gefaald',
+        description: error.message || 'Probeer het opnieuw.',
+        variant: 'error',
+      });
+    }
+  };
+
   const handleSendMessage = async () => {
     const currentUser = DEV_MODE
       ? (user.user || { id: 'dev-user-123', email: 'dev@example.com' })
@@ -1567,34 +1643,17 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       }
 
       // Create song with generating_lyrics status
-      console.log('[DEBUG] Calling db.transact() to create song...');
-      await db.transact([
-        db.tx.songs[newSongId]
-          .update({
-            title: 'Jouw Liedje', // Temporary title, will be updated by Suno callback
-            status: 'generating_lyrics',
-            generationProgress: stringifyGenerationProgress({
-              lyricsTaskId: null, // Will be set by callback
-              lyricsStartedAt: Date.now(),
-              lyricsCompletedAt: null,
-              lyricsError: null,
-              lyricsRetryCount: 0,
-              musicTaskId: null,
-              musicStartedAt: null,
-              musicCompletedAt: null,
-              musicError: null,
-              musicRetryCount: 0,
-              rawCallback: null,
-            }),
-            prompt,
-            templateId: selectedTemplateId,
-            createdAt: Date.now(),
-          })
-          .link({
-            conversation: conversationId || undefined,
-            user: userId,
-          }),
-      ]);
+      // Use mobile API to bypass permissions (status and generationProgress are protected)
+      console.log('[DEBUG] Creating song via mobile API...');
+      await mobileCreateSong({
+        songId: newSongId,
+        conversationId: conversationId || '',
+        title: 'Jouw Liedje', // Temporary title, will be updated by Suno callback
+        status: 'generating_lyrics',
+        prompt,
+        templateId: selectedTemplateId,
+        generationParams: songSettings,
+      });
 
       console.log('[DEBUG] ✅ Song entity created:', newSongId);
 
@@ -2492,6 +2551,32 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
+          {/* 🚧 DEBUG: Skip to Lyrics Generation Button */}
+          {/* TODO: Remove this button before final production deployment */}
+          <div className="flex justify-center py-2">
+            <button
+              onClick={handleDebugSkipToLyrics}
+              disabled={isLoading}
+              className="flex items-center gap-2 rounded-full border-2 border-orange-400 bg-gradient-to-r from-orange-50 to-yellow-50 px-4 py-2 text-sm font-semibold text-orange-700 shadow-md transition-all hover:from-orange-100 hover:to-yellow-100 hover:shadow-lg active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="text-lg">🚧</span>
+              <span>DEBUG: Skip naar Lyrics</span>
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          </div>
+
           {messages.length === 0 && (
             <WelcomeAnimation
               title={strings.studio.welcomeTitle}

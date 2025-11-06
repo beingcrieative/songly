@@ -1,3 +1,4 @@
+import * as React from "react";
 import { db } from "@/lib/db";
 
 type SortOption = "recent" | "az" | "played" | "action";
@@ -164,15 +165,142 @@ export function useLibraryConversations(
   return db.useQuery(query);
 }
 
-// Mobile-specific hooks for library data access
+// Mobile-specific hooks for library data access (API-based with polling)
 export function useMobileLibrarySongs(userId: string | undefined, options: LibrarySongsOptions) {
-  // For mobile, we could implement API-based fetching here
-  // For now, return the same as desktop since queries are now conditional
-  return useLibrarySongs(userId, options);
+  const [data, setData] = React.useState<{ songs: any[] }>({ songs: [] });
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<any>(null);
+  const [refreshCount, setRefreshCount] = React.useState(0);
+
+  // Fetch function
+  const fetchSongs = React.useCallback(() => {
+    console.log('[useMobileLibrarySongs] Fetching songs:', {
+      userId,
+      status: options.status,
+      sort: options.sort,
+      search: options.search,
+      limit: options.limit,
+      offset: options.offset,
+    });
+
+    if (!userId) {
+      console.log('[useMobileLibrarySongs] No userId - returning empty');
+      setData({ songs: [] });
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      search: options.search || '',
+      status: options.status || 'all',
+      sort: options.sort || 'recent',
+      limit: String(options.limit || 24),
+      offset: String(options.offset || 0),
+    });
+
+    const url = `/api/mobile/library/songs?${params}`;
+    console.log('[useMobileLibrarySongs] Fetching from:', url);
+
+    fetch(url)
+      .then(res => {
+        console.log('[useMobileLibrarySongs] Response status:', res.status);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(result => {
+        console.log('[useMobileLibrarySongs] Response data:', {
+          songsCount: result.songs?.length || 0,
+          songs: result.songs?.slice(0, 3).map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            status: s.status,
+            userId: s.user?.id,
+          })),
+        });
+        setData({ songs: result.songs || [] });
+        setError(null);
+      })
+      .catch(err => {
+        console.error('[useMobileLibrarySongs] Error:', err);
+        setError(err);
+        setData({ songs: [] });
+      })
+      .finally(() => setIsLoading(false));
+  }, [userId, options.search, options.status, options.sort, options.limit, options.offset]);
+
+  // Initial fetch and polling
+  React.useEffect(() => {
+    fetchSongs();
+
+    // Poll every 5 seconds for updates
+    const intervalId = setInterval(() => {
+      fetchSongs();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchSongs, refreshCount]);
+
+  return { data, isLoading, error, refresh: () => setRefreshCount(c => c + 1) };
 }
 
 export function useMobileLibraryConversations(userId: string | undefined, options: LibraryConversationsOptions) {
-  // For mobile, we could implement API-based fetching here
-  // For now, return the same as desktop since queries are now conditional
-  return useLibraryConversations(userId, options);
+  const [data, setData] = React.useState<{ conversations: any[] }>({ conversations: [] });
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<any>(null);
+  const [refreshCount, setRefreshCount] = React.useState(0);
+
+  // Fetch function
+  const fetchConversations = React.useCallback(() => {
+    if (!userId) {
+      setData({ conversations: [] });
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      search: options.search || '',
+      status: options.status || 'all',
+      sort: options.sort || 'recent',
+      limit: String(options.limit || 20),
+      offset: String(options.offset || 0),
+    });
+
+    fetch(`/api/mobile/library/conversations?${params}`)
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(result => {
+        setData({ conversations: result.conversations || [] });
+        setError(null);
+      })
+      .catch(err => {
+        console.error('[useMobileLibraryConversations] Error:', err);
+        setError(err);
+        setData({ conversations: [] });
+      })
+      .finally(() => setIsLoading(false));
+  }, [userId, options.search, options.status, options.sort, options.limit, options.offset]);
+
+  // Initial fetch and polling
+  React.useEffect(() => {
+    fetchConversations();
+
+    // Poll every 5 seconds for updates
+    const intervalId = setInterval(() => {
+      fetchConversations();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchConversations, refreshCount]);
+
+  return { data, isLoading, error, refresh: () => setRefreshCount(c => c + 1) };
 }
