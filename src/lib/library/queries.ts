@@ -69,11 +69,14 @@ export function useLibrarySongs(
   // Build where clauses - only execute query when userId is available
   const whereClauses: Record<string, unknown>[] = [];
 
+  console.log('[LibraryQueries] useLibrarySongs called with userId:', userId);
+
   // Only add user filter when userId exists (prevents permission errors on mobile)
   if (userId) {
     whereClauses.push({ "user.id": userId });
   } else {
     // Return empty query when no userId (conditional execution)
+    console.log('[LibraryQueries] No userId, returning empty');
     return { data: { songs: [] }, isLoading: false, error: null };
   }
 
@@ -90,6 +93,13 @@ export function useLibrarySongs(
       ],
     });
   }
+
+  console.log('[LibraryQueries] Building query with:', {
+    whereClauses,
+    status: options.status,
+    sort: options.sort,
+    search: options.search,
+  });
 
   const query = {
     songs: {

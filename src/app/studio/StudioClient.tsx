@@ -588,6 +588,14 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         const updateData: Record<string, unknown> = {
           ...baseUpdate,
         };
+
+        // Remove bind-protected fields (instant.perms.ts prevents clients from setting these)
+        // These fields can only be set via Admin SDK (server-side/mobile API)
+        delete updateData.status;
+        delete updateData.readinessScore;
+        delete updateData.lyricsTaskId;
+        delete updateData.sunoTaskId;
+
         if (input.extractedContext !== undefined) {
           updateData.extractedContext = input.extractedContext
             ? stringifyExtractedContext(input.extractedContext)

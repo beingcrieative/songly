@@ -39,8 +39,10 @@ function getActionPriority(status: string | null | undefined): number {
 /**
  * Sort songs by action priority, then by recent activity
  * Action items (lyrics_ready, ready) appear first
+ *
+ * Generic function preserves the full type of input songs
  */
-export function sortSongsByPriority(songs: SongForSorting[]): SongForSorting[] {
+export function sortSongsByPriority<T extends SongForSorting>(songs: T[]): T[] {
   return [...songs].sort((a, b) => {
     // 1. Sort by action priority
     const aPriority = getActionPriority(a.status);

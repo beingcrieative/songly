@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
@@ -28,6 +28,60 @@ interface CurrentPlaybackState {
   streamAudioUrl?: string | null;
   audioUrl?: string | null;
   imageUrl?: string | null;
+}
+
+/**
+ * Notification Deep Link Handler
+ * Handles songId query parameter from push notifications
+ * Must be wrapped in Suspense because it uses useSearchParams()
+ */
+function NotificationHandler({
+  songs,
+  onOpenLyricsModal,
+  onPlaySong,
+}: {
+  songs: any[];
+  onOpenLyricsModal: (song: any) => void;
+  onPlaySong: (songId: string, variant: any) => void;
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const songId = searchParams.get('songId');
+    if (!songId || !songs.length) return;
+
+    // Find the song by ID
+    const song = songs.find((s: any) => s.id === songId);
+    if (!song) return;
+
+    // If lyrics are ready, auto-open the lyrics choice modal
+    if (song.status === 'lyrics_ready' && song.lyricsVariants) {
+      onOpenLyricsModal(song);
+
+      // Clear the songId from URL to prevent re-opening on refresh
+      const url = new URL(window.location.href);
+      url.searchParams.delete('songId');
+      window.history.replaceState({}, '', url.toString());
+    }
+    // If music is ready, auto-play the first variant
+    else if (song.status === 'ready' && song.variants?.length > 0) {
+      const variant = song.variants[0];
+      onPlaySong(song.id, {
+        trackId: variant.trackId,
+        streamAudioUrl: variant.streamAudioUrl,
+        audioUrl: variant.audioUrl,
+        title: song.title,
+        imageUrl: variant.imageUrl,
+      });
+
+      // Clear the songId from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('songId');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams, songs, onOpenLyricsModal, onPlaySong]);
+
+  return null;
 }
 
 export default function LibraryPage() {
@@ -336,6 +390,18 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
+      {/* Notification Deep Link Handler - wrapped in Suspense for useSearchParams() */}
+      <Suspense fallback={null}>
+        <NotificationHandler
+          songs={songs}
+          onOpenLyricsModal={(song) => {
+            setSelectedSongForLyrics(song);
+            setLyricsModalOpen(true);
+          }}
+          onPlaySong={handlePlay}
+        />
+      </Suspense>
+
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
         <header className="flex flex-col gap-3">
           <div>

@@ -9,9 +9,8 @@
 import { ExtractedContext } from "@/types/conversation";
 import { MusicTemplate } from "@/templates/music-templates";
 
-// Suno API accepts ~200 words max, which is approximately 1200 characters
-// (average word length 5 chars + 1 space = 6 chars per word)
-const MAX_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || "1200");
+// Suno API has a strict 200 character limit for lyrics generation prompts
+const MAX_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || "200");
 const MIN_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || "60");
 
 const STANDARD_FILLER = [
@@ -109,15 +108,15 @@ export function buildSunoLyricsPrompt(
     return composePrompt(
       [
         `Schrijf een verrassend liefdeslied in ${language}.`,
-        memories[0] ? `Belangrijkste herinnering: ${shorten(memories[0], 120)}.` : null,
-        memories[1] ? `Ook belangrijk: ${shorten(memories[1], 100)}.` : null,
-        emotions[0] ? `Primaire emotie: ${shorten(emotions[0], 80)}.` : null,
-        emotions[1] ? `Secundaire emotie: ${shorten(emotions[1], 70)}.` : null,
-        partnerTraits[0] ? `Partner eigenschap: ${shorten(partnerTraits[0], 80)}.` : null,
-        specialMoments[0] ? `Bijzonder moment: ${shorten(specialMoments[0], 80)}.` : null,
-        "Mix genres, tempo's en onverwachte structuren.",
-        "Behoud een emotionele kern ondanks de experimenten.",
-        "Gebruik vivide beelden en zintuiglijke details."
+        memories[0] ? `Herinnering: ${shorten(memories[0], 40)}.` : null,
+        memories[1] ? `Ook: ${shorten(memories[1], 30)}.` : null,
+        emotions[0] ? `Emotie: ${shorten(emotions[0], 30)}.` : null,
+        emotions[1] ? `Ook: ${shorten(emotions[1], 25)}.` : null,
+        partnerTraits[0] ? `Partner: ${shorten(partnerTraits[0], 30)}.` : null,
+        specialMoments[0] ? `Moment: ${shorten(specialMoments[0], 30)}.` : null,
+        "Mix genres en tempo's.",
+        "Behoud emotionele kern.",
+        "Gebruik vivide beelden."
       ],
       SURPRISE_FILLER
     );
@@ -126,26 +125,26 @@ export function buildSunoLyricsPrompt(
   return composePrompt(
     [
       `Schrijf een ${template.name.toLowerCase()} liefdeslied in ${language}.`,
-      memories[0] ? `Belangrijkste herinnering: ${shorten(memories[0], 150)}.` : null,
-      memories[1] ? `Tweede herinnering: ${shorten(memories[1], 120)}.` : null,
-      memories[2] ? `Ook relevant: ${shorten(memories[2], 100)}.` : null,
-      emotions[0] ? `Dominante emotie: ${shorten(emotions[0], 80)}.` : null,
-      emotions[1] ? `Ook voelbaar: ${shorten(emotions[1], 70)}.` : null,
-      partnerTraits[0] ? `Partner eigenschap: ${shorten(partnerTraits[0], 100)}.` : null,
-      partnerTraits[1] ? `Nog een eigenschap: ${shorten(partnerTraits[1], 80)}.` : null,
-      specialMoments[0] ? `Bijzonder moment: ${shorten(specialMoments[0], 90)}.` : null,
-      relationshipLength ? `Relatie duur: ${relationshipLength}.` : null,
+      memories[0] ? `Herinnering: ${shorten(memories[0], 40)}.` : null,
+      memories[1] ? `Ook: ${shorten(memories[1], 35)}.` : null,
+      memories[2] ? `Nog: ${shorten(memories[2], 30)}.` : null,
+      emotions[0] ? `Emotie: ${shorten(emotions[0], 30)}.` : null,
+      emotions[1] ? `Ook: ${shorten(emotions[1], 25)}.` : null,
+      partnerTraits[0] ? `Partner: ${shorten(partnerTraits[0], 30)}.` : null,
+      partnerTraits[1] ? `Ook: ${shorten(partnerTraits[1], 25)}.` : null,
+      specialMoments[0] ? `Moment: ${shorten(specialMoments[0], 30)}.` : null,
+      relationshipLength ? `Relatie: ${relationshipLength}.` : null,
       template.sunoConfig.style
-        ? `Muziekstijl: ${shorten(template.sunoConfig.style, 80)}.`
+        ? `Stijl: ${shorten(template.sunoConfig.style, 30)}.`
         : null,
       template.sunoConfig.tags
-        ? `Genre tags: ${shorten(template.sunoConfig.tags, 60)}.`
+        ? `Genre: ${shorten(template.sunoConfig.tags, 25)}.`
         : null,
-      musicStyle ? `Gewenste muziekstijl: ${shorten(musicStyle, 80)}.` : null,
-      vocalDescription ? `Vocale stijl: ${shorten(vocalDescription, 70)}.` : null,
-      "Gebruik coupletten, refreinen en een brug.",
-      "Voeg zintuiglijke details en concrete beelden toe.",
-      "Eindig met een warme, hoopvolle boodschap."
+      musicStyle ? `Muziek: ${shorten(musicStyle, 30)}.` : null,
+      vocalDescription ? `Vocals: ${shorten(vocalDescription, 25)}.` : null,
+      "Gebruik coupletten en refreinen.",
+      "Voeg zintuiglijke details toe.",
+      "Eindig warm en hoopvol."
     ],
     STANDARD_FILLER
   );
@@ -157,15 +156,15 @@ export function buildLyricsRefinementPrompt(
   _context: ExtractedContext,
   template: MusicTemplate
 ): string {
-  const snippet = shorten(previousLyrics, template.id === "surprise-me" ? 60 : 80);
+  const snippet = shorten(previousLyrics, template.id === "surprise-me" ? 30 : 35);
 
   const sentences: Array<string | null> = [
-    `Pas de lyrics aan op basis van feedback: ${shorten(feedback, 60)}.`,
+    `Pas lyrics aan: ${shorten(feedback, 40)}.`,
     template.id === "surprise-me"
-      ? "Behoud de verrassende structuur maar laat de tekst vloeiend blijven."
-      : "Behoud de gekozen stijl, emotie en couplet-refrein balans.",
-    `Huidige kern: ${snippet}.`,
-    "Lever een volledige, herschreven versie terug."
+      ? "Behoud verrassende structuur en vloeiendheid."
+      : "Behoud stijl, emotie en balans.",
+    `Kern: ${snippet}.`,
+    "Lever herschreven versie."
   ];
 
   const fillers = template.id === "surprise-me" ? SURPRISE_FILLER : REFINEMENT_FILLER;

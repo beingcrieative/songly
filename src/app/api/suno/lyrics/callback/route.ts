@@ -39,6 +39,22 @@ import {
  */
 
 /**
+ * OPTIONS /api/suno/lyrics/callback
+ *
+ * Handle CORS preflight requests from Suno webhooks
+ */
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+/**
  * POST /api/suno/lyrics/callback?songId=xxx
  *
  * Receives lyrics generation callback from Suno
@@ -72,7 +88,10 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ Invalid lyrics callback payload structure');
       return NextResponse.json(
         { ok: false, error: 'Invalid payload' },
-        { status: 200 } // Task 2.1.5: Always return 200
+        {
+          status: 200, // Task 2.1.5: Always return 200
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        }
       );
     }
 
@@ -119,7 +138,10 @@ export async function POST(request: NextRequest) {
       console.error('❌ Admin DB not available - cannot update song');
       return NextResponse.json(
         { ok: false, error: 'Admin token not configured' },
-        { status: 200 } // Task 2.1.5: Always return 200
+        {
+          status: 200, // Task 2.1.5: Always return 200
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        }
       );
     }
 
@@ -180,7 +202,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { ok: false, error: 'Song not found' },
-        { status: 200 } // Task 2.1.5: Always return 200
+        {
+          status: 200, // Task 2.1.5: Always return 200
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        }
       );
     }
 
@@ -231,7 +256,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { ok: false, error: 'Insufficient variants' },
-        { status: 200 } // Task 2.1.5: Always return 200
+        {
+          status: 200, // Task 2.1.5: Always return 200
+          headers: { 'Access-Control-Allow-Origin': '*' },
+        }
       );
     }
 
@@ -267,10 +295,13 @@ export async function POST(request: NextRequest) {
     ]);
 
     console.log('✅ Updated song with lyrics variants');
+    console.log('   Song ID:', song.id);
+    console.log('   User ID:', song.user?.id);
     console.log('   Status: lyrics_ready');
     console.log('   Variants:', variants.length);
     console.log('   Completed at:', new Date(updatedProgress.lyricsCompletedAt!).toISOString());
     console.log('   First variant preview:', lyricTexts[0]?.substring(0, 100) + '...');
+    console.log('   Updated At:', Date.now());
 
     // Task 2.1.4: Send push notification (fire-and-forget)
     try {
@@ -294,13 +325,21 @@ export async function POST(request: NextRequest) {
     const processingTime = Date.now() - startTime;
     console.log(`✅ Lyrics callback processed successfully in ${processingTime}ms`);
 
-    // Task 2.1.5: Return 200 OK
-    return NextResponse.json({
-      ok: true,
-      message: 'Lyrics callback processed successfully',
-      variantsCount: variants.length,
-      processingTimeMs: processingTime,
-    });
+    // Task 2.1.5: Return 200 OK with CORS headers
+    return NextResponse.json(
+      {
+        ok: true,
+        message: 'Lyrics callback processed successfully',
+        variantsCount: variants.length,
+        processingTimeMs: processingTime,
+      },
+      {
+        status: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
 
   } catch (error: any) {
     const processingTime = Date.now() - startTime;
@@ -315,7 +354,10 @@ export async function POST(request: NextRequest) {
         ok: false,
         error: error.message || 'Internal error processing callback',
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      }
     );
   }
 }

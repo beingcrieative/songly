@@ -64,18 +64,43 @@ export function middleware(req: NextRequest) {
   const ua = req.headers.get('user-agent') || '';
   const isMobile = isMobileUA(ua) ? '1' : '0';
 
-  const res = NextResponse.next({ request: { headers } });
-  res.cookies.set('x-is-mobile', isMobile, { path: '/', sameSite: 'lax' });
-
   // Always allow external callbacks without session (e.g., Suno callbacks)
-  if (EXEMPT_PATHS.some((p) => url.pathname.startsWith(p))) {
+  // Check this BEFORE creating the response to avoid setting unnecessary cookies
+  const isExemptPath = EXEMPT_PATHS.some((p) => url.pathname.startsWith(p));
+
+  // Enhanced logging for callback debugging
+  console.log('[Middleware] Path check:', url.pathname);
+  console.log('[Middleware] Is exempt?:', isExemptPath);
+  console.log('[Middleware] EXEMPT_PATHS:', EXEMPT_PATHS);
+  console.log('[Middleware] ENFORCE_SESSION:', ENFORCE_SESSION);
+
+  if (isExemptPath) {
+    console.log('[Middleware] ✅ ALLOWING exempt path:', url.pathname);
+    console.log('[Middleware] Origin:', req.headers.get('origin'));
+    console.log('[Middleware] User-Agent:', req.headers.get('user-agent'));
     return NextResponse.next({ request: { headers } });
   }
 
-  if (isProtectedPath(url.pathname) && ENFORCE_SESSION) {
+  const res = NextResponse.next({ request: { headers } });
+  res.cookies.set('x-is-mobile', isMobile, { path: '/', sameSite: 'lax' });
+
+  // Only enforce session if explicitly enabled
+  const isProtected = isProtectedPath(url.pathname);
+  console.log('[Middleware] Is protected path?:', isProtected);
+  
+  if (isProtected && ENFORCE_SESSION) {
+    console.log('[Middleware] 🔒 Checking session for protected path:', url.pathname);
+    console.log('[Middleware] ENFORCE_SESSION:', ENFORCE_SESSION);
     // Middleware runs on Edge; avoid Node crypto. Check presence of session cookie only.
     const hasSession = Boolean(req.cookies.get('APP_SESSION')?.value);
-    if (!hasSession) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+    console.log('[Middleware] Has session cookie?:', hasSession);
+    if (!hasSession) {
+      console.log('[Middleware] ❌ 401 Unauthorized - No session cookie for path:', url.pathname);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+    }
+    console.log('[Middleware] ✅ Session valid, allowing request');
+  } else if (isProtected) {
+    console.log('[Middleware] ⚠️  Protected path but ENFORCE_SESSION=false, allowing:', url.pathname);
   }
 
   return res;
