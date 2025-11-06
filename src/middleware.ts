@@ -69,19 +69,23 @@ export function middleware(req: NextRequest) {
   const isExemptPath = EXEMPT_PATHS.some((p) => url.pathname.startsWith(p));
 
   if (isExemptPath) {
-    console.log('[Middleware] Exempt path detected:', url.pathname);
+    console.log('[Middleware] ✅ Exempt path detected:', url.pathname);
+    console.log('[Middleware] Origin:', req.headers.get('origin'));
+    console.log('[Middleware] User-Agent:', req.headers.get('user-agent'));
     return NextResponse.next({ request: { headers } });
   }
 
   const res = NextResponse.next({ request: { headers } });
   res.cookies.set('x-is-mobile', isMobile, { path: '/', sameSite: 'lax' });
 
+  // Only enforce session if explicitly enabled
   if (isProtectedPath(url.pathname) && ENFORCE_SESSION) {
-    console.log('[Middleware] Protected path check:', url.pathname, 'ENFORCE_SESSION:', ENFORCE_SESSION);
+    console.log('[Middleware] 🔒 Protected path check:', url.pathname);
+    console.log('[Middleware] ENFORCE_SESSION:', ENFORCE_SESSION);
     // Middleware runs on Edge; avoid Node crypto. Check presence of session cookie only.
     const hasSession = Boolean(req.cookies.get('APP_SESSION')?.value);
     if (!hasSession) {
-      console.log('[Middleware] 401 Unauthorized - No session cookie for:', url.pathname);
+      console.log('[Middleware] ❌ 401 Unauthorized - No session cookie');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
     }
   }
