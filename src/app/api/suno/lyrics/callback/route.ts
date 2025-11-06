@@ -137,6 +137,9 @@ export async function POST(request: NextRequest) {
       if (result.songs.length > 0) {
         song = result.songs[0];
         console.log('✅ Found song by songId:', songId);
+        console.log('   Song user ID:', song.user?.id || 'MISSING');
+        console.log('   Song conversation ID:', song.conversation?.id || 'none');
+        console.log('   Song status:', song.status);
       }
     }
 
@@ -153,11 +156,16 @@ export async function POST(request: NextRequest) {
       if (result.songs.length > 0) {
         song = result.songs[0];
         console.log('✅ Found song by lyricsTaskId:', taskId, '-> songId:', song.id);
+        console.log('   Song user ID:', song.user?.id || 'MISSING');
+        console.log('   Song conversation ID:', song.conversation?.id || 'none');
+        console.log('   Song status:', song.status);
       }
     }
 
     if (!song) {
       console.warn('⚠️ No song found for songId:', songId, 'or taskId:', taskId);
+      console.warn('   This means the song was not created or the callback URL was incorrect.');
+      console.warn('   Check if song creation succeeded in the logs.');
 
       // Legacy: Try updating conversation for backward compatibility
       if (conversationId) {
@@ -179,7 +187,7 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(
-        { ok: false, error: 'Song not found' },
+        { ok: false, error: 'Song not found - song may not have been created' },
         { status: 200 } // Task 2.1.5: Always return 200
       );
     }
@@ -256,10 +264,27 @@ export async function POST(request: NextRequest) {
       rawCallback: payload,
     };
 
+    // Task 2.1.3: Verify user link is present
+    const userId = song.user?.id;
+    if (!userId) {
+      console.error('❌ Song has no user link - cannot update');
+      return NextResponse.json(
+        { ok: false, error: 'Song has no user link' },
+        { status: 200 } // Always return 200 to prevent retries
+      );
+    }
+
+    console.log('✅ Song found with user link:', userId);
+    console.log('   Song ID:', song.id);
+    console.log('   User ID:', userId);
+    console.log('   Conversation ID:', song.conversation?.id || 'none');
+
     // Task 2.1.3: Update song entity
+    // Store lyricsTaskId in both top-level field (for indexed lookup) and generationProgress
     await adminDb.transact([
       adminDb.tx.songs[song.id].update({
         status: 'lyrics_ready',
+        lyricsTaskId: taskId || null, // Store in top-level field for indexed lookup
         lyricsVariants: stringifyLyricVariants(variants),
         generationProgress: stringifyGenerationProgress(updatedProgress),
         updatedAt: Date.now(),
@@ -268,13 +293,15 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Updated song with lyrics variants');
     console.log('   Status: lyrics_ready');
+    console.log('   Lyrics Task ID:', taskId || 'none');
     console.log('   Variants:', variants.length);
+    console.log('   User ID:', userId);
     console.log('   Completed at:', new Date(updatedProgress.lyricsCompletedAt!).toISOString());
     console.log('   First variant preview:', lyricTexts[0]?.substring(0, 100) + '...');
 
     // Task 2.1.4: Send push notification (fire-and-forget)
+    // userId is already verified above
     try {
-      const userId = song.user?.id;
       if (userId) {
         const { sendLyricsReadyNotification } = await import('@/lib/push');
         const result = await sendLyricsReadyNotification(userId, song.id);

@@ -43,9 +43,31 @@ export function getSunoCallbackUrl(songId?: string): string {
 /**
  * Get the lyrics callback URL
  * Client-side compatible
+ * 
+ * For development: Uses NEXT_PUBLIC_SUNO_CALLBACK_URL or SUNO_CALLBACK_URL from .env if set (e.g., ngrok URL)
+ * For production: Uses getBaseUrl() which detects Vercel or custom domain
+ * 
+ * Note: For client-side usage in development, set NEXT_PUBLIC_SUNO_CALLBACK_URL in .env
  */
 export function getLyricsCallbackUrl(conversationId?: string): string {
-  const baseUrl = getBaseUrl();
+  let baseUrl: string;
+  
+  // 1. Check for explicit callback URL (for development with ngrok)
+  // Client-side: Use NEXT_PUBLIC_ prefix (exposed to browser)
+  // Server-side: Use regular env var (more secure)
+  const callbackUrl = typeof window !== 'undefined' 
+    ? process.env.NEXT_PUBLIC_SUNO_CALLBACK_URL
+    : process.env.SUNO_CALLBACK_URL;
+  
+  if (callbackUrl) {
+    baseUrl = callbackUrl;
+    // Remove trailing slash if present
+    baseUrl = baseUrl.replace(/\/$/, '');
+  } else {
+    // 2. Use standard base URL detection
+    baseUrl = getBaseUrl();
+  }
+  
   const callbackPath = '/api/suno/lyrics/callback';
   const fullUrl = baseUrl + callbackPath;
 

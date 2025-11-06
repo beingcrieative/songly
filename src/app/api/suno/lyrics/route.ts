@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       callBackUrl,
       templateId,
       context,
+      songId, // Optional: songId to store taskId immediately
     } = body;
 
     const hasRawPrompt = typeof incomingPrompt === 'string' && incomingPrompt.trim().length > 0;
@@ -112,8 +113,8 @@ export async function POST(request: NextRequest) {
     }
 
     const minChars = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || '60');
-    // Suno API accepts ~200 words max, which is approximately 1200 characters
-    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '1200');
+    // Suno API accepts maximum 200 characters for the prompt field
+    const maxChars = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || '200');
     const promptLength = finalPrompt.length;
 
     if (promptLength < minChars) {
@@ -209,6 +210,28 @@ export async function POST(request: NextRequest) {
         // Response is not JSON, use status-based message
       }
 
+      // If songId is provided, update song status to failed
+      if (songId && typeof songId === 'string') {
+        try {
+          const { getAdminDb } = await import('@/lib/adminDb');
+          const adminDb = getAdminDb();
+          
+          if (adminDb) {
+            await adminDb.transact([
+              adminDb.tx.songs[songId].update({
+                status: 'failed',
+                errorMessage: errorMessage,
+                updatedAt: Date.now(),
+              }),
+            ]);
+            console.log('✅ Updated song status to failed:', songId);
+          }
+        } catch (error: any) {
+          console.error('⚠️ Failed to update song status to failed:', error);
+          // Don't fail the request - error is already logged
+        }
+      }
+
       return NextResponse.json(
         {
           error: errorMessage,
@@ -236,6 +259,28 @@ export async function POST(request: NextRequest) {
 
     if (!taskId) {
       console.error('No task_id in Suno response:', data);
+      
+      // If songId is provided, update song status to failed
+      if (songId && typeof songId === 'string') {
+        try {
+          const { getAdminDb } = await import('@/lib/adminDb');
+          const adminDb = getAdminDb();
+          
+          if (adminDb) {
+            await adminDb.transact([
+              adminDb.tx.songs[songId].update({
+                status: 'failed',
+                errorMessage: 'Suno API did not return a task ID',
+                updatedAt: Date.now(),
+              }),
+            ]);
+            console.log('✅ Updated song status to failed (no taskId):', songId);
+          }
+        } catch (error: any) {
+          console.error('⚠️ Failed to update song status to failed:', error);
+        }
+      }
+      
       return NextResponse.json(
         {
           error: 'Suno API did not return a task ID',
@@ -247,6 +292,28 @@ export async function POST(request: NextRequest) {
 
     console.log('=== SUNO LYRICS GENERATION SUCCESS ===');
     console.log('Task ID:', taskId);
+
+    // If songId is provided, store taskId immediately in database for indexed lookup
+    if (songId && typeof songId === 'string') {
+      try {
+        const { getAdminDb } = await import('@/lib/adminDb');
+        const adminDb = getAdminDb();
+        
+        if (adminDb) {
+          // Store lyricsTaskId immediately so callback can find song by taskId if needed
+          await adminDb.transact([
+            adminDb.tx.songs[songId].update({
+              lyricsTaskId: taskId,
+              updatedAt: Date.now(),
+            }),
+          ]);
+          console.log('✅ Stored lyricsTaskId in song:', songId, '-> taskId:', taskId);
+        }
+      } catch (error: any) {
+        console.error('⚠️ Failed to store lyricsTaskId immediately:', error);
+        // Don't fail the request - callback will still work via songId lookup
+      }
+    }
 
     setLyricsTaskGenerating(taskId);
     pruneLyricsCache();

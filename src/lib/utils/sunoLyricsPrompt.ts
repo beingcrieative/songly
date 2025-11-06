@@ -9,9 +9,8 @@
 import { ExtractedContext } from "@/types/conversation";
 import { MusicTemplate } from "@/templates/music-templates";
 
-// Suno API accepts ~200 words max, which is approximately 1200 characters
-// (average word length 5 chars + 1 space = 6 chars per word)
-const MAX_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || "1200");
+// Suno API accepts maximum 200 characters for the prompt field
+const MAX_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_CHAR_LIMIT || "200");
 const MIN_PROMPT_CHARS = Number(process.env.SUNO_LYRICS_PROMPT_MIN_CHARS || "60");
 
 const STANDARD_FILLER = [

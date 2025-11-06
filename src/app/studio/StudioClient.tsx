@@ -49,7 +49,7 @@ import { createSnippet, serializeConceptForStorage } from "@/lib/library/utils";
 import { useI18n } from "@/providers/I18nProvider";
 import { showToast } from "@/lib/toast";
 import { stringifyGenerationProgress } from "@/types/generation";
-import { getBaseUrl } from "@/lib/utils/getBaseUrl";
+import { getBaseUrl, getSunoCallbackUrl } from "@/lib/utils/getBaseUrl";
 import { useRouter } from "next/navigation";
 import { getUserTier, getConcurrentLimit } from "@/lib/utils/userTier";
 import { checkConcurrentLimit } from "@/lib/utils/concurrentGenerations";
@@ -130,10 +130,11 @@ type MobileSongCreatePayload = {
   songId: string;
   conversationId: string;
   title: string;
-  lyrics: string;
-  musicStyle: string;
-  generationParams: UserPreferences;
+  lyrics?: string; // Optional for async generation flows where lyrics come later via webhook
+  musicStyle?: string;
+  generationParams?: UserPreferences; // Optional for async generation flows
   templateId?: string | null;
+  prompt?: string; // Used for async generation flows
   taskId?: string | null;
   lyricsSnippet?: string | null;
   status?: string;
@@ -327,9 +328,108 @@ function useSongData(currentSong: { songId?: string | null } | null, isMobile: b
   });
 }
 
-export default function StudioClient({ isMobile }: { isMobile: boolean }) {
+export default function StudioClient({ isMobile: initialIsMobile }: { isMobile: boolean }) {
   const router = useRouter();
   const { strings } = useI18n();
+  
+  // Detect PWA standalone mode and force mobile view
+  const [actualIsMobile, setActualIsMobile] = useState(initialIsMobile);
+  const [isStandalone, setIsStandalone] = useState(false);
+  // Use ref to remember if we've ever been in PWA mode (persists across navigations)
+  const wasPwaModeRef = useRef(false);
+  
+  useEffect(() => {
+    // Check if we're in standalone/PWA mode
+    const isInStandaloneMode = () => {
+      if (typeof window === 'undefined') return false;
+      // Check for iOS standalone mode
+      const iosStandalone = (window.navigator as any).standalone === true;
+      // Check for Android/Chrome standalone mode
+      const androidStandalone = window.matchMedia('(display-mode: standalone)').matches;
+      // Check for fullscreen mode (may indicate PWA-like behavior)
+      const fullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
+      return iosStandalone || androidStandalone || fullscreen;
+    };
+    
+    const updateMobileView = () => {
+      // Check URL query params for mobile override
+      const urlParams = new URLSearchParams(window.location.search);
+      const forceMobile = urlParams.get('mobile') === '1' || urlParams.get('pwa') === '1';
+      const forcePWA = urlParams.get('pwa') === '1';
+      
+      // Check standalone mode
+      const inStandalone = isInStandaloneMode();
+      // If ?pwa=1 is in URL, treat as standalone mode (even in browser for testing)
+      setIsStandalone(inStandalone || forcePWA);
+      
+      // If in standalone mode or forced via query param, always use mobile view
+      // OR if we've ever been in PWA mode (remember via ref), keep mobile view
+      if (inStandalone || forceMobile || forcePWA) {
+        wasPwaModeRef.current = true; // Remember we've been in PWA mode
+        setActualIsMobile(true);
+      } else if (wasPwaModeRef.current) {
+        // If we've been in PWA mode before, keep mobile view even if URL params are gone
+        setActualIsMobile(true);
+      } else {
+        setActualIsMobile(initialIsMobile);
+      }
+    };
+    
+    // Initial check
+    updateMobileView();
+    
+    // Listen for URL changes (for query param changes)
+    const handleLocationChange = () => {
+      updateMobileView();
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    
+    // Listen for display mode changes (when PWA is installed/uninstalled)
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleDisplayModeChange = () => {
+      updateMobileView();
+    };
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleDisplayModeChange);
+    } else {
+      // Fallback for older browsers
+      mediaQuery.addListener(handleDisplayModeChange);
+    }
+    
+    // Check periodically in case standalone mode changes
+    const interval = setInterval(() => {
+      updateMobileView();
+    }, 1000);
+    
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      } else if (mediaQuery.removeListener) {
+        mediaQuery.removeListener(handleDisplayModeChange);
+      }
+      clearInterval(interval);
+    };
+  }, [initialIsMobile]);
+  
+  // Add class to body when in standalone mode for CSS styling
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isStandalone) {
+      document.documentElement.classList.add('standalone-mode');
+      document.body.classList.add('standalone-mode');
+    } else {
+      document.documentElement.classList.remove('standalone-mode');
+      document.body.classList.remove('standalone-mode');
+    }
+    return () => {
+      document.documentElement.classList.remove('standalone-mode');
+      document.body.classList.remove('standalone-mode');
+    };
+  }, [isStandalone]);
+  
+  const isMobile = actualIsMobile;
+  
   const [messages, setMessages] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -568,25 +668,24 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         };
       }
 
-      const baseUpdate: Record<string, unknown> = { updatedAt: now };
+      // Check if protected fields need updating
+      // Protected fields (readinessScore, lyricsTaskId, status) are in bind list
+      // and can only be updated via Admin SDK (server-side)
+      const hasProtectedFields = 
+        input.readinessScore !== undefined || 
+        input.lyricsTaskId !== undefined || 
+        input.status !== undefined;
 
-      if (input.roundNumber !== undefined) baseUpdate.roundNumber = input.roundNumber;
-      if (input.readinessScore !== undefined) baseUpdate.readinessScore = input.readinessScore;
-      if (input.lyricsTaskId !== undefined) baseUpdate.lyricsTaskId = input.lyricsTaskId;
-      if (input.conversationPhase !== undefined)
-        baseUpdate.conversationPhase = input.conversationPhase;
-      if (input.status !== undefined) baseUpdate.status = input.status;
-
-      if (conceptPayload) {
-        baseUpdate.conceptTitle = conceptPayload.conceptTitle;
-        baseUpdate.conceptLyrics = conceptPayload.conceptLyrics;
-        baseUpdate.conceptHistory = conceptPayload.conceptHistory;
-      }
-
-      if (!isMobile) {
-        const updateData: Record<string, unknown> = {
-          ...baseUpdate,
-        };
+      // If protected fields are present OR we're on mobile, use mobile API endpoint
+      // Otherwise use direct client update for non-protected fields only
+      if (!isMobile && !hasProtectedFields) {
+        const updateData: Record<string, unknown> = { updatedAt: now };
+        
+        // Only non-protected fields can be updated directly from client
+        if (input.roundNumber !== undefined) updateData.roundNumber = input.roundNumber;
+        if (input.conversationPhase !== undefined) {
+          updateData.conversationPhase = input.conversationPhase;
+        }
         if (input.extractedContext !== undefined) {
           updateData.extractedContext = input.extractedContext
             ? stringifyExtractedContext(input.extractedContext)
@@ -603,13 +702,25 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
             ? JSON.stringify(input.templateConfig)
             : null;
         }
+        if (conceptPayload) {
+          updateData.conceptTitle = conceptPayload.conceptTitle;
+          updateData.conceptLyrics = conceptPayload.conceptLyrics;
+          updateData.conceptHistory = conceptPayload.conceptHistory;
+        }
 
         try {
           await db.transact([
             db.tx.conversations[conversationId].update(updateData),
           ]);
-        } catch (error) {
+        } catch (error: any) {
           console.warn("Failed to update conversation record", error);
+          // Log the actual error details for debugging
+          if (error?.message) {
+            console.warn("Error message:", error.message);
+          }
+          if (error?.code) {
+            console.warn("Error code:", error.code);
+          }
         }
         return;
       }
@@ -795,25 +906,65 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       return;
     }
 
-    const convId = id();
-    setConversationId(convId);
-
+    // For desktop, try to create conversation via client first, fallback to API if it fails
     if (!DEV_MODE) {
-      const now = Date.now();
-      db.transact([
-        db.tx.conversations[convId]
-          .update({
-            createdAt: now,
-            updatedAt: now,
-            currentStep: 0,
-            status: "active",
-            conversationPhase: "gathering",
-            roundNumber: 0,
-            readinessScore: 0,
-            songSettings: JSON.stringify(songSettings),
-          })
-          .link({ user: currentUser.id }),
-      ]);
+      (async () => {
+        try {
+          // Try creating via mobile API (server-side) for consistency and to avoid permission issues
+          const created = await mobileCreateConversation({
+            songSettings: songSettings,
+          });
+          setConversationId(created.conversation.id);
+          setConversationPhase(created.conversation.conversationPhase ?? 'gathering');
+          setRoundNumber(created.conversation.roundNumber ?? 0);
+          setReadinessScore(created.conversation.readinessScore ?? 0);
+          if (created.conversation.extractedContext) {
+            setExtractedContext(created.conversation.extractedContext);
+          }
+          if (created.conversation.songSettings) {
+            setSongSettings((prev) => ({
+              ...prev,
+              ...created.conversation.songSettings,
+            }));
+          }
+        } catch (error: any) {
+          console.error("Failed to create conversation:", error);
+          // Log the actual error details
+          if (error?.message) {
+            console.error("Error message:", error.message);
+          }
+          if (error?.code) {
+            console.error("Error code:", error.code);
+          }
+          // Fallback: try direct client creation as last resort
+          // This may still fail with permission errors, but we've already logged the API error
+          try {
+            const convId = id();
+            const now = Date.now();
+            await db.transact([
+              db.tx.conversations[convId]
+                .update({
+                  createdAt: now,
+                  updatedAt: now,
+                  currentStep: 0,
+                  // Removed status, readinessScore - they're in bind list
+                  conversationPhase: "gathering",
+                  roundNumber: 0,
+                  songSettings: JSON.stringify(songSettings),
+                })
+                .link({ user: currentUser.id }),
+            ]);
+            setConversationId(convId);
+          } catch (fallbackError: any) {
+            console.error("Failed to create conversation (fallback):", fallbackError);
+            // Both methods failed - user may need to refresh or check permissions
+          }
+        }
+      })();
+    } else {
+      // DEV_MODE: just set a fake ID
+      const convId = id();
+      setConversationId(convId);
     }
   }, [user.isLoading, user.user, isMobile, hasHydratedConversation, sessionReady]);
 
@@ -879,24 +1030,23 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   }, []);
 
   // Task 4.3: Auto-scroll to the bottom when messages grow
-  // Task 4.4: Sticky scroll - only auto-scroll if user is already near the bottom
+  // Always scroll when new messages are added (not just when near bottom)
   const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
     if (messages.length !== prevMessagesLengthRef.current) {
+      const prevLength = prevMessagesLengthRef.current;
       prevMessagesLengthRef.current = messages.length;
 
-      requestAnimationFrame(() => {
-        if (!chatContainerRef.current || !bottomRef.current) return;
+      // Only auto-scroll if messages were added (not removed)
+      if (messages.length > prevLength) {
+        requestAnimationFrame(() => {
+          if (!chatContainerRef.current || !bottomRef.current) return;
 
-        // Task 4.4: Use isNearBottom helper with 200px threshold
-        const nearBottom = isNearBottom(chatContainerRef.current, 200);
-
-        // Only auto-scroll if user is already near bottom or it's a new conversation
-        if (nearBottom || messages.length <= 2) {
-          // Task 4.3: Use scrollToElement helper for smooth scrolling
+          // Always scroll to bottom for new messages
+          // This ensures user can always see the latest message without scrolling
           scrollToElement(bottomRef.current, 'smooth', 'end');
-        }
-      });
+        });
+      }
     }
   }, [messages.length]);
 
@@ -1149,6 +1299,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     const userInput = inputValue; // Save before clearing
     setInputValue("");
 
+    // Force scroll to bottom after adding user message
+    requestAnimationFrame(() => {
+      if (bottomRef.current) {
+        scrollToElement(bottomRef.current, 'smooth', 'end');
+      }
+    });
+
     // Task 3.2: Set loading state but don't block input
     setIsLoading(true);
     setIsWaitingForAI(true);
@@ -1264,6 +1421,52 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         let buffer = '';
         let finalMeta: any = null;
 
+        // Enhanced auto-scroll during streaming: use interval to continuously scroll
+        // This ensures scrolling continues even if stream pauses between chunks
+        let scrollIntervalId: NodeJS.Timeout | null = null;
+        let lastContentLength = 0;
+        let isStreamingActive = true;
+        const SCROLL_INTERVAL_MS = 150; // Check and scroll every 150ms during streaming
+        const SCROLL_THROTTLE_MS = 100; // Throttle actual scroll calls
+        
+        let lastScrollTime = 0;
+        const scrollToBottomThrottled = () => {
+          const now = Date.now();
+          if (now - lastScrollTime >= SCROLL_THROTTLE_MS) {
+            lastScrollTime = now;
+            requestAnimationFrame(() => {
+              if (bottomRef.current) {
+                scrollToElement(bottomRef.current, 'smooth', 'end');
+              }
+            });
+          }
+        };
+
+        // Start continuous scrolling interval when streaming starts
+        // Use DOM observer to detect content changes instead of React state
+        scrollIntervalId = setInterval(() => {
+          if (!isStreamingActive) return;
+          
+          // Check DOM directly for content changes
+          // Find the last assistant message element
+          const chatContainer = document.querySelector('[data-chat-container]') || document;
+          const assistantMessages = chatContainer.querySelectorAll('[data-message-role="assistant"]');
+          const lastMessage = assistantMessages[assistantMessages.length - 1];
+          
+          if (lastMessage) {
+            const currentContentLength = lastMessage.textContent?.length || 0;
+            
+            // If content changed since last check, scroll
+            if (currentContentLength !== lastContentLength) {
+              lastContentLength = currentContentLength;
+              scrollToBottomThrottled();
+            } else if (currentContentLength > 0) {
+              // Even if no change, ensure we stay at bottom during active streaming
+              scrollToBottomThrottled();
+            }
+          }
+        }, SCROLL_INTERVAL_MS);
+
         const appendDelta = (delta: string) => {
           setMessages((prev) => {
             const next = prev.slice();
@@ -1271,31 +1474,58 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
             const idx = next.length - 1;
             if (idx >= 0 && next[idx]?.role === 'assistant') {
               next[idx] = { ...next[idx], content: (next[idx].content || '') + delta };
+              lastContentLength = next[idx].content?.length || 0;
             }
             return next;
           });
+          // Immediate scroll on new content
+          scrollToBottomThrottled();
         };
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const chunks = buffer.split('\n\n');
-          buffer = chunks.pop() || '';
-          for (const chunk of chunks) {
-            const lines = chunk.split('\n');
-            const eventLine = lines.find(l => l.startsWith('event: '));
-            const dataLine = lines.find(l => l.startsWith('data: '));
-            if (!dataLine) continue;
-            const event = eventLine ? eventLine.slice(7).trim() : '';
-            const dataStr = dataLine.slice(6).trim();
-            if (event === 'delta') {
-              try { const j = JSON.parse(dataStr); if (j.text) appendDelta(j.text); } catch {}
-            } else if (event === 'meta') {
-              try { finalMeta = JSON.parse(dataStr); } catch {}
-            } else if (event === 'error') {
-              throw new Error(dataStr);
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const chunks = buffer.split('\n\n');
+            buffer = chunks.pop() || '';
+            for (const chunk of chunks) {
+              const lines = chunk.split('\n');
+              const eventLine = lines.find(l => l.startsWith('event: '));
+              const dataLine = lines.find(l => l.startsWith('data: '));
+              if (!dataLine) continue;
+              const event = eventLine ? eventLine.slice(7).trim() : '';
+              const dataStr = dataLine.slice(6).trim();
+              if (event === 'delta') {
+                try { const j = JSON.parse(dataStr); if (j.text) appendDelta(j.text); } catch {}
+              } else if (event === 'meta') {
+                try { finalMeta = JSON.parse(dataStr); } catch {}
+              } else if (event === 'error') {
+                // Handle credit errors gracefully
+                if (dataStr.includes('Insufficient credits') || dataStr.includes('credits')) {
+                  const error = new Error('Je OpenRouter account heeft onvoldoende credits. Voeg credits toe via https://openrouter.ai/settings/credits');
+                  console.error('[OpenRouter] Credits error:', error.message);
+                  throw error;
+                }
+                // Handle "Provider returned error" - this can happen during model switching
+                // Log it but don't immediately fail - the stream might continue
+                if (dataStr.includes('Provider returned error') || dataStr.includes('Provider')) {
+                  console.warn('[OpenRouter] Provider error during stream (may continue):', dataStr);
+                  // Continue reading - might be a temporary error during model switch
+                  // Only throw if we don't get any successful content
+                  continue;
+                }
+                // For other errors, throw
+                throw new Error(dataStr);
+              }
             }
+          }
+        } finally {
+          // Always clean up scroll interval when streaming ends
+          isStreamingActive = false;
+          if (scrollIntervalId) {
+            clearInterval(scrollIntervalId);
+            scrollIntervalId = null;
           }
         }
 
@@ -1344,8 +1574,30 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
             }
           } catch (e) {
             console.warn('Failed to transition to lyrics generation', e);
+            // Show user-friendly error message
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: 'Er ging iets mis bij het starten van de lyrics generatie. Probeer het opnieuw.',
+              },
+            ]);
             // Continue - streaming still succeeded
           }
+
+          // Force scroll to bottom after streaming completes
+          // Use multiple attempts to ensure scroll works
+          requestAnimationFrame(() => {
+            if (bottomRef.current) {
+              scrollToElement(bottomRef.current, 'smooth', 'end');
+              // Also try after a short delay to catch any late content updates
+              setTimeout(() => {
+                if (bottomRef.current) {
+                  scrollToElement(bottomRef.current, 'smooth', 'end');
+                }
+              }, 100);
+            }
+          });
         }
 
         console.log('[DEBUG] Streaming succeeded!');
@@ -1395,6 +1647,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         content: "Sorry, er ging iets mis. Probeer het opnieuw.",
       };
       setMessages((prev) => [...prev, errorMessage]);
+      // Force scroll to bottom after error message
+      requestAnimationFrame(() => {
+        if (bottomRef.current) {
+          scrollToElement(bottomRef.current, 'smooth', 'end');
+        }
+      });
       return;
     }
 
@@ -1405,6 +1663,12 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         isRateLimited: true,
       };
       setMessages((prev) => [...prev, retryMessage]);
+      // Force scroll to bottom after rate limit message
+      requestAnimationFrame(() => {
+        if (bottomRef.current) {
+          scrollToElement(bottomRef.current, 'smooth', 'end');
+        }
+      });
       return;
     }
 
@@ -1420,6 +1684,13 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     };
 
     setMessages((prev) => [...prev, aiMessage]);
+    
+    // Force scroll to bottom after adding AI message
+    requestAnimationFrame(() => {
+      if (bottomRef.current) {
+        scrollToElement(bottomRef.current, 'smooth', 'end');
+      }
+    });
 
     setExtractedContext(data.extractedContext);
     setReadinessScore(data.readinessScore);
@@ -1566,40 +1837,48 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         throw new Error('User not authenticated');
       }
 
-      // Create song with generating_lyrics status
-      console.log('[DEBUG] Calling db.transact() to create song...');
-      await db.transact([
-        db.tx.songs[newSongId]
-          .update({
-            title: 'Jouw Liedje', // Temporary title, will be updated by Suno callback
-            status: 'generating_lyrics',
-            generationProgress: stringifyGenerationProgress({
-              lyricsTaskId: null, // Will be set by callback
-              lyricsStartedAt: Date.now(),
-              lyricsCompletedAt: null,
-              lyricsError: null,
-              lyricsRetryCount: 0,
-              musicTaskId: null,
-              musicStartedAt: null,
-              musicCompletedAt: null,
-              musicError: null,
-              musicRetryCount: 0,
-              rawCallback: null,
-            }),
-            prompt,
-            templateId: selectedTemplateId,
-            createdAt: Date.now(),
-          })
-          .link({
-            conversation: conversationId || undefined,
-            user: userId,
-          }),
-      ]);
+      // Create song without protected fields (status, generationProgress are in bind list)
+      // Protected fields can only be set via Admin SDK (server-side)
+      // The server will set status and generationProgress via webhook/callback
+      
+      if (!conversationId) {
+        throw new Error('Conversation ID is required to create a song');
+      }
+
+      // Always use mobile API route for song creation (both desktop and mobile)
+      // This ensures status can be set via Admin SDK and avoids permission errors
+      console.log('[DEBUG] Creating song via mobile API (always, even on desktop)...');
+      
+      try {
+        await mobileCreateSong({
+          songId: newSongId,
+          conversationId,
+          title: 'Jouw Liedje', // Temporary title, will be updated by Suno callback
+          // Lyrics is empty - will be set by webhook callback
+          lyrics: '',
+          musicStyle: '',
+          generationParams: songSettings,
+          templateId: selectedTemplateId || null,
+          prompt: prompt,
+          // Status will be set by server via Admin SDK (generating_lyrics)
+        });
+        console.log('[DEBUG] ✅ Song created via mobile API:', newSongId);
+      } catch (error: any) {
+        console.error("Failed to create song via mobile API:", error);
+        if (error?.message) {
+          console.error("Error message:", error.message);
+        }
+        if (error?.code) {
+          console.error("Error code:", error.code);
+        }
+        throw error; // Re-throw so caller can handle it
+      }
 
       console.log('[DEBUG] ✅ Song entity created:', newSongId);
 
       // Call Suno API (fire and forget - don't await)
-      const callbackUrl = `${getBaseUrl()}/api/suno/lyrics/callback?songId=${newSongId}`;
+      // Use getSunoCallbackUrl which respects SUNO_CALLBACK_URL for development
+      const callbackUrl = getSunoCallbackUrl('/api/suno/lyrics/callback', { songId: newSongId });
       console.log('[DEBUG] Callback URL:', callbackUrl);
 
       console.log('[DEBUG] Calling /api/suno/lyrics (fire-and-forget)...');
@@ -1609,10 +1888,38 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         body: JSON.stringify({
           prompt,
           callBackUrl: callbackUrl,
+          songId: newSongId, // Pass songId so taskId can be stored immediately
         }),
-      }).catch(error => {
+      })
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('[DEBUG] ⚠️ Suno lyrics request failed:', response.status, errorData);
+          // Song status will be updated to 'failed' by the API route
+        } else {
+          const data = await response.json();
+          console.log('[DEBUG] ✅ Suno lyrics request successful, taskId:', data.taskId);
+        }
+      })
+      .catch(error => {
         console.error('[DEBUG] ⚠️ Suno lyrics request error:', error);
-        // Error will be handled by callback timeout logic
+        // Update song status to failed if request fails completely
+        // This handles network errors, not API errors
+        if (isMobile) {
+          mobileUpdateSong(newSongId, {
+            status: 'failed',
+            errorMessage: error.message || 'Network error during lyrics generation',
+          }).catch((updateError: any) => {
+            console.error('[DEBUG] Failed to update song status:', updateError);
+          });
+        } else {
+          updateSongRecord(newSongId, {
+            status: 'failed',
+            errorMessage: error.message || 'Network error during lyrics generation',
+          }).catch((updateError: any) => {
+            console.error('[DEBUG] Failed to update song status:', updateError);
+          });
+        }
       });
 
       console.log('[DEBUG] ✅ Suno API called (fire-and-forget initiated)');
@@ -1637,6 +1944,86 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         variant: 'error',
       });
       throw error;
+    }
+  };
+
+  /**
+   * 🚧 DEBUG ONLY: Skip to lyrics generation with mock data
+   * This simulates the end of a conversation and triggers lyrics generation
+   */
+  const handleDebugSkipToLyrics = async () => {
+    console.log('[DEBUG] 🚧 Skip to lyrics generation (DEVELOPMENT ONLY)');
+    
+    try {
+      // Set mock extracted context
+      const mockContext: ExtractedContext = {
+        memories: ['Een verrassende kop koffie in de ochtend', 'Een moment van aandacht'],
+        emotions: ['verrast', 'dankbaar', 'geliefd'],
+        partnerTraits: ['attent', 'liefdevol', 'zorgzaam'],
+        relationshipLength: '2 jaar',
+        musicStyle: 'romantisch',
+        specialMoments: ['Onverwachte attentie', 'Kleine gebaren'],
+        language: 'Nederlands',
+        vocalGender: 'male',
+        vocalAge: 'young',
+        vocalDescription: 'Warme, emotionele stem',
+      };
+
+      setExtractedContext(mockContext);
+      console.log('[DEBUG] ✅ Mock context set');
+
+      // Set default template if none selected
+      if (!selectedTemplateId) {
+        setSelectedTemplateId('romantic-ballad');
+        console.log('[DEBUG] ✅ Default template selected: romantic-ballad');
+      }
+
+      // Ensure conversation exists (create if needed)
+      let activeConversationId = conversationId;
+      if (!activeConversationId) {
+        console.log('[DEBUG] Creating new conversation...');
+
+        // Create conversation in database
+        if (isMobile) {
+          const result = await mobileCreateConversation({
+            conversationPhase: 'gathering',
+            roundNumber: 0,
+            readinessScore: 0,
+            extractedContext: mockContext,
+            songSettings: songSettings,
+            selectedTemplateId: selectedTemplateId || 'romantic-ballad',
+          });
+          activeConversationId = result.conversation.id;
+          console.log('[DEBUG] ✅ Conversation created via mobile API:', activeConversationId);
+        } else {
+          activeConversationId = id();
+          await db.transact([
+            db.tx.conversations[activeConversationId].update({
+              createdAt: Date.now(),
+            }).link({ user: user?.user?.id }),
+          ]);
+          console.log('[DEBUG] ✅ Conversation created via InstantDB:', activeConversationId);
+        }
+        
+        setConversationId(activeConversationId);
+        console.log('[DEBUG] ✅ ConversationId set in state');
+      }
+
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Trigger lyrics generation
+      console.log('[DEBUG] 🎵 Calling generateLyrics()...');
+      await generateLyrics();
+      console.log('[DEBUG] ✅ Skip to lyrics completed!');
+
+    } catch (error: any) {
+      console.error('[DEBUG] ⚠️ Skip to lyrics failed:', error);
+      showToast({
+        title: 'Debug functie gefaald',
+        description: error.message || 'Probeer het opnieuw.',
+        variant: 'error',
+      });
     }
   };
 
@@ -1983,39 +2370,22 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
 
     if (!DEV_MODE) {
       try {
-        if (isMobile) {
-          await mobileCreateSong({
-            songId,
-            conversationId,
-            title,
-            lyrics,
-            musicStyle,
-            generationParams: generationPreferences,
-            templateId: selectedTemplateId || null,
-            lyricsSnippet,
-            status: "generating",
-            selectedVariantId: null,
-            updatedAt: now,
-            isPublic: false,
-          });
-        } else {
-          await db.transact([
-            db.tx.songs[songId]
-              .update({
-                title,
-                lyrics,
-                musicStyle,
-                generationParams: JSON.stringify(generationPreferences),
-                status: "generating",
-                createdAt: now,
-                updatedAt: now,
-                lyricsSnippet,
-                selectedVariantId: null,
-                isPublic: false,
-              })
-              .link({ conversation: conversationId, user: currentUser!.id }),
-          ]);
-        }
+        // Always use mobile API route for song creation (both desktop and mobile)
+        // This ensures status can be set via Admin SDK and avoids permission errors
+        await mobileCreateSong({
+          songId,
+          conversationId,
+          title,
+          lyrics,
+          musicStyle,
+          generationParams: generationPreferences,
+          templateId: selectedTemplateId || null,
+          lyricsSnippet,
+          status: "generating",
+          selectedVariantId: null,
+          updatedAt: now,
+          isPublic: false,
+        });
       } catch (error) {
         console.error("Failed to create song entity:", error);
         return;
@@ -2480,6 +2850,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       {/* Messages Area */}
       <div
         ref={chatContainerRef}
+        data-chat-container
         className={`flex-1 overflow-y-auto ${
           showCompactChat ? 'bg-white px-3 py-2' : 'bg-white/70 p-4'
         }`}
@@ -2492,6 +2863,32 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         }}
       >
         <div className={`mx-auto ${showCompactChat ? 'max-w-2xl space-y-3' : 'max-w-3xl space-y-4'}`}>
+          {/* 🚧 DEBUG: Skip to Lyrics Generation Button (Development Only) */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={handleDebugSkipToLyrics}
+                className="flex items-center gap-2 rounded-full border-2 border-orange-400 bg-gradient-to-r from-orange-50 to-yellow-50 px-4 py-2 text-sm font-semibold text-orange-700 shadow-md transition-all hover:from-orange-100 hover:to-yellow-100 hover:shadow-lg active:scale-95"
+              >
+                <span className="text-lg">🚧</span>
+                <span>DEBUG: Skip naar Lyrics</span>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+
           {messages.length === 0 && (
             <WelcomeAnimation
               title={strings.studio.welcomeTitle}
@@ -2510,9 +2907,10 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
                 {isLoadingMessages ? (
                   <>
                     <svg
-                      className="h-4 w-4 animate-spin text-gray-500"
+                      className="h-4 w-4 animate-spin"
                       fill="none"
                       viewBox="0 0 24 24"
+                      style={{ color: 'var(--color-secondary)' }}
                     >
                       <circle
                         className="opacity-25"
@@ -2528,7 +2926,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Laden...
+                    <span style={{ color: 'var(--color-secondary)' }}>Laden...</span>
                   </>
                 ) : (
                   <>
@@ -2583,20 +2981,111 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           {isLoading && (
             isMobile ? (
               <ChatBubble role="assistant" isTyping avatar={{ name: 'AI' }}>
-                {conversationPhase === 'generating' ? 'Lyrics worden gegenereerd…' : 'Schrijven…'}
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-secondary)',
+                        animationDelay: '0ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-primary)',
+                        animationDelay: '200ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-secondary)',
+                        animationDelay: '400ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                  </div>
+                  <span className="text-sm opacity-80">
+                    {conversationPhase === 'generating' ? 'Lyrics worden gegenereerd…' : 'Schrijven…'}
+                  </span>
+                </div>
               </ChatBubble>
             ) : (
               <div className="flex justify-start">
-                <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 px-3 py-2 shadow-sm md:px-4 md:py-3" aria-live="polite">
+                <div 
+                  className="rounded-2xl border-2 bg-white/98 backdrop-blur-sm px-4 py-3 shadow-md md:px-5 md:py-4" 
+                  aria-live="polite"
+                  style={{
+                    borderColor: 'rgba(32, 178, 170, 0.15)',
+                    boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 8px -1px rgba(32, 178, 170, 0.15)',
+                  }}
+                >
                   {conversationPhase === 'generating' ? (
-                    <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
-                      Lyrics worden gegenereerd...
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1.5">
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-secondary)',
+                            animationDelay: '0ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-primary)',
+                            animationDelay: '200ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-secondary)',
+                            animationDelay: '400ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                      </div>
+                      <p className="text-sm font-medium" style={{ color: 'var(--color-muted)' }}>
+                        Lyrics worden gegenereerd...
+                      </p>
+                    </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 animate-bounce rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                      <div className="h-2 w-2 animate-bounce rounded-full animation-delay-200" style={{ backgroundColor: 'var(--color-secondary)' }}></div>
-                      <div className="h-2 w-2 animate-bounce rounded-full animation-delay-400" style={{ backgroundColor: 'var(--color-primary)' }}></div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1.5">
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-secondary)',
+                            animationDelay: '0ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-primary)',
+                            animationDelay: '200ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                        <div 
+                          className="h-2.5 w-2.5 rounded-full animate-bounce"
+                          style={{
+                            backgroundColor: 'var(--color-secondary)',
+                            animationDelay: '400ms',
+                            animationDuration: '1.4s',
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium" style={{ color: 'var(--color-muted)' }}>
+                        Denken…
+                      </span>
                     </div>
                   )}
                 </div>
@@ -2607,16 +3096,76 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           {lyricsTaskId && (
             isMobile ? (
               <ChatBubble role="assistant" isTyping avatar={{ name: 'AI' }}>
-                Lyrics worden gegenereerd…
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-secondary)',
+                        animationDelay: '0ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-primary)',
+                        animationDelay: '200ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                    <div 
+                      className="h-2 w-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: 'var(--color-secondary)',
+                        animationDelay: '400ms',
+                        animationDuration: '1.4s',
+                      }}
+                    />
+                  </div>
+                  <span className="text-sm opacity-80">Lyrics worden gegenereerd…</span>
+                </div>
               </ChatBubble>
             ) : (
               <div className="flex justify-start">
-                <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 px-3 py-2 shadow-sm md:px-4 md:py-3" aria-live="polite">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 animate-bounce rounded-full" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                    <div className="h-2 w-2 animate-bounce rounded-full animation-delay-200" style={{ backgroundColor: 'var(--color-secondary)' }}></div>
-                    <div className="h-2 w-2 animate-bounce rounded-full animation-delay-400" style={{ backgroundColor: 'var(--color-primary)' }}></div>
-                    <span className="text-sm text-gray-600">Lyrics worden gegenereerd…</span>
+                <div 
+                  className="rounded-2xl border-2 bg-white/98 backdrop-blur-sm px-4 py-3 shadow-md md:px-5 md:py-4" 
+                  aria-live="polite"
+                  style={{
+                    borderColor: 'rgba(32, 178, 170, 0.15)',
+                    boxShadow: '0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 8px -1px rgba(32, 178, 170, 0.15)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      <div 
+                        className="h-2.5 w-2.5 rounded-full animate-bounce"
+                        style={{
+                          backgroundColor: 'var(--color-secondary)',
+                          animationDelay: '0ms',
+                          animationDuration: '1.4s',
+                        }}
+                      />
+                      <div 
+                        className="h-2.5 w-2.5 rounded-full animate-bounce"
+                        style={{
+                          backgroundColor: 'var(--color-primary)',
+                          animationDelay: '200ms',
+                          animationDuration: '1.4s',
+                        }}
+                      />
+                      <div 
+                        className="h-2.5 w-2.5 rounded-full animate-bounce"
+                        style={{
+                          backgroundColor: 'var(--color-secondary)',
+                          animationDelay: '400ms',
+                          animationDuration: '1.4s',
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium" style={{ color: 'var(--color-muted)' }}>
+                      Lyrics worden gegenereerd…
+                    </span>
                   </div>
                 </div>
               </div>
@@ -3013,7 +3562,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         isSubmitting={isParameterSheetSubmitting}
       />
 
-      {isMobile && !isKeyboardOpen ? <NavTabs /> : null}
+      {isMobile ? <NavTabs /> : null}
     </>
   );
 }

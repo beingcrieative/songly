@@ -46,6 +46,61 @@ export function getBaseUrl(): string {
 }
 
 /**
+ * Gets the callback URL for Suno API webhooks.
+ * 
+ * For development: Uses NEXT_PUBLIC_SUNO_CALLBACK_URL (client) or SUNO_CALLBACK_URL (server) from .env if set (e.g., ngrok URL)
+ * For production: Uses getBaseUrl() which detects Vercel or custom domain
+ *
+ * Priority order:
+ * 1. NEXT_PUBLIC_SUNO_CALLBACK_URL (client) / SUNO_CALLBACK_URL (server) (for development with ngrok/external URL)
+ * 2. NEXT_PUBLIC_BASE_URL (for custom domains)
+ * 3. VERCEL_URL (auto-detected on Vercel)
+ * 4. window.location.origin (client-side fallback)
+ * 5. localhost:3000 (server-side fallback)
+ *
+ * @param path - The API path to append (e.g., "/api/suno/lyrics/callback")
+ * @param queryParams - Optional query parameters as object
+ * @returns Full callback URL with path and query params
+ *
+ * @example
+ * ```typescript
+ * const callbackUrl = getSunoCallbackUrl('/api/suno/lyrics/callback', { songId: '123' });
+ * // Returns: "https://abc123.ngrok.io/api/suno/lyrics/callback?songId=123" (dev)
+ * // or: "https://songly-amber.vercel.app/api/suno/lyrics/callback?songId=123" (prod)
+ * ```
+ */
+export function getSunoCallbackUrl(path: string, queryParams?: Record<string, string>): string {
+  let baseUrl: string;
+
+  // 1. Check for explicit callback URL (for development with ngrok)
+  // Client-side: Use NEXT_PUBLIC_ prefix (exposed to browser)
+  // Server-side: Use regular env var (more secure)
+  const callbackUrl = typeof window !== 'undefined' 
+    ? process.env.NEXT_PUBLIC_SUNO_CALLBACK_URL
+    : process.env.SUNO_CALLBACK_URL;
+
+  if (callbackUrl) {
+    baseUrl = callbackUrl;
+    // Remove trailing slash if present
+    baseUrl = baseUrl.replace(/\/$/, '');
+  } else {
+    // 2. Use standard base URL detection
+    baseUrl = getBaseUrl();
+  }
+
+  // Build URL with path
+  let url = `${baseUrl}${path}`;
+
+  // Add query parameters if provided
+  if (queryParams && Object.keys(queryParams).length > 0) {
+    const params = new URLSearchParams(queryParams);
+    url += `?${params.toString()}`;
+  }
+
+  return url;
+}
+
+/**
  * Checks if the current environment is production.
  *
  * @returns True if running in production, false otherwise
