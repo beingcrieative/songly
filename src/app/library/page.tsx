@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
@@ -32,6 +32,7 @@ interface CurrentPlaybackState {
 
 export default function LibraryPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = db.useAuth();
   const userId = auth.user?.id;
   const { strings } = useI18n();
@@ -109,6 +110,43 @@ export default function LibraryPage() {
       trackLibraryOpen({ userId });
     }
   }, [userId]);
+
+  // Handle notification deep links: auto-open song if songId in URL
+  useEffect(() => {
+    const songId = searchParams.get('songId');
+    if (!songId || !songs.length) return;
+
+    // Find the song by ID
+    const song = songs.find((s: any) => s.id === songId);
+    if (!song) return;
+
+    // If lyrics are ready, auto-open the lyrics choice modal
+    if (song.status === 'lyrics_ready' && song.lyricsVariants) {
+      setSelectedSongForLyrics(song);
+      setLyricsModalOpen(true);
+
+      // Clear the songId from URL to prevent re-opening on refresh
+      const url = new URL(window.location.href);
+      url.searchParams.delete('songId');
+      window.history.replaceState({}, '', url.toString());
+    }
+    // If music is ready, auto-play the first variant
+    else if (song.status === 'ready' && song.sunoVariants?.length > 0) {
+      const variant = song.sunoVariants[0];
+      handlePlay(song.id, {
+        trackId: variant.trackId,
+        streamAudioUrl: variant.streamAudioUrl,
+        audioUrl: variant.audioUrl,
+        title: song.title,
+        imageUrl: variant.imageUrl,
+      });
+
+      // Clear the songId from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('songId');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams, songs]);
 
   const handleChooseLyrics = (song: any) => {
     setSelectedSongForLyrics(song);
