@@ -131,8 +131,8 @@ export default function LibraryPage() {
       window.history.replaceState({}, '', url.toString());
     }
     // If music is ready, auto-play the first variant
-    else if (song.status === 'ready' && song.sunoVariants?.length > 0) {
-      const variant = song.sunoVariants[0];
+    else if (song.status === 'ready' && song.variants?.length > 0) {
+      const variant = song.variants[0];
       handlePlay(song.id, {
         trackId: variant.trackId,
         streamAudioUrl: variant.streamAudioUrl,
