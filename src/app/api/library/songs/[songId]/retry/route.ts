@@ -4,6 +4,7 @@ import {
   parseGenerationProgress,
   stringifyGenerationProgress,
 } from '@/types/generation';
+import { getBaseUrl } from '@/lib/utils/getDeploymentUrl';
 
 export async function POST(
   req: NextRequest,
@@ -85,9 +86,7 @@ export async function POST(
     ]);
 
     // Call appropriate API
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
 
     let taskId: string;
     if (phase === 'lyrics') {

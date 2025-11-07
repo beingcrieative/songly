@@ -6,6 +6,7 @@ import {
   parseGenerationProgress,
   stringifyGenerationProgress,
 } from '@/types/generation';
+import { getBaseUrl } from '@/lib/utils/getDeploymentUrl';
 
 export async function POST(
   req: NextRequest,
@@ -80,11 +81,18 @@ export async function POST(
     ]);
 
     // Start music generation
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
+    const sunoUrl = `${baseUrl}/api/suno`;
 
-    const musicRes = await fetch(`${baseUrl}/api/suno`, {
+    console.log('[Select Lyrics] Starting music generation:', {
+      songId,
+      baseUrl,
+      sunoUrl,
+      title: song.title,
+      lyricsLength: updatedVariants[variantIndex].text?.length,
+    });
+
+    const musicRes = await fetch(sunoUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -97,7 +105,21 @@ export async function POST(
     });
 
     if (!musicRes.ok) {
-      throw new Error('Failed to start music generation');
+      const errorText = await musicRes.text();
+      let errorMessage = 'Failed to start music generation';
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        errorMessage = errorText || errorMessage;
+      }
+      console.error('[Select Lyrics] Music generation failed:', {
+        status: musicRes.status,
+        statusText: musicRes.statusText,
+        error: errorMessage,
+        response: errorText,
+      });
+      throw new Error(errorMessage);
     }
 
     const musicData = await musicRes.json();
