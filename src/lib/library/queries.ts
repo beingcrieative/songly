@@ -246,12 +246,26 @@ export function useMobileLibrarySongs(userId: string | undefined, options: Libra
   React.useEffect(() => {
     fetchSongs();
 
-    // Poll every 5 seconds for updates
+    // Poll every 10 seconds, only when page is visible
     const intervalId = setInterval(() => {
-      fetchSongs();
-    }, 5000);
+      if (document.visibilityState === 'visible') {
+        fetchSongs();
+      }
+    }, 10000); // 10 seconds instead of 5
 
-    return () => clearInterval(intervalId);
+    // Also fetch when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSongs();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchSongs, refreshCount]);
 
   return { data, isLoading, error, refresh: () => setRefreshCount(c => c + 1) };
@@ -304,12 +318,26 @@ export function useMobileLibraryConversations(userId: string | undefined, option
   React.useEffect(() => {
     fetchConversations();
 
-    // Poll every 5 seconds for updates
+    // Poll every 10 seconds, only when page is visible
     const intervalId = setInterval(() => {
-      fetchConversations();
-    }, 5000);
+      if (document.visibilityState === 'visible') {
+        fetchConversations();
+      }
+    }, 10000); // 10 seconds instead of 5
 
-    return () => clearInterval(intervalId);
+    // Also fetch when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchConversations();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchConversations, refreshCount]);
 
   return { data, isLoading, error, refresh: () => setRefreshCount(c => c + 1) };
