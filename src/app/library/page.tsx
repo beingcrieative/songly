@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import NavTabs from "@/components/mobile/NavTabs";
-import { useLibrarySongs, useLibraryConversations } from "@/lib/library/queries";
+import { useMobileLibrarySongs, useMobileLibraryConversations } from "@/lib/library/queries";
 import { sortSongsByPriority } from "@/lib/library/sorting";
 import SongCard from "./components/SongCard";
 import ConversationCard from "./components/ConversationCard";
@@ -133,13 +133,13 @@ export default function LibraryPage() {
   const [lyricsModalOpen, setLyricsModalOpen] = useState(false);
   const [selectedSongForLyrics, setSelectedSongForLyrics] = useState<any>(null);
 
-  const songsQuery = useLibrarySongs(userId, {
+  const songsQuery = useMobileLibrarySongs(userId, {
     search: songSearch,
     status: songStatus as any,
     sort: songSort as any,
   });
 
-  const conversationsQuery = useLibraryConversations(userId, {
+  const conversationsQuery = useMobileLibraryConversations(userId, {
     search: conversationSearch,
     status: conversationStatus as any,
     sort: conversationSort as any,
