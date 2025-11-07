@@ -59,6 +59,14 @@ export async function GET(request: NextRequest) {
         break;
     }
 
+    console.log('[Mobile Library Conversations] Querying with:', {
+      userId: session.userId,
+      where,
+      order,
+      limit,
+      offset,
+    });
+
     // Query conversations with messages
     const { conversations } = await admin.query({
       conversations: {
@@ -82,11 +90,21 @@ export async function GET(request: NextRequest) {
       status,
       sort,
       search,
+      firstConversation: conversations?.[0] ? {
+        id: conversations[0].id,
+        conceptTitle: conversations[0].conceptTitle,
+        conversationPhase: conversations[0].conversationPhase,
+      } : null,
     });
 
     return NextResponse.json({ conversations: conversations || [] });
   } catch (error: any) {
-    console.error("[Mobile Library Conversations] Query failed:", error);
+    console.error("[Mobile Library Conversations] Query failed:", {
+      error: error.message,
+      status: error.status,
+      body: error.body,
+      stack: error.stack,
+    });
     return NextResponse.json(
       { error: error?.message || "Failed to fetch conversations" },
       { status: 500 }
