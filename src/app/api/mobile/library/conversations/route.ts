@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
         break;
       case 'recent':
       default:
-        order = { updatedAt: 'desc' };
+        // Use createdAt instead of updatedAt as a workaround for InstantDB schema caching
+        order = { createdAt: 'desc' };
         break;
     }
 
