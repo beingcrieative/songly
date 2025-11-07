@@ -157,8 +157,15 @@ export async function POST(request: NextRequest) {
     // Get callback URL - supports both explicit env var and auto-detection on Vercel
     const callbackUrl = getSunoCallbackUrl(songId);
 
+    console.log('[Suno API] Callback URL construction:', {
+      SUNO_CALLBACK_URL: process.env.SUNO_CALLBACK_URL ? 'set' : 'not set',
+      VERCEL_URL: process.env.VERCEL_URL || 'not set',
+      callbackUrl,
+      songId,
+    });
+
     // Validate that we have a callback URL
-    if (!callbackUrl || callbackUrl.includes('localhost') && !process.env.SUNO_CALLBACK_URL) {
+    if (!callbackUrl || (callbackUrl.includes('localhost') && !process.env.SUNO_CALLBACK_URL)) {
       console.warn('No production callback URL configured. Suno callbacks may not work.');
       // Don't block in development, but warn
       if (process.env.NODE_ENV === 'production') {

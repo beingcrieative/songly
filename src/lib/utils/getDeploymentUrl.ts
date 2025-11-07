@@ -28,11 +28,36 @@ export function getBaseUrl(): string {
  * Server-side only
  */
 export function getSunoCallbackUrl(songId?: string): string {
-  const baseUrl = process.env.SUNO_CALLBACK_URL ||
-                  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-                  'http://localhost:3000';
-
   const callbackPath = '/api/suno/callback';
+  
+  // If SUNO_CALLBACK_URL is set, check if it already includes the path
+  if (process.env.SUNO_CALLBACK_URL) {
+    const envUrl = process.env.SUNO_CALLBACK_URL.trim();
+    // Check if URL already ends with the callback path (with or without query string)
+    const urlWithoutQuery = envUrl.split('?')[0];
+    const normalizedUrl = urlWithoutQuery.endsWith('/') ? urlWithoutQuery.slice(0, -1) : urlWithoutQuery;
+    
+    if (normalizedUrl.endsWith(callbackPath)) {
+      // URL already includes the callback path - use it as-is, just add songId if needed
+      const baseUrl = envUrl.split('?')[0]; // Remove existing query params
+      const baseUrlNormalized = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      return songId
+        ? `${baseUrlNormalized}?songId=${encodeURIComponent(songId)}`
+        : baseUrlNormalized;
+    }
+    // Otherwise, treat it as a base URL and append the path
+    const baseUrl = envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+    const fullUrl = baseUrl + callbackPath;
+    return songId
+      ? `${fullUrl}?songId=${encodeURIComponent(songId)}`
+      : fullUrl;
+  }
+
+  // Auto-detect from VERCEL_URL or use localhost
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000';
+  
   const fullUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) + callbackPath : baseUrl + callbackPath;
 
   return songId
