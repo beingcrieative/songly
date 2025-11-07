@@ -178,6 +178,21 @@ export async function POST(request: NextRequest) {
 
     if (!targetSongId || !song) {
       console.warn("⚠️ No song found for songId:", songIdFromUrl, "or taskId:", taskId);
+      console.warn("⚠️ Searching all songs with sunoTaskId to debug...");
+      try {
+        const allSongs = await adminDb.query({
+          songs: {
+            $: { where: { sunoTaskId: { $ne: null } } } as any,
+          },
+        });
+        console.warn("⚠️ Found songs with sunoTaskId:", allSongs.songs?.map((s: any) => ({
+          id: s.id,
+          sunoTaskId: s.sunoTaskId,
+          status: s.status,
+        })));
+      } catch (e) {
+        console.error("Error searching songs:", e);
+      }
       return NextResponse.json(
         { ok: false, error: "Song not found" },
         { status: 200 } // Task 2.2.5: Always return 200
@@ -255,7 +270,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 6.2-6.7: Handle progressive loading timestamps
-    const now = Date.now();
+    const callbackTimestamp = Date.now();
     const variantTx = normalizedTracks.map((track: any) => {
       const updateData: any = {
         songId: targetSongId,
@@ -276,12 +291,12 @@ export async function POST(request: NextRequest) {
 
       // Task 6.4, 6.5: Set streamAvailableAt when streaming URL is available
       if (callbackType === 'first' && track.streamAudioUrl) {
-        updateData.streamAvailableAt = now;
+        updateData.streamAvailableAt = callbackTimestamp;
       }
 
       // Task 6.6, 6.7: Set downloadAvailableAt when download URL is available
       if (callbackType === 'complete' && track.audioUrl) {
-        updateData.downloadAvailableAt = now;
+        updateData.downloadAvailableAt = callbackTimestamp;
       }
 
       return adminDb.tx.sunoVariants[track.trackId]
@@ -322,20 +337,50 @@ export async function POST(request: NextRequest) {
       errorMessage: null,
       sunoTaskId: taskId || null,
       generationProgress: stringifyGenerationProgress(updatedProgress),
-      updatedAt: Date.now(),
+      updatedAt: callbackTimestamp, // Always update timestamp when callback is processed
     });
 
     await adminDb.transact([...variantTx, songUpdate]);
 
     console.log('✅ Updated song with music tracks');
+    console.log('   Song ID:', targetSongId);
     console.log('   Status:', isComplete ? 'ready' : 'generating');
     console.log('   Callback type:', callbackType);
     console.log('   Tracks:', normalizedTracks.length);
+    console.log('   Variants created/updated:', variantTx.length);
     if (isComplete) {
       console.log('   Completed at:', new Date(updatedProgress.musicCompletedAt!).toISOString());
     }
     console.log('   Primary track audio:', primaryTrack?.audioUrl ? 'yes' : 'no');
     console.log('   Primary track stream:', primaryTrack?.streamAudioUrl ? 'yes' : 'no');
+    console.log('   Primary track details:', {
+      trackId: primaryTrack?.trackId,
+      audioUrl: primaryTrack?.audioUrl ? 'present' : 'missing',
+      streamAudioUrl: primaryTrack?.streamAudioUrl ? 'present' : 'missing',
+      title: primaryTrack?.title,
+    });
+    
+    // Verify the update worked
+    try {
+      const verify = await adminDb.query({
+        songs: {
+          $: { where: { id: targetSongId } } as any,
+          variants: {},
+        },
+      });
+      const updatedSong = verify.songs?.[0];
+      console.log('   ✅ Verification - Song status:', updatedSong?.status);
+      console.log('   ✅ Verification - Variants count:', updatedSong?.variants?.length || 0);
+      if (updatedSong?.variants?.length > 0) {
+        console.log('   ✅ Verification - First variant:', {
+          trackId: updatedSong.variants[0]?.trackId,
+          audioUrl: updatedSong.variants[0]?.audioUrl ? 'present' : 'missing',
+          streamAudioUrl: updatedSong.variants[0]?.streamAudioUrl ? 'present' : 'missing',
+        });
+      }
+    } catch (e) {
+      console.error('   ⚠️ Verification query failed:', e);
+    }
 
     // Task 2.2.4: Send push notification (fire-and-forget)
     if (isComplete) {
