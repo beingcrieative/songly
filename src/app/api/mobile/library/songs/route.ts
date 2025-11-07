@@ -62,14 +62,20 @@ export async function GET(request: NextRequest) {
         break;
     }
 
+    // For "action" sort, we need all songs to sort client-side
+    // For other sorts, we can use limit/offset
+    const shouldFetchAll = sort === 'action';
+    const queryLimit = shouldFetchAll ? 1000 : limit; // Fetch more for action sort
+    const queryOffset = shouldFetchAll ? 0 : offset;
+
     // Query songs with variants, user, and conversation
     const { songs } = await admin.query({
       songs: {
         $: {
           where,
           order,
-          limit,
-          offset,
+          limit: queryLimit,
+          offset: queryOffset,
         } as any,
         variants: {
           $: {
@@ -81,12 +87,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Log detailed info for debugging
+    const songsWithTimestamps = (songs || []).map((s: any) => ({
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : null,
+      createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : null,
+      variantsCount: s.variants?.length || 0,
+    }));
+
     console.log('[Mobile Library Songs] Query result:', {
       userId: session.userId,
       count: songs?.length || 0,
       status,
       sort,
       search,
+      limit: queryLimit,
+      offset: queryOffset,
+      shouldFetchAll,
+      firstSong: songsWithTimestamps[0],
+      lastSong: songsWithTimestamps[songsWithTimestamps.length - 1],
     });
 
     return NextResponse.json({ songs: songs || [] });
