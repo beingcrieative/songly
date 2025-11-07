@@ -96,7 +96,7 @@ const _schema = i.schema({
       prompt: i.string().optional(),
       tags: i.string().optional(),
       createdAt: i.number().indexed().optional(),
-      order: i.number().optional(),
+      order: i.number().indexed().optional(),
       // Task 5.3, 5.4: Progressive loading timestamps
       streamAvailableAt: i.number().optional(), // Timestamp when streaming URL became available
       downloadAvailableAt: i.number().optional(), // Timestamp when download URL became available
