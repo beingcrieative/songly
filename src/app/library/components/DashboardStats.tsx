@@ -27,19 +27,19 @@ export default function DashboardStats({
     highlighted?: boolean;
   }) => (
     <div
-      className={`flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-4 shadow-sm transition ${
+      className={`flex min-w-[158px] flex-1 flex-col gap-2 rounded-2xl p-4 transition ${
         highlighted
-          ? "border border-[var(--color-library-primary)]/50 bg-gradient-to-br from-[var(--color-library-primary)]/10 to-[var(--color-library-accent)]/5"
-          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+          ? "bg-[#F9FAFB] border border-[#F9FAFB]"
+          : "bg-[#F9FAFB]"
       }`}
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-[#6B7280]">
           {label}
         </p>
-        <span className="text-2xl">{icon}</span>
+        <span className={`text-lg ${highlighted ? 'text-[#A855F7]' : 'text-[#84CC16]'}`}>{icon}</span>
       </div>
-      <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+      <p className="mt-4 text-4xl font-semibold text-[#262626]">
         {value}
       </p>
     </div>

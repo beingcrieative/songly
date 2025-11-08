@@ -67,39 +67,25 @@ export default function ActionRequiredSection({
           {actionItems.map((item) => (
             <div
               key={item.id}
-              className="flex flex-col gap-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition"
+              className="flex items-center justify-between rounded-2xl bg-[#F9FAFB] p-4 text-[#262626]"
             >
-              <div className="flex items-start gap-4">
-                {item.imageUrl && (
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="h-16 w-16 rounded-lg object-cover shrink-0"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">
-                    {item.title}
-                  </h3>
-                  <span
-                    className={`inline-block mt-1 px-2 py-1 rounded text-xs font-semibold uppercase ${getStatusBadgeColor(
-                      item.status
-                    )}`}
-                  >
-                    {item.status === "lyrics_ready"
-                      ? "Klaar om te kiezen"
-                      : item.status === "failed"
-                      ? "Mislukt"
-                      : item.status}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleActionClick(item)}
-                  className="rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg shrink-0"
-                >
-                  {getActionLabel(item.status)}
-                </button>
+              <div>
+                <p className="text-sm font-medium text-[#6B7280]">{item.title || "Your Song"}</p>
+                <span className="mt-1 inline-block rounded-md bg-[#84CC16]/80 px-2 py-1 text-xs font-semibold uppercase tracking-wider text-white">
+                  {item.status === "lyrics_ready"
+                    ? "Ready to Choose"
+                    : item.status === "failed"
+                    ? "Failed"
+                    : item.status}
+                </span>
               </div>
+              <button
+                onClick={() => handleActionClick(item)}
+                className="flex items-center gap-1 text-sm font-semibold text-[#84CC16]"
+              >
+                {getActionLabel(item.status)}
+                <span className="text-base">→</span>
+              </button>
             </div>
           ))}
         </div>

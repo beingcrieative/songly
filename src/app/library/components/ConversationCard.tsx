@@ -58,26 +58,26 @@ function ConversationCardComponent({
   }, [onDelete]);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+    <div className="flex flex-col gap-3 rounded-2xl bg-[#F9FAFB] p-4 transition hover:shadow-sm">
       {/* Horizontal layout: image (left), content (center), action (right) */}
       <div className="flex items-start gap-4">
         {/* Cover image placeholder */}
-        <div className="h-16 w-16 shrink-0 rounded-lg bg-gradient-to-br from-[var(--color-library-primary)]/20 to-[var(--color-library-accent)]/20 flex items-center justify-center text-2xl">
+        <div className="h-16 w-16 shrink-0 rounded-lg bg-[#E5E7EB] flex items-center justify-center text-2xl">
           💬
         </div>
 
         {/* Content section */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-slate-900 truncate">
+          <h3 className="text-base font-semibold text-[#262626] truncate">
             {title || conceptLyrics?.title || "Concept lyrics"}
           </h3>
-          <p className="text-xs uppercase tracking-wide text-slate-500 mt-1">{phaseLabel}</p>
+          <p className="text-xs uppercase tracking-wide text-[#6B7280] mt-1">{phaseLabel}</p>
         </div>
 
         {/* Action arrow */}
         <button
           onClick={onOpen}
-          className="shrink-0 text-slate-400 hover:text-slate-600 transition"
+          className="shrink-0 text-[#6B7280] hover:text-[#262626] transition"
           aria-label="Open conversation"
         >
           →
@@ -116,7 +116,7 @@ function ConversationCardComponent({
         <button
           type="button"
           onClick={onOpen}
-          className="flex-1 rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg"
+          className="flex-1 rounded-full bg-[#84CC16] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#65A30D]"
           aria-label={`Continue conversation: ${title || 'Untitled'}`}
         >
           Continue
@@ -126,10 +126,10 @@ function ConversationCardComponent({
             type="button"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="rounded-full border border-rose-100 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full border border-[#FEE2E2] px-3 py-2 text-xs font-semibold text-[#DC2626] transition hover:border-[#FECACA] hover:bg-[#FEF2F2] disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Delete conversation"
           >
-            {isDeleting ? "Verwijderen…" : "Verwijderen"}
+            {isDeleting ? "..." : "×"}
           </button>
         )}
       </div>

@@ -18,13 +18,13 @@ export default function SectionHeader({
   className = "",
 }: SectionHeaderProps) {
   return (
-    <div className={`flex items-center justify-between px-4 pb-3 pt-5 ${className}`}>
+    <div className={`flex items-center justify-between mb-4 ${className}`}>
       <div className="flex-1">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight tracking-tight">
+        <h2 className="text-xl font-bold text-[#262626] leading-tight tracking-tight">
           {title}
         </h2>
         {subtitle && (
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+          <p className="text-sm text-[#6B7280] mt-1">
             {subtitle}
           </p>
         )}
@@ -32,7 +32,7 @@ export default function SectionHeader({
       {action && (
         <button
           onClick={action.onClick}
-          className="ml-4 rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:shadow-lg flex items-center gap-2"
+          className="ml-4 rounded-full bg-[#84CC16] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#65A30D] flex items-center gap-2"
         >
           {action.icon && <span>{action.icon}</span>}
           {action.label}

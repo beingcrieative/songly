@@ -394,7 +394,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
+    <div className="min-h-screen bg-white">
       {/* Notification Deep Link Handler - wrapped in Suspense for useSearchParams() */}
       <Suspense fallback={null}>
         <NotificationHandler
@@ -407,25 +407,25 @@ export default function LibraryPage() {
         />
       </Suspense>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 md:py-12">
+      <main className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-8 pb-24">
         {/* Header Section */}
-        <header className="flex flex-col gap-3" role="banner">
+        <header className="mb-2" role="banner">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">{strings.library.title}</h1>
-            <p className="text-sm text-slate-600 md:text-base">
+            <h1 className="text-3xl font-bold text-[#262626]">{strings.library.title}</h1>
+            <p className="text-[#6B7280]">
               {strings.library.description}
             </p>
           </div>
         </header>
 
         {/* Dashboard Stats Section */}
-        <section aria-labelledby="stats-heading" className="flex flex-col gap-4">
+        <section aria-labelledby="stats-heading" className="mb-6">
           <h2 id="stats-heading" className="sr-only">Bibliotheek statistieken</h2>
           <DashboardStats songs={songs} conversations={conversations} />
         </section>
 
         {/* Action Required Section */}
-        <section aria-labelledby="action-heading" className="flex flex-col gap-4">
+        <section aria-labelledby="action-heading">
           <h2 id="action-heading" className="sr-only">Acties vereist</h2>
           <ActionRequiredSection
             songs={songs}
@@ -464,7 +464,7 @@ export default function LibraryPage() {
             placeholder={strings.library.searchSongsPlaceholder}
             aria-label="Filters voor liedjes"
           />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="flex flex-col gap-3">
             {songCards.length ? songCards : <EmptyStateComponent title="Geen liedjes" message={strings.library.emptySongs} />}
           </div>
         </section>
@@ -487,7 +487,7 @@ export default function LibraryPage() {
             placeholder="Zoek gesprekken..."
             aria-label="Filters voor gesprekken"
           />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="flex flex-col gap-3">
             {conversationCards.length ? conversationCards : <EmptyStateComponent title="Geen gesprekken" message="Nog geen gesprekken opgeslagen" />}
           </div>
         </section>
