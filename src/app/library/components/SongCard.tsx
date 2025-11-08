@@ -1,9 +1,11 @@
 "use client";
 
+import { memo, useMemo, useCallback } from "react";
 import { createSnippet } from "@/lib/library/utils";
 import SongStatusBadge from "@/components/SongStatusBadge";
 import { parseGenerationProgress } from "@/types/generation";
 import type { SongStatus } from "@/types/generation";
+import ProgressBar from "./ProgressBar";
 
 interface SongVariant {
   trackId: string;
@@ -122,7 +124,7 @@ function getMetadataText(
   return 'Bijgewerkt onbekend';
 }
 
-export function SongCard({
+function SongCardComponent({
   song,
   onPlay,
   onOpen,
@@ -133,21 +135,27 @@ export function SongCard({
   onRetry,
   actionState,
 }: SongCardProps) {
-  const variants = song.variants || [];
-  const selectedVariant = variants.find((v) => v.trackId === song.selectedVariantId) || variants[0];
-  const snippet = createSnippet(song.lyricsSnippet, 140);
-  const hasAudio = !!(selectedVariant?.streamAudioUrl || selectedVariant?.audioUrl);
-  const primaryCTA = getPrimaryCTA(song.status, hasAudio);
-  const metadataText = getMetadataText(song);
-  const progress = parseGenerationProgress(song.generationProgress);
+  const variants = useMemo(() => song.variants || [], [song.variants]);
+  const selectedVariant = useMemo(
+    () => variants.find((v) => v.trackId === song.selectedVariantId) || variants[0],
+    [variants, song.selectedVariantId]
+  );
+  const snippet = useMemo(() => createSnippet(song.lyricsSnippet, 140), [song.lyricsSnippet]);
+  const hasAudio = useMemo(
+    () => !!(selectedVariant?.streamAudioUrl || selectedVariant?.audioUrl),
+    [selectedVariant]
+  );
+  const primaryCTA = useMemo(() => getPrimaryCTA(song.status, hasAudio), [song.status, hasAudio]);
+  const metadataText = useMemo(() => getMetadataText(song), [song.status, song.updatedAt, song.lastViewedAt, song.generationProgress]);
+  const progress = useMemo(() => parseGenerationProgress(song.generationProgress), [song.generationProgress]);
 
-  const handlePlay = () => {
+  const handlePlay = useCallback(() => {
     if (selectedVariant) {
       onPlay(selectedVariant);
     }
-  };
+  }, [selectedVariant, onPlay]);
 
-  const handlePrimaryAction = () => {
+  const handlePrimaryAction = useCallback(() => {
     switch (primaryCTA.action) {
       case 'play':
         handlePlay();
@@ -162,7 +170,7 @@ export function SongCard({
         onOpen();
         break;
     }
-  };
+  }, [primaryCTA.action, handlePlay, onChooseLyrics, onRetry, onOpen]);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/90 shadow-sm transition hover:shadow-md">
@@ -212,6 +220,20 @@ export function SongCard({
               ))}
             </select>
           </label>
+        )}
+
+        {/* Progress indicator for generating songs */}
+        {(song.status === 'generating_lyrics' || song.status === 'generating_music') && (
+          <div className="flex items-center gap-2">
+            <div className="animate-spin">⚡</div>
+            <ProgressBar
+              value={50}
+              label={song.status === 'generating_lyrics' ? 'Tekst genereren' : 'Muziek genereren'}
+              showPercentage={false}
+              color="primary"
+              className="flex-1"
+            />
+          </div>
         )}
 
         {/* Error display for failed state */}
@@ -284,5 +306,8 @@ export function SongCard({
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const SongCard = memo(SongCardComponent);
 
 export default SongCard;

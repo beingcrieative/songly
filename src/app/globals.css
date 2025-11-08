@@ -22,6 +22,13 @@
   --radius-xl: 24px;
   --radius-lg: 16px;
   --radius-md: 12px;
+  /* Library redesign gradient system (PRD-0019) */
+  --gradient-library-primary: linear-gradient(135deg, #6A11CB 0%, #FF00A5 50%, #f43e47 100%);
+  --gradient-library-card: linear-gradient(135deg, rgba(106, 17, 203, 0.1) 0%, rgba(255, 0, 165, 0.05) 100%);
+  --gradient-library-progress: linear-gradient(90deg, #6A11CB 0%, #FF00A5 100%);
+  --color-library-accent: #FF00A5;
+  --color-library-primary: #6A11CB;
+  --color-library-secondary: #f43e47;
 }
 
 :root[data-visual-refresh='false'] {
@@ -397,4 +404,114 @@ input[type="range"]:active::-moz-range-thumb {
 /* Safe-area helpers for mobile */
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Library redesign animations and transitions (Task 8.0) */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes card-hover {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes progress-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--progress-value, 100%);
+  }
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-card-enter {
+  animation: card-enter 0.3s ease-out forwards;
+}
+
+.animate-card-hover {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.animate-card-hover:hover {
+  animation: card-hover 0.2s ease-out forwards;
+}
+
+.animate-progress-fill {
+  animation: progress-fill 0.6s ease-out forwards;
+}
+
+/* Skeleton loading animation */
+.skeleton-loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 75%
+  );
+  background-size: 1000px 100%;
+  animation: skeleton-loading 2s infinite;
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all 0.2s ease-out;
+}
+
+/* Smooth fade transitions for sections */
+section {
+  animation: fade-in 0.4s ease-out;
+}
+
+/* Smooth grid transitions */
+.grid {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Smooth text transitions */
+h1, h2, h3, h4, h5, h6, p {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Dark mode smooth transitions */
+@media (prefers-color-scheme: dark) {
+  body {
+    transition: background-color 0.3s ease-out, color 0.3s ease-out;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .insetb-safe { bottom: env(safe-area-inset-bottom); }

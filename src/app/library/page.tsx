@@ -21,6 +21,11 @@ import {
   trackGenerationRetry,
 } from "@/lib/analytics/events";
 import { useI18n } from "@/providers/I18nProvider";
+import DashboardStats from "./components/DashboardStats";
+import ActionRequiredSection from "./components/ActionRequiredSection";
+import RecentlyActiveSection from "./components/RecentlyActiveSection";
+import SectionHeader from "./components/SectionHeader";
+import EmptyStateComponent from "./components/EmptyState";
 
 interface CurrentPlaybackState {
   id: string;
@@ -402,19 +407,51 @@ export default function LibraryPage() {
         />
       </Suspense>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
-        <header className="flex flex-col gap-3">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 md:py-12">
+        {/* Header Section */}
+        <header className="flex flex-col gap-3" role="banner">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{strings.library.title}</h1>
-            <p className="text-sm text-slate-600">
+            <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">{strings.library.title}</h1>
+            <p className="text-sm text-slate-600 md:text-base">
               {strings.library.description}
             </p>
           </div>
         </header>
 
+        {/* Dashboard Stats Section */}
+        <section aria-labelledby="stats-heading" className="flex flex-col gap-4">
+          <h2 id="stats-heading" className="sr-only">Bibliotheek statistieken</h2>
+          <DashboardStats songs={songs} conversations={conversations} />
+        </section>
+
+        {/* Action Required Section */}
+        <section aria-labelledby="action-heading" className="flex flex-col gap-4">
+          <h2 id="action-heading" className="sr-only">Acties vereist</h2>
+          <ActionRequiredSection
+            songs={songs}
+            conversations={conversations}
+            onChooseLyrics={handleChooseLyrics}
+            onRetry={handleRetry}
+          />
+        </section>
+
+        {/* Recently Active Section */}
+        <section aria-labelledby="recent-heading" className="flex flex-col gap-4">
+          <h2 id="recent-heading" className="sr-only">Recente activiteit</h2>
+          <RecentlyActiveSection
+            songs={songs}
+            conversations={conversations}
+            onOpenSong={(songId) => router.push(`/studio?songId=${songId}`)}
+            onOpenConversation={(conversationId) => router.push(`/studio?conversationId=${conversationId}`)}
+          />
+        </section>
+
         {/* Songs Section */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-slate-900">Liedjes</h2>
+        <section aria-labelledby="songs-heading" className="flex flex-col gap-4">
+          <SectionHeader
+            title="Liedjes"
+            subtitle={`${songs.length} ${songs.length === 1 ? 'liedje' : 'liedjes'}`}
+          />
           <Filters
             search={songSearch}
             onSearchChange={setSongSearch}
@@ -425,15 +462,19 @@ export default function LibraryPage() {
             onSortChange={setSongSort}
             sortOptions={SONG_SORT_OPTIONS}
             placeholder={strings.library.searchSongsPlaceholder}
+            aria-label="Filters voor liedjes"
           />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {songCards.length ? songCards : <EmptyStateComponent title="Geen liedjes" message={strings.library.emptySongs} />}
           </div>
         </section>
 
         {/* Conversations Section */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-slate-900">Gesprekken</h2>
+        <section aria-labelledby="conversations-heading" className="flex flex-col gap-4">
+          <SectionHeader
+            title="Gesprekken"
+            subtitle={`${conversations.length} ${conversations.length === 1 ? 'gesprek' : 'gesprekken'}`}
+          />
           <Filters
             search={conversationSearch}
             onSearchChange={setConversationSearch}
@@ -444,9 +485,10 @@ export default function LibraryPage() {
             onSortChange={setConversationSort}
             sortOptions={CONVERSATION_SORT_OPTIONS}
             placeholder="Zoek gesprekken..."
+            aria-label="Filters voor gesprekken"
           />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {conversationCards.length ? conversationCards : <EmptyState message="Nog geen gesprekken opgeslagen" />}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {conversationCards.length ? conversationCards : <EmptyStateComponent title="Geen gesprekken" message="Nog geen gesprekken opgeslagen" />}
           </div>
         </section>
       </main>

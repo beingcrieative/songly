@@ -1,6 +1,8 @@
 "use client";
+import { memo, useMemo, useCallback } from "react";
 import type { ConceptLyrics, ConversationPhase } from "@/types/conversation";
 import { createSnippet } from "@/lib/library/utils";
+import ProgressBar from "./ProgressBar";
 
 interface ConversationCardProps {
   title: string | null;
@@ -21,7 +23,7 @@ const PHASE_LABELS: Record<ConversationPhase, string> = {
   complete: "Afgerond",
 };
 
-export function ConversationCard({
+function ConversationCardComponent({
   title,
   conceptLyrics,
   updatedAt,
@@ -32,88 +34,110 @@ export function ConversationCard({
   onDelete,
   isDeleting,
 }: ConversationCardProps) {
-  const snippet = createSnippet(conceptLyrics?.lyrics, 140);
-  const readinessPercent = readinessScore != null ? Math.round(readinessScore * 100) : null;
-  const phaseLabel = phase ? PHASE_LABELS[phase] : "Onbekende fase";
-  const lastUpdate = updatedAt
-    ? new Date(updatedAt).toLocaleDateString("nl-NL", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  const snippet = useMemo(() => createSnippet(conceptLyrics?.lyrics, 140), [conceptLyrics?.lyrics]);
+  const readinessPercent = useMemo(() => readinessScore != null ? Math.round(readinessScore * 100) : null, [readinessScore]);
+  const phaseLabel = useMemo(() => phase ? PHASE_LABELS[phase] : "Onbekende fase", [phase]);
+  const lastUpdate = useMemo(() => 
+    updatedAt
+      ? new Date(updatedAt).toLocaleDateString("nl-NL", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null,
+    [updatedAt]
+  );
 
   // Show recent conversation messages if available
-  const recentMessages = messages?.slice(-2) || []; // Show last 2 messages
+  const recentMessages = useMemo(() => messages?.slice(-2) || [], [messages]);
+
+  const handleDelete = useCallback(() => {
+    onDelete?.();
+  }, [onDelete]);
 
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-slate-900">
+    <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition hover:shadow-md">
+      {/* Horizontal layout: image (left), content (center), action (right) */}
+      <div className="flex items-start gap-4">
+        {/* Cover image placeholder */}
+        <div className="h-16 w-16 shrink-0 rounded-lg bg-gradient-to-br from-[#6A11CB]/20 to-[#FF00A5]/20 flex items-center justify-center text-2xl">
+          💬
+        </div>
+
+        {/* Content section */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-semibold text-slate-900 truncate">
             {title || conceptLyrics?.title || "Concept lyrics"}
           </h3>
-          <p className="text-xs uppercase tracking-wide text-slate-500">{phaseLabel}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500 mt-1">{phaseLabel}</p>
         </div>
-        {readinessPercent != null && (
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-            Ready {readinessPercent}%
-          </span>
-        )}
+
+        {/* Action arrow */}
+        <button
+          onClick={onOpen}
+          className="shrink-0 text-slate-400 hover:text-slate-600 transition"
+          aria-label="Open conversation"
+        >
+          →
+        </button>
       </div>
-      {snippet && (
-        <p className="mt-3 line-clamp-4 text-sm text-slate-600 whitespace-pre-line">{snippet}</p>
+
+      {/* Progress bar */}
+      {readinessPercent != null && (
+        <ProgressBar
+          value={readinessPercent}
+          label="Progress"
+          showPercentage={true}
+          color="primary"
+        />
       )}
 
-      {/* Conversation preview */}
+      {/* Last 2 messages preview */}
       {recentMessages.length > 0 && (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recente berichten</p>
-          <div className="space-y-1">
-            {recentMessages.map((message, idx) => (
-              <div key={idx} className="flex gap-2">
-                <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                  message.role === 'user'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-green-100 text-green-700'
-                }`}>
-                  {message.role === 'user' ? 'Jij' : 'AI'}
-                </span>
-                <p className="text-xs text-slate-600 line-clamp-1 flex-1">
-                  {message.content.replace(/\n/g, ' ').substring(0, 60)}
-                  {message.content.length > 60 ? '...' : ''}
-                </p>
-              </div>
-            ))}
-          </div>
+        <div className="bg-slate-100/50 dark:bg-slate-800/50 rounded-lg p-3 space-y-1">
+          <p className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide mb-2">
+            Last 2 messages
+          </p>
+          {recentMessages.map((message, idx) => (
+            <p key={idx} className="text-xs text-slate-600 dark:text-slate-400 line-clamp-1">
+              <span className="font-medium">
+                {message.role === 'user' ? 'Jij' : 'AI'}:
+              </span>{' '}
+              {message.content.replace(/\n/g, ' ')}
+            </p>
+          ))}
         </div>
       )}
-      <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-        <span>{lastUpdate ? `Bijgewerkt ${lastUpdate}` : "Bijgewerkt onbekend"}</span>
-        <div className="flex items-center gap-2">
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex-1 rounded-full bg-gradient-to-r from-[#6A11CB] to-[#FF00A5] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg"
+          aria-label={`Continue conversation: ${title || 'Untitled'}`}
+        >
+          Continue
+        </button>
+        {onDelete && (
           <button
             type="button"
-            onClick={onOpen}
-            className="rounded-full bg-rose-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-rose-600"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="rounded-full border border-rose-100 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Delete conversation"
           >
-            Open in Studio
+            {isDeleting ? "Verwijderen…" : "Verwijderen"}
           </button>
-          {onDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={isDeleting}
-              className="rounded-full border border-rose-100 px-3 py-1 text-xs font-semibold text-rose-600 transition hover:border-rose-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isDeleting ? "Verwijderen…" : "Verwijderen"}
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const ConversationCard = memo(ConversationCardComponent);
 
 export default ConversationCard;
