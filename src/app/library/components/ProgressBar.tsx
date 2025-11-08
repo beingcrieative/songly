@@ -18,9 +18,9 @@ export default function ProgressBar({
   const clampedValue = Math.min(Math.max(value, 0), 100);
   
   const colorClasses = {
-    primary: "bg-gradient-to-r from-[#6A11CB] to-[#FF00A5]",
-    accent: "bg-[#FF00A5]",
-    secondary: "bg-[#f43e47]",
+    primary: "bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)]",
+    accent: "bg-[var(--color-library-accent)]",
+    secondary: "bg-[var(--color-library-secondary)]",
   };
 
   return (

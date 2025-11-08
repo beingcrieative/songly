@@ -22,13 +22,13 @@
   --radius-xl: 24px;
   --radius-lg: 16px;
   --radius-md: 12px;
-  /* Library redesign gradient system (PRD-0019) */
-  --gradient-library-primary: linear-gradient(135deg, #6A11CB 0%, #FF00A5 50%, #f43e47 100%);
-  --gradient-library-card: linear-gradient(135deg, rgba(106, 17, 203, 0.1) 0%, rgba(255, 0, 165, 0.05) 100%);
-  --gradient-library-progress: linear-gradient(90deg, #6A11CB 0%, #FF00A5 100%);
-  --color-library-accent: #FF00A5;
-  --color-library-primary: #6A11CB;
-  --color-library-secondary: #f43e47;
+  /* Library redesign gradient system (PRD-0019) - Improved contrast and readability */
+  --gradient-library-primary: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #F97316 100%);
+  --gradient-library-card: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(236, 72, 153, 0.06) 100%);
+  --gradient-library-progress: linear-gradient(90deg, #8B5CF6 0%, #EC4899 100%);
+  --color-library-accent: #EC4899;
+  --color-library-primary: #8B5CF6;
+  --color-library-secondary: #F97316;
 }
 
 :root[data-visual-refresh='false'] {

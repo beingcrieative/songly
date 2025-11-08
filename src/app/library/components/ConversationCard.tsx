@@ -62,7 +62,7 @@ function ConversationCardComponent({
       {/* Horizontal layout: image (left), content (center), action (right) */}
       <div className="flex items-start gap-4">
         {/* Cover image placeholder */}
-        <div className="h-16 w-16 shrink-0 rounded-lg bg-gradient-to-br from-[#6A11CB]/20 to-[#FF00A5]/20 flex items-center justify-center text-2xl">
+        <div className="h-16 w-16 shrink-0 rounded-lg bg-gradient-to-br from-[var(--color-library-primary)]/20 to-[var(--color-library-accent)]/20 flex items-center justify-center text-2xl">
           💬
         </div>
 
@@ -116,7 +116,7 @@ function ConversationCardComponent({
         <button
           type="button"
           onClick={onOpen}
-          className="flex-1 rounded-full bg-gradient-to-r from-[#6A11CB] to-[#FF00A5] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg"
+          className="flex-1 rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg"
           aria-label={`Continue conversation: ${title || 'Untitled'}`}
         >
           Continue

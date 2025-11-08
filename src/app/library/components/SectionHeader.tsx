@@ -32,7 +32,7 @@ export default function SectionHeader({
       {action && (
         <button
           onClick={action.onClick}
-          className="ml-4 rounded-full bg-gradient-to-r from-[#6A11CB] to-[#FF00A5] px-4 py-2 text-sm font-semibold text-white transition hover:shadow-lg flex items-center gap-2"
+          className="ml-4 rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:shadow-lg flex items-center gap-2"
         >
           {action.icon && <span>{action.icon}</span>}
           {action.label}

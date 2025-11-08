@@ -95,7 +95,7 @@ export default function ActionRequiredSection({
                 </div>
                 <button
                   onClick={() => handleActionClick(item)}
-                  className="rounded-full bg-gradient-to-r from-[#6A11CB] to-[#FF00A5] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg shrink-0"
+                  className="rounded-full bg-gradient-to-r from-[var(--color-library-primary)] to-[var(--color-library-accent)] px-3 py-2 text-xs font-semibold text-white transition hover:shadow-lg shrink-0"
                 >
                   {getActionLabel(item.status)}
                 </button>

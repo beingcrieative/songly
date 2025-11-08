@@ -29,7 +29,7 @@ export default function DashboardStats({
     <div
       className={`flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-4 shadow-sm transition ${
         highlighted
-          ? "border border-[#6A11CB]/50 bg-gradient-to-br from-[#6A11CB]/10 to-[#FF00A5]/5"
+          ? "border border-[var(--color-library-primary)]/50 bg-gradient-to-br from-[var(--color-library-primary)]/10 to-[var(--color-library-accent)]/5"
           : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
       }`}
     >
