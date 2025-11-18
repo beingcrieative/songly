@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { db } from "@/lib/db";
 import NavTabs from "@/components/mobile/NavTabs";
+import ChatHeader from "@/components/mobile/ChatHeader";
+import SongStatusBadge from "@/components/SongStatusBadge";
+import type { SongStatus } from "@/types/generation";
 
 type Song = any;
 
@@ -114,14 +116,19 @@ export default function SongDetailPage() {
   }, [relationVariants, callbackVariants, basePlaybackUrl, song]);
 
   const playable = mergedVariants.filter((v) => v.playbackUrl || v.audioUrl || v.sourceAudioUrl);
-  const showAB = playable.length === 2;
+  const heroVariant = playable[0] || mergedVariants[0];
+  const heroPlaybackUrl =
+    heroVariant?.playbackUrl || heroVariant?.audioUrl || heroVariant?.sourceAudioUrl || basePlaybackUrl;
+  const heroImage = heroVariant?.imageUrl || song?.imageUrl;
+  const secondaryVariants = mergedVariants.filter((variant) => variant !== heroVariant);
+
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   if (isLoading) {
     return (
       <>
-        <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
-          <div className="surface-card px-8 py-6 text-sm text-[rgba(31,27,45,0.6)]">Laden...</div>
-        </div>
+        <div className="flex min-h-[70vh] items-center justify-center text-slate-500">Laden...</div>
         <NavTabs />
       </>
     );
@@ -130,187 +137,186 @@ export default function SongDetailPage() {
   if (error || !song) {
     return (
       <>
-        <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6">
-          <div className="surface-card px-8 py-6 text-sm text-rose-600">Kon lied niet laden</div>
-        </div>
+        <div className="flex min-h-[70vh] items-center justify-center text-rose-600">Kon lied niet laden</div>
         <NavTabs />
       </>
     );
   }
 
-  return (
-    <div className="mx-auto w-full max-w-4xl px-6 pb-20 pt-10">
-      <div className="mb-6 flex items-center justify-between">
-        <Link href="/" className="rounded-full border border-[#7f5af0]/30 px-3 py-1.5 text-xs font-semibold text-[#7f5af0] hover:bg-[#7f5af0]/10">← Terug</Link>
-        <div className="text-xs text-[rgba(31,27,45,0.55)]">v{song.version}</div>
-      </div>
-      <h1 className="text-3xl font-semibold leading-tight">{song.title}</h1>
-      <p className="mt-1 text-sm text-[rgba(31,27,45,0.58)]">{song.musicStyle}</p>
-
-      <div className="mt-6">
-        {showAB ? (
-          <DetailABCompare variants={playable.slice(0, 2)} cover={song.imageUrl} title={song.title} />
-        ) : (
-          <div className="space-y-4">
-            {mergedVariants.map((v: any, index: number) => {
-              const playbackUrl = v.playbackUrl || v.audioUrl || v.sourceAudioUrl || null;
-              const type = guessAudioMimeType(playbackUrl || v.audioUrl || v.sourceAudioUrl);
-              return (
-                <div key={v.key} className="space-y-2 rounded-2xl border border-white/50 bg-white/85 p-4">
-                  <div className="flex items-center justify-between text-xs text-[rgba(31,27,45,0.55)]">
-                    <span className="font-semibold text-[rgba(31,27,45,0.8)]">{v.title}</span>
-                    {v.duration && <span>{`${Math.floor(v.duration/60)}:${String(Math.round(v.duration%60)).padStart(2,'0')}`}</span>}
-                  </div>
-                  {v.imageUrl && <img src={v.imageUrl} alt="cover" className="h-40 w-full rounded-xl object-cover" />}
-                  {playbackUrl ? (
-                    <audio controls preload="metadata" className="w-full rounded-xl">
-                      <source src={playbackUrl} type={type} />
-                    </audio>
-                  ) : (
-                    <div className="rounded-xl border border-white/60 bg-white/70 px-3 py-2 text-xs text-[rgba(31,27,45,0.45)]">Audio nog niet beschikbaar.</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {song.lyrics && (
-        <div className="mt-8 rounded-2xl border border-white/50 bg-white/80 p-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[rgba(31,27,45,0.55)]">Lyrics</div>
-          <div className="lyrics-scroll mt-2 max-h-[400px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-relaxed text-[rgba(31,27,45,0.85)]">{song.lyrics}</div>
-        </div>
-      )}
-      <NavTabs />
-    </div>
-  );
-}
-
-function DetailABCompare({ variants, cover, title }: { variants: Array<any>; cover?: string | null; title?: string | null }) {
-  const audioRefs = [useRef<HTMLAudioElement | null>(null), useRef<HTMLAudioElement | null>(null)];
-  const canvasRefs = [useRef<HTMLCanvasElement | null>(null), useRef<HTMLCanvasElement | null>(null)];
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analysersRef = useRef<Array<AnalyserNode | null>>([null, null]);
-  const sourcesRef = useRef<Array<MediaElementAudioSourceNode | null>>([null, null]);
-  const [active, setActive] = useState<0 | 1>(0);
-  const [progress, setProgress] = useState<[number, number]>([0, 0]);
-  const [durations, setDurations] = useState<[number, number]>([0, 0]);
-  const labels: [string, string] = ['A', 'B'];
-
-  function handlePlay(idx: 0 | 1) {
-    const current = audioRefs[idx].current;
-    const other = audioRefs[idx === 0 ? 1 : 0].current;
-    if (!current) return;
-    if (other && !other.paused) other.pause();
-    setActive(idx);
-    if (current.paused) current.play().catch(() => {}); else current.pause();
-  }
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)(); } catch {}
+  const handleShare = async () => {
+    if (typeof window === "undefined") return;
+    const url = song.publicId
+      ? `${window.location.origin}/library/share/${song.publicId}`
+      : window.location.href;
+    try {
+      setIsSharing(true);
+      if (navigator.share) {
+        await navigator.share({ title: song.title || "Liefdesliedje", url });
+      } else {
+        await navigator.clipboard?.writeText(url);
+        setShareMessage("Link gekopieerd naar klembord");
+        setTimeout(() => setShareMessage(null), 3000);
+      }
+    } catch (error) {
+      console.warn("Share annulled", error);
+    } finally {
+      setIsSharing(false);
     }
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    variants.slice(0, 2).forEach((_v, idx) => {
-      const el = audioRefs[idx].current;
-      if (!el) return;
-      if (!sourcesRef.current[idx]) {
-        try {
-          const src = ctx.createMediaElementSource(el);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 2048;
-          src.connect(analyser);
-          sourcesRef.current[idx] = src;
-          analysersRef.current[idx] = analyser;
-        } catch {}
-      }
-    });
-    let rafId: number;
-    const draw = () => {
-      variants.slice(0, 2).forEach((_v, idx) => {
-        const cvs = canvasRefs[idx].current;
-        const analyser = analysersRef.current[idx];
-        if (!cvs || !analyser) return;
-        const width = cvs.width;
-        const height = cvs.height;
-        const g = cvs.getContext('2d');
-        if (!g) return;
-        const len = analyser.fftSize;
-        const data = new Uint8Array(len);
-        analyser.getByteTimeDomainData(data);
-        g.clearRect(0, 0, width, height);
-        g.lineWidth = 2; g.strokeStyle = '#7f5af0'; g.beginPath();
-        const step = width / len; let x = 0;
-        for (let i = 0; i < len; i++) { const v = data[i] / 128.0; const y = (v * height) / 2; if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); x += step; }
-        g.lineTo(width, height/2); g.stroke();
-      });
-      rafId = requestAnimationFrame(draw);
-    };
-    rafId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(rafId);
-  }, [variants[0]?.key, variants[1]?.key]);
+  };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      const isTyping = tag === 'input' || tag === 'textarea';
-      if (isTyping) return;
-      if (e.key === '1') { e.preventDefault(); handlePlay(0); }
-      else if (e.key === '2') { e.preventDefault(); handlePlay(1); }
-      else if (e.key === ' ') {
-        e.preventDefault();
-        const el = audioRefs[active].current; if (!el) return; if (el.paused) el.play().catch(() => {}); else el.pause();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [active]);
-
-  function onTime(idx: 0 | 1) {
-    const a = audioRefs[idx].current; if (!a) return;
-    setProgress((p) => { const next: [number, number] = [...p] as any; next[idx] = a.currentTime || 0; return next; });
-  }
-  function onLoaded(idx: 0 | 1) {
-    const a = audioRefs[idx].current; if (!a) return;
-    setDurations((d) => { const next: [number, number] = [...d] as any; next[idx] = a.duration || 0; return next; });
-  }
+  const handleMakeAnother = () => {
+    const templateParam = song.templateId ? `?templateId=${song.templateId}` : "";
+    router.push(`/studio${templateParam}`);
+  };
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-xs uppercase tracking-[0.32em] text-[rgba(31,27,45,0.55)]">Vergelijk varianten</div>
-        <div className="rounded-full border border-white/60 bg-white/70 px-3 py-1 text-xs text-[rgba(31,27,45,0.7)]">Actief: <span className="font-semibold text-[#7f5af0]">{labels[active]}</span></div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {variants.slice(0, 2).map((v, idx) => {
-          const playbackUrl = v.playbackUrl || v.audioUrl || v.sourceAudioUrl || null;
-          const isActive = active === idx;
-          const pct = durations[idx] ? Math.min(100, (progress[idx] / durations[idx]) * 100) : 0;
-          return (
-            <div key={v.key} className={`relative overflow-hidden rounded-2xl border p-4 ${isActive ? 'border-[#7f5af0]/60 bg-white' : 'border-white/50 bg-white/80'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${isActive ? 'bg-[#7f5af0] text-white' : 'bg-[#7f5af0]/15 text-[#7f5af0]'}`}>{labels[idx]}</span>
-                  <span className="font-semibold text-[rgba(31,27,45,0.8)]">{v.title || `${title} – ${labels[idx]}`}</span>
-                </div>
-                <div className="text-xs text-[rgba(31,27,45,0.55)]">{Math.floor(progress[idx]/60)}:{String(Math.floor(progress[idx]%60)).padStart(2,'0')} / {Math.floor(durations[idx]/60)}:{String(Math.floor(durations[idx]%60)).padStart(2,'0')}</div>
+    <>
+      <div className="min-h-[100svh] bg-white pb-28">
+        <ChatHeader
+          title={song.title || "Liedje"}
+          subtitle={song.musicStyle || "Persoonlijk lied"}
+        />
+
+        <main className="mx-auto max-w-md space-y-6 px-4 py-5">
+          <section className="rounded-4xl border border-[rgba(31,27,45,0.08)] bg-gradient-to-b from-rose-500/10 via-white to-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[rgba(31,27,45,0.45)]">
+                  Versie {song.version}
+                </p>
+                <h1 className="text-2xl font-semibold text-[rgba(31,27,45,0.95)]">
+                  {song.title || "Liefdesliedje"}
+                </h1>
+                <p className="text-sm text-[rgba(31,27,45,0.6)]">{song.musicStyle}</p>
               </div>
-              {v.imageUrl && <img src={v.imageUrl} alt="cover" className="mt-3 h-48 w-full rounded-xl object-cover" />}
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[rgba(31,27,45,0.08)]"><div className="h-2 rounded-full bg-gradient-to-r from-[#7f5af0] to-[#ff6aa2]" style={{width: `${pct}%`}} /></div>
-              <div className="mt-2 h-16 w-full overflow-hidden rounded-lg bg-white/60"><canvas ref={canvasRefs[idx]} width={800} height={64} className="h-16 w-full" /></div>
-              <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => handlePlay(idx as 0 | 1)} className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${isActive ? 'bg-[#7f5af0] text-white shadow-md shadow-[#7f5af0]/30' : 'bg-[#7f5af0]/10 text-[#7f5af0] hover:bg-[#7f5af0]/15'}`}>{audioRefs[idx].current && !audioRefs[idx].current?.paused ? 'Pauzeer' : 'Speel af'}</button>
-                <a href={v.audioUrl || v.sourceAudioUrl || undefined} download={Boolean(v.audioUrl || v.sourceAudioUrl) || undefined} className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${(v.audioUrl || v.sourceAudioUrl) ? 'bg-[#ff6aa2]/15 text-[#ff3f87] hover:bg-[#ff6aa2]/20' : 'cursor-not-allowed bg-white/60 text-[rgba(31,27,45,0.45)]'}`} onClick={(e) => { if (!(v.audioUrl || v.sourceAudioUrl)) e.preventDefault(); }}>Download</a>
-              </div>
-              {playbackUrl && (<audio ref={audioRefs[idx]} src={playbackUrl} preload="metadata" onTimeUpdate={() => onTime(idx as 0 | 1)} onLoadedMetadata={() => onLoaded(idx as 0 | 1)} className="hidden" />)}
+              {song.status && <SongStatusBadge status={song.status as SongStatus} />}
             </div>
-          );
-        })}
+            {heroImage && (
+              <img
+                src={heroImage}
+                alt="Song cover"
+                className="mt-4 h-48 w-full rounded-3xl object-cover"
+              />
+            )}
+            {heroPlaybackUrl ? (
+              <audio
+                controls
+                preload="metadata"
+                className="mt-4 w-full rounded-3xl"
+              >
+                <source src={heroPlaybackUrl} type={guessAudioMimeType(heroPlaybackUrl)} />
+              </audio>
+            ) : (
+              <div className="mt-4 rounded-3xl border border-dashed border-[rgba(31,27,45,0.15)] px-4 py-3 text-sm text-[rgba(31,27,45,0.6)]">
+                Audio nog niet beschikbaar.
+              </div>
+            )}
+          </section>
+
+          {secondaryVariants.length ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-[rgba(31,27,45,0.8)]">Andere versies</h2>
+              <div className="space-y-3">
+                {secondaryVariants.map((variant: any) => {
+                  const playbackUrl = variant.playbackUrl || variant.audioUrl || variant.sourceAudioUrl;
+                  return (
+                    <div
+                      key={variant.key || variant.trackId}
+                      className="rounded-3xl border border-[rgba(31,27,45,0.08)] bg-white/95 p-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-[rgba(31,27,45,0.9)]">
+                            {variant.title}
+                          </p>
+                          <p className="text-xs text-[rgba(31,27,45,0.5)]">
+                            {variant.model || "Suno variant"}
+                          </p>
+                        </div>
+                        {variant.duration && (
+                          <span className="text-xs text-[rgba(31,27,45,0.5)]">
+                            {Math.floor(variant.duration / 60)}:{String(Math.floor(variant.duration % 60)).padStart(2, "0")}
+                          </span>
+                        )}
+                      </div>
+                      {playbackUrl ? (
+                        <audio controls preload="metadata" className="mt-3 w-full rounded-2xl">
+                          <source src={playbackUrl} type={guessAudioMimeType(playbackUrl)} />
+                        </audio>
+                      ) : (
+                        <div className="mt-3 rounded-2xl border border-dashed border-[rgba(31,27,45,0.15)] px-3 py-2 text-xs text-[rgba(31,27,45,0.55)]">
+                          Audio nog niet beschikbaar
+                        </div>
+                      )}
+                      <div className="mt-3 flex gap-2">
+                        <a
+                          href={variant.audioUrl || variant.sourceAudioUrl || undefined}
+                          download
+                          className={`flex-1 rounded-full px-3 py-2 text-center text-xs font-semibold ${
+                            variant.audioUrl || variant.sourceAudioUrl
+                              ? "border border-[rgba(31,27,45,0.12)] text-[rgba(31,27,45,0.75)]"
+                              : "cursor-not-allowed border border-dashed border-[rgba(31,27,45,0.12)] text-[rgba(31,27,45,0.4)]"
+                          }`}
+                          onClick={(event) => {
+                            if (!(variant.audioUrl || variant.sourceAudioUrl)) event.preventDefault();
+                          }}
+                        >
+                          Download
+                        </a>
+                        {variant.streamAudioUrl && (
+                          <a
+                            href={variant.streamAudioUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 rounded-full border border-[rgba(31,27,45,0.12)] px-3 py-2 text-center text-xs font-semibold text-[rgba(31,27,45,0.75)]"
+                          >
+                            Open stream
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {song.lyrics && (
+            <section className="rounded-4xl border border-[rgba(31,27,45,0.08)] bg-white/95 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-[rgba(31,27,45,0.8)]">Lyrics</h2>
+              <div className="mt-2 max-h-[360px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[rgba(31,27,45,0.85)]">
+                {song.lyrics}
+              </div>
+            </section>
+          )}
+
+          <div className="space-y-3">
+            {shareMessage && (
+              <div className="rounded-full bg-emerald-50 px-4 py-2 text-center text-xs font-semibold text-emerald-600">
+                {shareMessage}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={isSharing}
+              className="w-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400 px-4 py-3 text-sm font-semibold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSharing ? "Delen…" : "Deel dit liedje"}
+            </button>
+            <button
+              type="button"
+              onClick={handleMakeAnother}
+              className="w-full rounded-full border border-[rgba(31,27,45,0.12)] px-4 py-3 text-sm font-semibold text-[rgba(31,27,45,0.8)]"
+            >
+              Maak nog een liedje
+            </button>
+          </div>
+        </main>
+
+        <NavTabs />
       </div>
-    </div>
+    </>
   );
 }
 

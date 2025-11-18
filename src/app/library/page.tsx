@@ -6,13 +6,13 @@ import { db } from "@/lib/db";
 import LoginScreen from "@/components/auth/LoginScreen";
 import AudioMiniPlayer from "@/components/AudioMiniPlayer";
 import NavTabs from "@/components/mobile/NavTabs";
+import ChatHeader from "@/components/mobile/ChatHeader";
+import SongStatusBadge from "@/components/SongStatusBadge";
 import { useLibrarySongs, useLibraryConversations } from "@/lib/library/queries";
 import { sortSongsByPriority } from "@/lib/library/sorting";
-import SongCard from "./components/SongCard";
-import ConversationCard from "./components/ConversationCard";
-import Filters from "./components/Filters";
 import LyricsChoiceModal from "@/components/LyricsChoiceModal";
-import { parseLyricVariants } from "@/types/generation";
+import { parseLyricVariants, parseGenerationProgress } from "@/types/generation";
+import type { SongStatus } from "@/types/generation";
 import {
   trackLibraryDelete,
   trackLibraryOpen,
@@ -21,6 +21,7 @@ import {
   trackGenerationRetry,
 } from "@/lib/analytics/events";
 import { useI18n } from "@/providers/I18nProvider";
+import { createSnippet } from "@/lib/library/utils";
 
 interface CurrentPlaybackState {
   id: string;
@@ -30,48 +31,31 @@ interface CurrentPlaybackState {
   imageUrl?: string | null;
 }
 
+const STATUS_CHIPS = [
+  { value: "all", label: "Alles" },
+  { value: "ready", label: "Klaar" },
+  { value: "lyrics_ready", label: "Lyrics" },
+  { value: "generating_music", label: "Bezig" },
+  { value: "failed", label: "Mislukt" },
+];
+
+type SongVariant = {
+  trackId: string;
+  title?: string | null;
+  streamAudioUrl?: string | null;
+  audioUrl?: string | null;
+  imageUrl?: string | null;
+};
+
 export default function LibraryPage() {
   const router = useRouter();
   const auth = db.useAuth();
   const userId = auth.user?.id;
   const { strings } = useI18n();
 
-  const SONG_STATUS_OPTIONS = [
-    { value: "all", label: "Alle" },
-    { value: "lyrics_ready", label: "Klaar om te kiezen" },
-    { value: "ready", label: "Klaar om te spelen" },
-    { value: "generating_lyrics", label: "Tekst genereren" },
-    { value: "generating_music", label: "Muziek genereren" },
-    { value: "failed", label: "Mislukt" },
-    { value: "complete", label: "Voltooid" },
-  ];
-
-  const SONG_SORT_OPTIONS = [
-    { value: "action", label: "Actie vereist" },
-    { value: "recent", label: strings.library.sortRecent },
-    { value: "az", label: strings.library.sortAZ },
-    { value: "played", label: strings.library.sortPlayed },
-  ];
-
-  const CONVERSATION_STATUS_OPTIONS = [
-    { value: "all", label: strings.library.phaseAll },
-    { value: "gathering", label: strings.library.phaseGathering },
-    { value: "generating", label: strings.library.phaseGenerating },
-    { value: "refining", label: strings.library.phaseRefining },
-    { value: "complete", label: strings.library.phaseComplete },
-  ];
-
-  const CONVERSATION_SORT_OPTIONS = [
-    { value: "recent", label: strings.library.sortRecent },
-    { value: "az", label: strings.library.sortAZ },
-  ];
-
   const [songSearch, setSongSearch] = useState("");
   const [songStatus, setSongStatus] = useState("all");
   const [songSort, setSongSort] = useState("action");
-  const [conversationSearch, setConversationSearch] = useState("");
-  const [conversationStatus, setConversationStatus] = useState("all");
-  const [conversationSort, setConversationSort] = useState("recent");
   const [shareLoadingId, setShareLoadingId] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
   const [retryLoadingId, setRetryLoadingId] = useState<string | null>(null);
@@ -86,19 +70,16 @@ export default function LibraryPage() {
   });
 
   const conversationsQuery = useLibraryConversations(userId, {
-    search: conversationSearch,
-    status: conversationStatus as any,
-    sort: conversationSort as any,
+    search: undefined,
+    status: "all",
+    sort: "recent",
   });
 
   const songs = useMemo(() => {
     const rawSongs = songsQuery.data?.songs ?? [];
-
-    // Apply smart sorting when "action" sort is selected
-    if (songSort === 'action') {
+    if (songSort === "action") {
       return sortSongsByPriority(rawSongs);
     }
-
     return rawSongs;
   }, [songsQuery.data?.songs, songSort]);
 
@@ -118,58 +99,49 @@ export default function LibraryPage() {
   const handleSelectVariant = async (variantIndex: number) => {
     if (!selectedSongForLyrics) return;
 
-    const res = await fetch(
-      `/api/library/songs/${selectedSongForLyrics.id}/select-lyrics`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variantIndex }),
-      }
-    );
+    const res = await fetch(`/api/library/songs/${selectedSongForLyrics.id}/select-lyrics`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variantIndex }),
+    });
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || 'Failed to select lyrics');
+      throw new Error(body.error || "Failed to select lyrics");
     }
   };
 
-  const handleRetry = async (songId: string, phase: 'lyrics' | 'music') => {
+  const handleRetry = async (songId: string, phase: "lyrics" | "music") => {
     setRetryLoadingId(songId);
     try {
-      const res = await fetch(
-        `/api/library/songs/${songId}/retry`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phase }),
-        }
-      );
+      const res = await fetch(`/api/library/songs/${songId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase }),
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Retry mislukt');
+        throw new Error(body.error || "Retry mislukt");
       }
 
       const data = await res.json();
 
-      // Track retry
       trackGenerationRetry({
         songId,
         phase,
         retryCount: data.retryCount || 1,
       });
 
-      // Success feedback
-      alert('Opnieuw proberen gestart!');
+      alert("Opnieuw proberen gestart!");
     } catch (error: any) {
-      alert(error.message || 'Retry mislukt');
+      alert(error.message || "Retry mislukt");
     } finally {
       setRetryLoadingId(null);
     }
   };
 
-  // All remaining handlers and useMemos BEFORE early returns to ensure consistent hook order
-  const handlePlay = async (songId: string, variant: { trackId: string; streamAudioUrl?: string | null; audioUrl?: string | null; title?: string | null; imageUrl?: string | null }) => {
+  const handlePlay = async (songId: string, variant: SongVariant) => {
     setCurrentPlayback({
       id: variant.trackId,
       title: variant.title || "Versie",
@@ -196,22 +168,6 @@ export default function LibraryPage() {
         throw new Error(body.error || "Verwijderen mislukt");
       }
       trackLibraryDelete({ songId });
-    } catch (error: any) {
-      alert(error.message || "Verwijderen mislukt");
-    } finally {
-      setDeleteLoadingId(null);
-    }
-  };
-
-  const handleDeleteConversation = async (conversationId: string) => {
-    setDeleteLoadingId(conversationId);
-    try {
-      const res = await fetch(`/api/library/conversations/${conversationId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Verwijderen mislukt");
-      }
-      trackLibraryDelete({ conversationId });
     } catch (error: any) {
       alert(error.message || "Verwijderen mislukt");
     } finally {
@@ -265,54 +221,34 @@ export default function LibraryPage() {
     }
   };
 
-  const songCards = useMemo(
-    () => {
-      if (!songs || songs.length === 0) return [];
-      return songs.map((song: any) => (
-        <SongCard
-          key={song.id}
-          song={song}
-          onPlay={(variant) => handlePlay(song.id, variant)}
-          onOpen={() => router.push(`/studio?songId=${song.id}`)}
-          onShare={() => handleShareSong(song)}
-          onDelete={() => handleDeleteSong(song.id)}
-          onSelectVariant={(variantId) => handleSelectAudioVariant(song.id, variantId)}
-          onChooseLyrics={() => handleChooseLyrics(song)}
-          onRetry={() => {
-            const phase = song.status === 'failed' ? 'music' : 'lyrics';
-            handleRetry(song.id, phase);
-          }}
-          actionState={{
-            isSharing: shareLoadingId === song.id,
-            isDeleting: deleteLoadingId === song.id,
-            isRetrying: retryLoadingId === song.id,
-          }}
-        />
-      ));
-    },
-    [songs, router, shareLoadingId, deleteLoadingId, retryLoadingId]
-  );
+  const groupedSongs = useMemo(() => {
+    if (!songs || songs.length === 0) return [] as Array<{ key: string; title: string; songs: any[] }>;
+    const map = new Map<string, { key: string; title: string; songs: any[] }>();
+    songs.forEach((song: any) => {
+      const raw = song.conversation?.conceptTitle?.trim();
+      const key = (raw || "losse-liedjes").toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          title: raw || "Losse liedjes",
+          songs: [],
+        });
+      }
+      map.get(key)!.songs.push(song);
+    });
+    return Array.from(map.values()).map((group) => ({
+      ...group,
+      songs: group.songs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)),
+    }));
+  }, [songs]);
 
-  const conversationCards = useMemo(
-    () => {
-      if (!conversations || conversations.length === 0) return [];
-      return conversations.map((conversation: any) => (
-        <ConversationCard
-          key={conversation.id}
-          title={conversation.conceptTitle || null}
-          conceptLyrics={conversation.conceptLyrics || null}
-          updatedAt={conversation.updatedAt}
-          readinessScore={conversation.readinessScore}
-          phase={conversation.conversationPhase}
-          messages={conversation.messages}
-          onOpen={() => router.push(`/studio?conversationId=${conversation.id}`)}
-          onDelete={() => handleDeleteConversation(conversation.id)}
-          isDeleting={deleteLoadingId === conversation.id}
-        />
-      ));
-    },
-    [conversations, router, deleteLoadingId]
-  );
+  const activeConversations = useMemo(() => {
+    return conversations.filter((conversation: any) => conversation.conversationPhase !== "complete");
+  }, [conversations]);
+
+  const librarySubtitle = songs.length
+    ? `${songs.length} ${songs.length === 1 ? "liedje" : "liedjes"} opgeslagen`
+    : "Nog geen liedjes opgeslagen";
 
   if (auth.isLoading) {
     return (
@@ -335,86 +271,375 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
-        <header className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">{strings.library.title}</h1>
-            <p className="text-sm text-slate-600">
-              {strings.library.description}
-            </p>
+    <>
+      <div className="min-h-[100svh] bg-gradient-to-b from-rose-50 via-white to-white pb-32">
+        <ChatHeader
+          title="Bibliotheek"
+          subtitle={librarySubtitle}
+          onNew={() => router.push("/studio")}
+        />
+
+        <main className="mx-auto max-w-md space-y-6 px-4 py-5">
+          <section className="rounded-3xl border border-[rgba(15,23,42,0.08)] bg-white/90 p-4 shadow-sm">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[rgba(15,23,42,0.45)]">
+              Zoek liedjes
+            </label>
+            <input
+              type="search"
+              value={songSearch}
+              onChange={(event) => setSongSearch(event.target.value)}
+              placeholder={strings.library.searchSongsPlaceholder}
+              className="mt-2 w-full rounded-2xl border border-[rgba(15,23,42,0.12)] px-4 py-2 text-sm"
+            />
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {STATUS_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setSongStatus(chip.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    songStatus === chip.value
+                      ? "bg-rose-500 text-white"
+                      : "border border-[rgba(15,23,42,0.15)] text-[rgba(15,23,42,0.8)]"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {activeConversations.length ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-[rgba(15,23,42,0.85)]">Concepten om te vervolgen</h2>
+                <button
+                  type="button"
+                  onClick={() => router.push("/studio")}
+                  className="text-xs font-semibold text-rose-500"
+                >
+                  Open studio
+                </button>
+              </div>
+              <div className="space-y-3">
+                {activeConversations.slice(0, 3).map((conversation: any) => (
+                  <ConversationPeek
+                    key={conversation.id}
+                    conversation={conversation}
+                    onOpen={() => router.push(`/studio?conversationId=${conversation.id}`)}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {groupedSongs.length ? (
+            groupedSongs.map((group) => (
+              <section key={group.key} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-[rgba(15,23,42,0.85)]">{group.title}</h2>
+                  <span className="text-xs text-[rgba(15,23,42,0.55)]">{group.songs.length}×</span>
+                </div>
+                <div className="space-y-3">
+                  {group.songs.map((song: any) => (
+                    <MobileSongRow
+                      key={song.id}
+                      song={song}
+                      onPlay={(variant) => handlePlay(song.id, variant)}
+                      onOpen={() => router.push(`/studio?songId=${song.id}`)}
+                      onShare={() => handleShareSong(song)}
+                      onDelete={() => handleDeleteSong(song.id)}
+                      onChooseLyrics={() => handleChooseLyrics(song)}
+                      onRetry={() => handleRetry(song.id, song.status === "failed" ? "music" : "lyrics")}
+                      onSelectVariant={(variantId) => handleSelectAudioVariant(song.id, variantId)}
+                      actionState={{
+                        isSharing: shareLoadingId === song.id,
+                        isDeleting: deleteLoadingId === song.id,
+                        isRetrying: retryLoadingId === song.id,
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))
+          ) : (
+            <div className="rounded-3xl border border-dashed border-[rgba(15,23,42,0.12)] bg-white/70 p-6 text-center text-sm text-[rgba(15,23,42,0.6)]">
+              {strings.library.emptySongs}
+            </div>
+          )}
+        </main>
+
+        {currentPlayback && (
+          <div className="fixed inset-x-0 bottom-[96px] z-40 px-4">
+            <AudioMiniPlayer
+              src={currentPlayback.streamAudioUrl || currentPlayback.audioUrl || ""}
+              title={currentPlayback.title}
+              imageUrl={currentPlayback.imageUrl || undefined}
+              fixed={false}
+            />
           </div>
-        </header>
+        )}
 
-        {/* Songs Section */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-slate-900">Liedjes</h2>
-          <Filters
-            search={songSearch}
-            onSearchChange={setSongSearch}
-            status={songStatus}
-            onStatusChange={setSongStatus}
-            statusOptions={SONG_STATUS_OPTIONS}
-            sort={songSort}
-            onSortChange={setSongSort}
-            sortOptions={SONG_SORT_OPTIONS}
-            placeholder={strings.library.searchSongsPlaceholder}
-          />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {songCards.length ? songCards : <EmptyState message={strings.library.emptySongs} />}
-          </div>
-        </section>
+        <button
+          type="button"
+          onClick={() => router.push("/studio")}
+          className="fixed bottom-[120px] right-4 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-amber-400 px-5 py-3 text-sm font-semibold text-white shadow-lg"
+        >
+          Nieuw liedje
+        </button>
+      </div>
 
-        {/* Conversations Section */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-slate-900">Gesprekken</h2>
-          <Filters
-            search={conversationSearch}
-            onSearchChange={setConversationSearch}
-            status={conversationStatus}
-            onStatusChange={setConversationStatus}
-            statusOptions={CONVERSATION_STATUS_OPTIONS}
-            sort={conversationSort}
-            onSortChange={setConversationSort}
-            sortOptions={CONVERSATION_SORT_OPTIONS}
-            placeholder="Zoek gesprekken..."
-          />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {conversationCards.length ? conversationCards : <EmptyState message="Nog geen gesprekken opgeslagen" />}
-          </div>
-        </section>
-      </main>
-
-      {currentPlayback && (
-        <div className="fixed inset-x-0 bottom-4 z-40 mx-auto w-full max-w-xl px-4">
-          <AudioMiniPlayer
-            src={currentPlayback.streamAudioUrl || currentPlayback.audioUrl || ""}
-            title={currentPlayback.title}
-            imageUrl={currentPlayback.imageUrl || undefined}
-            fixed={false}
-          />
-        </div>
-      )}
-
-      {/* Lyrics Choice Modal */}
       <LyricsChoiceModal
         isOpen={lyricsModalOpen}
         onClose={() => setLyricsModalOpen(false)}
         variants={parseLyricVariants(selectedSongForLyrics?.lyricsVariants)}
-        songId={selectedSongForLyrics?.id || ''}
-        songTitle={selectedSongForLyrics?.title || 'Ongetiteld'}
+        songId={selectedSongForLyrics?.id || ""}
+        songTitle={selectedSongForLyrics?.title || "Ongetiteld"}
         onSelectVariant={handleSelectVariant}
       />
 
       <NavTabs />
+    </>
+  );
+}
+
+interface MobileSongRowProps {
+  song: any;
+  onPlay: (variant: SongVariant) => void;
+  onOpen: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+  onChooseLyrics: () => void;
+  onRetry: () => void;
+  onSelectVariant: (variantId: string) => void;
+  actionState?: {
+    isSharing?: boolean;
+    isDeleting?: boolean;
+    isRetrying?: boolean;
+  };
+}
+
+function MobileSongRow({
+  song,
+  onPlay,
+  onOpen,
+  onShare,
+  onDelete,
+  onChooseLyrics,
+  onRetry,
+  onSelectVariant,
+  actionState,
+}: MobileSongRowProps) {
+  const variants: SongVariant[] = song.variants || [];
+  const selectedVariant =
+    variants.find((variant) => variant.trackId === song.selectedVariantId) || variants[0];
+  const snippet = createSnippet(song.lyricsSnippet, 120);
+  const hasAudio = Boolean(selectedVariant?.streamAudioUrl || selectedVariant?.audioUrl);
+  const primaryCTA = getPrimaryCTA(song.status, hasAudio);
+  const metadataText = getMetadataText(song);
+
+  const handlePrimaryAction = () => {
+    switch (primaryCTA.action) {
+      case "play":
+        if (selectedVariant) onPlay(selectedVariant);
+        break;
+      case "choose_lyrics":
+        onChooseLyrics();
+        break;
+      case "retry":
+        onRetry();
+        break;
+      case "view_details":
+        onOpen();
+        break;
+    }
+  };
+
+  return (
+    <div className="flex gap-3 rounded-3xl border border-[rgba(15,23,42,0.08)] bg-white/90 p-3 shadow-sm">
+      <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-rose-100">
+        {song.imageUrl ? (
+          <img src={song.imageUrl} alt={song.title || "cover"} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-rose-600">
+            Cover
+          </div>
+        )}
+      </div>
+      <div className="flex-1">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-[rgba(15,23,42,0.9)] line-clamp-1">
+              {song.title || "Ongetiteld lied"}
+            </h3>
+            <p className="text-[11px] text-[rgba(15,23,42,0.6)]">{metadataText}</p>
+          </div>
+          {song.status && <SongStatusBadge status={song.status as SongStatus} />}
+        </div>
+        {snippet && <p className="mb-2 text-xs text-[rgba(15,23,42,0.7)] line-clamp-2">{snippet}</p>}
+
+        {variants.length > 1 && (
+          <label className="mb-2 block text-[11px] font-medium text-[rgba(15,23,42,0.6)]">
+            Versie
+            <select
+              className="mt-1 w-full rounded-2xl border border-[rgba(15,23,42,0.12)] px-3 py-1 text-xs"
+              value={selectedVariant?.trackId || ""}
+              onChange={(event) => onSelectVariant(event.target.value)}
+            >
+              {variants.map((variant, index) => (
+                <option key={variant.trackId} value={variant.trackId}>
+                  {variant.title || `Versie ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={primaryCTA.disabled || actionState?.isRetrying}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              primaryCTA.color === "emerald"
+                ? "bg-emerald-500 text-white"
+                : primaryCTA.color === "rose"
+                  ? "bg-rose-500 text-white"
+                  : primaryCTA.color === "rose-outline"
+                    ? "border border-rose-200 text-rose-600"
+                    : "border border-[rgba(15,23,42,0.12)] text-[rgba(15,23,42,0.8)]"
+            }`}
+          >
+            {actionState?.isRetrying && primaryCTA.action === "retry" ? "Bezig…" : primaryCTA.label}
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpen}
+            className="rounded-full border border-[rgba(15,23,42,0.12)] px-3 py-1.5 text-xs font-semibold text-[rgba(15,23,42,0.75)]"
+          >
+            Studio
+          </button>
+
+          {song.status === "ready" && (
+            <button
+              type="button"
+              onClick={onShare}
+              disabled={actionState?.isSharing}
+              className="rounded-full border border-[rgba(15,23,42,0.12)] px-3 py-1.5 text-xs font-semibold text-[rgba(15,23,42,0.75)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {actionState?.isSharing ? "Delen…" : "Deel"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={actionState?.isDeleting}
+            className="ml-auto rounded-full border border-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {actionState?.isDeleting ? "Verwijderen…" : "Verwijder"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+function getMetadataText(song: {
+  status?: string | null;
+  updatedAt?: number | null;
+  generationProgress?: string | null;
+}) {
+  const progress = parseGenerationProgress(song.generationProgress);
+  const formatTimeAgo = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "zojuist";
+    if (minutes === 1) return "1 minuut geleden";
+    if (minutes < 60) return `${minutes} minuten geleden`;
+    if (hours === 1) return "1 uur geleden";
+    if (hours < 24) return `${hours} uur geleden`;
+    if (days === 1) return "gisteren";
+    return `${days} dagen geleden`;
+  };
+
+  switch (song.status) {
+    case "lyrics_ready":
+      if (progress?.lyricsCompletedAt) {
+        return `Teksten klaar ${formatTimeAgo(progress.lyricsCompletedAt)}`;
+      }
+      break;
+    case "ready":
+      if (progress?.musicCompletedAt) {
+        return `Klaar ${formatTimeAgo(progress.musicCompletedAt)}`;
+      }
+      break;
+    case "generating_lyrics":
+      if (progress?.lyricsStartedAt) {
+        return `Tekst genereren sinds ${formatTimeAgo(progress.lyricsStartedAt)}`;
+      }
+      break;
+    case "generating_music":
+      if (progress?.musicStartedAt) {
+        return `Muziek genereren sinds ${formatTimeAgo(progress.musicStartedAt)}`;
+      }
+      break;
+  }
+
+  if (song.updatedAt) {
+    return `Bijgewerkt ${formatTimeAgo(song.updatedAt)}`;
+  }
+
+  return "Bijgewerkt onbekend";
+}
+
+interface StatusCTA {
+  label: string;
+  action: "play" | "choose_lyrics" | "retry" | "view_details";
+  color: "rose" | "emerald" | "rose-outline" | "ghost";
+  disabled?: boolean;
+}
+
+function getPrimaryCTA(status: string | null | undefined, hasAudio: boolean): StatusCTA {
+  switch (status) {
+    case "lyrics_ready":
+      return { label: "Kies lyrics", action: "choose_lyrics", color: "rose" };
+    case "ready":
+      return { label: "▶️ Speel", action: "play", color: "emerald", disabled: !hasAudio };
+    case "failed":
+      return { label: "Probeer opnieuw", action: "retry", color: "rose-outline" };
+    case "generating_lyrics":
+    case "generating_music":
+      return { label: "Bekijk", action: "view_details", color: "ghost" };
+    default:
+      return { label: "Afspelen", action: "play", color: "rose", disabled: !hasAudio };
+  }
+}
+
+function ConversationPeek({ conversation, onOpen }: { conversation: any; onOpen: () => void }) {
   return (
-    <div className="col-span-full flex min-h-[200px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 text-sm text-slate-500">
-      {message}
-    </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full rounded-3xl border border-[rgba(15,23,42,0.08)] bg-white/90 p-3 text-left shadow-sm"
+    >
+      <div className="text-xs font-semibold text-[rgba(15,23,42,0.55)]">{conversation.conversationPhase}</div>
+      <div className="mt-1 text-sm font-semibold text-[rgba(15,23,42,0.9)] line-clamp-1">
+        {conversation.conceptTitle || "Nieuw verhaal"}
+      </div>
+      {conversation.conceptLyrics && (
+        <p className="mt-1 text-xs text-[rgba(15,23,42,0.65)] line-clamp-2">
+          {conversation.conceptLyrics}
+        </p>
+      )}
+      <div className="mt-2 text-[11px] text-[rgba(15,23,42,0.5)]">
+        Laatste update: {new Date(conversation.updatedAt || Date.now()).toLocaleDateString()}
+      </div>
+    </button>
   );
 }

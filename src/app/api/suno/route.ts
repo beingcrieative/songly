@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     console.log('Vocal Preferences:', mergedVocalPreferences);
     console.log('API Key present:', !!SUNO_API_KEY);
     console.log('API Key (first 10 chars):', SUNO_API_KEY.substring(0, 10));
-    console.log('Requested Model:', model || DEFAULT_MODEL);
+    console.log('Requested Model:', model || templateConfig?.model || DEFAULT_MODEL);
     console.log('Requested Instrumental:', makeInstrumental ?? instrumental ?? false);
 
     if (!SUNO_API_KEY) {
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 5.7: Use template config to override model and tags
-    const resolvedModel = 'V5';
+    const resolvedModel = (templateConfig?.model as string) || model || DEFAULT_MODEL;
     const wantsInstrumental = Boolean(makeInstrumental ?? instrumental ?? false);
 
     // Build vocal description and tags from preferences
@@ -189,9 +189,21 @@ export async function POST(request: NextRequest) {
     // Task 5.8: Enhance tags with template config and vocal characteristics
     let enhancedTags = templateConfig?.tags || musicStyle || 'romantic ballad';
     const extraTags: string[] = [];
-    if (!wantsInstrumental) {
-      if (vocalTags.length > 0) extraTags.push(...vocalTags);
-      if (userMoodTags.length > 0) extraTags.push(...userMoodTags);
+    if (!wantsInstrumental && vocalTags.length > 0) {
+      extraTags.push(...vocalTags);
+    }
+    if (userMoodTags.length > 0) {
+      extraTags.push(...userMoodTags);
+    }
+    // Include template-level negative tags (if provided) to steer Suno away from unwanted elements
+    if (templateConfig?.negativeTags) {
+      const negatives = String(templateConfig.negativeTags)
+        .split(/[,;]/)
+        .map((tag: string) => tag.trim())
+        .filter(Boolean);
+      if (negatives.length > 0) {
+        extraTags.push(...negatives.map((tag) => `no ${tag}`));
+      }
     }
     if (extraTags.length > 0) {
       enhancedTags = `${enhancedTags}, ${extraTags.join(', ')}`;

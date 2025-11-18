@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { id } from "@instantdb/react";
 import { db } from "@/lib/db";
 import { ConversationalStudioLayout } from "@/components/ConversationalStudioLayout";
@@ -10,6 +10,7 @@ import { MusicGenerationProgress } from "@/components/MusicGenerationProgress";
 import { VariantSelector } from "@/components/VariantSelector";
 import { WelcomeAnimation } from "@/components/WelcomeAnimation";
 import { TemplateSelector } from "@/components/TemplateSelector";
+import { SongSettingsPanel } from "@/components/SongSettingsPanel";
 import { ConversationPhase, ExtractedContext, ConceptLyrics, UserPreferences } from "@/types/conversation";
 import { stringifyExtractedContext } from "@/lib/utils/contextExtraction";
 import {
@@ -415,6 +416,42 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     }));
   };
 
+  const handleTemplateSelect = useCallback(
+    (templateId: string) => {
+      const isSurprise = templateId === "surprise-me";
+      const wasSurprise = selectedTemplateId === "surprise-me";
+
+      if (isSurprise && !wasSurprise) {
+        setSurpriseModeSelections((prev) => prev + 1);
+      }
+
+      setSelectedTemplateId(templateId);
+      const template = getTemplateById(templateId);
+      if (template) {
+        setTemplateConfig({ ...template.sunoConfig });
+        setAdvancedSettings((prev) => ({
+          ...prev,
+          model: template.sunoConfig.model || prev.model,
+          styleWeight:
+            typeof template.sunoConfig.styleWeight === "number"
+              ? template.sunoConfig.styleWeight
+              : DEFAULT_ADVANCED_SETTINGS.styleWeight,
+          weirdnessConstraint:
+            typeof template.sunoConfig.weirdnessConstraint === "number"
+              ? template.sunoConfig.weirdnessConstraint
+              : DEFAULT_ADVANCED_SETTINGS.weirdnessConstraint,
+          audioWeight:
+            typeof template.sunoConfig.audioWeight === "number"
+              ? template.sunoConfig.audioWeight
+              : DEFAULT_ADVANCED_SETTINGS.audioWeight,
+          negativeTags: template.sunoConfig.negativeTags ?? DEFAULT_ADVANCED_SETTINGS.negativeTags,
+        }));
+        console.log("Template selected:", template.name, template.sunoConfig);
+      }
+    },
+    [selectedTemplateId]
+  );
+
   const [musicParameters, setMusicParameters] = useState<ParameterValues>({
     language: "Nederlands",
     vocalGender: DEFAULT_ADVANCED_SETTINGS.vocalGender,
@@ -424,6 +461,25 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   const [isParameterSheetSubmitting, setIsParameterSheetSubmitting] = useState(false);
   const [customSongTitle, setCustomSongTitle] = useState<string>("");
   const [makeInstrumental, setMakeInstrumental] = useState<boolean>(false);
+
+  const handleToggleInstrumental = useCallback(() => {
+    setMakeInstrumental((prev) => {
+      const next = !prev;
+      setSongSettings((current) => ({
+        ...current,
+        makeInstrumental: next,
+      }));
+      return next;
+    });
+  }, [setSongSettings]);
+
+  const setAdvancedValue = useCallback((partial: Partial<AdvancedSettings>) => {
+    setAdvancedSettings((prev) => ({
+      ...prev,
+      enabled: true,
+      ...partial,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -2440,6 +2496,35 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     selectedSongForPlayer?.audioUrl ||
     null;
 
+  // Step indicator for mobile header (PWA-first UX)
+  const stepSubtitle = useMemo(() => {
+    // 1: Story, 2: Lyrics, 3: Music, 4: Share
+    if (selectedVariantId) {
+      return "Stap 4 van 4 · Speel & deel je liedje";
+    }
+    if (showVariantSelector) {
+      return "Stap 3 van 4 · Kies je favoriete versie";
+    }
+    if (isGeneratingMusic || currentSong?.songId) {
+      return "Stap 3 van 4 · Liedje wordt gemaakt";
+    }
+    if (conversationPhase === "generating" || isRefiningLyrics) {
+      return "Stap 2 van 4 · Lyrics worden geschreven";
+    }
+    if (latestLyrics) {
+      return "Stap 2 van 4 · Kies of bewerk je lyrics";
+    }
+    return "Stap 1 van 4 · Vertel je verhaal";
+  }, [
+    conversationPhase,
+    currentSong,
+    isGeneratingMusic,
+    isRefiningLyrics,
+    latestLyrics,
+    selectedVariantId,
+    showVariantSelector,
+  ]);
+
   // Chat Pane Component
   // Task 5.3: Compact spacing when compare UI is active
   const showCompactChat = ENABLE_LYRICS_COMPARE && lyricsOptions.length >= 2;
@@ -2457,6 +2542,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
       {isMobile ? (
         <ChatHeader
           title="Studio"
+          subtitle={stepSubtitle}
           onNew={() => {
             setIsMobileLyricsOpen(true);
           }}
@@ -2841,8 +2927,175 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
     audioWeight: audioWeightDefault,
   };
 
+  const renderMobileSoundControls = () => {
+    if (!isMobile) return null;
+
+    if (!latestLyrics?.lyrics) {
+      return (
+        <div className="rounded-3xl border border-[rgba(15,23,42,0.08)] bg-white/80 p-4 text-sm text-[rgba(15,23,42,0.65)]">
+          Rond eerst je verhaal en lyrics af om het geluid van je liedje te kiezen.
+        </div>
+      );
+    }
+
+    const sliderControl = (
+      label: string,
+      value: number,
+      onChange: (next: number) => void,
+      helper: string
+    ) => (
+      <div>
+        <div className="flex items-center justify-between text-sm font-semibold text-[rgba(15,23,42,0.9)]">
+          <span>{label}</span>
+          <span>{value}%</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="mt-2 w-full accent-rose-500"
+        />
+        <p className="mt-1 text-xs text-[rgba(15,23,42,0.6)]">{helper}</p>
+      </div>
+    );
+
+    const resolvedTemplateId = selectedTemplateId ?? currentTemplate?.id ?? "romantic-ballad";
+
+    return (
+      <section className="space-y-4 rounded-3xl border border-[rgba(15,23,42,0.08)] bg-white/90 p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[rgba(15,23,42,0.45)]">Stap 3 van 4</p>
+            <h3 className="text-base font-semibold text-[rgba(15,23,42,0.9)]">Geluid &amp; stem</h3>
+            <p className="text-xs text-[rgba(15,23,42,0.6)]">Kies snel hoe Suno de muziek moet maken.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenParameterSheet}
+            className="rounded-full border border-[rgba(15,23,42,0.12)] px-3 py-1 text-xs font-semibold text-[rgba(15,23,42,0.75)]"
+          >
+            Meer opties
+          </button>
+        </div>
+
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {PARAMETER_TEMPLATES.map((template) => {
+            const isActive = resolvedTemplateId === template.id;
+            return (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => handleTemplateSelect(template.id)}
+                className={`flex min-w-[140px] flex-col rounded-2xl border px-3 py-2 text-left shadow-sm transition ${
+                  isActive
+                    ? "border-rose-500 bg-rose-50 text-rose-600"
+                    : "border-[rgba(15,23,42,0.08)] bg-white text-[rgba(15,23,42,0.8)]"
+                }`}
+              >
+                <span className="text-sm font-semibold">{template.name}</span>
+                <span className="text-xs text-[rgba(15,23,42,0.6)]">{template.icon || "🎵"}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 p-3">
+          <SongSettingsPanel
+            preferences={songSettings}
+            onChange={setSongSettings}
+          />
+        </div>
+
+        <div className="flex items-center justify-between rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-[rgba(15,23,42,0.9)]">Alleen instrumentaal</p>
+            <p className="text-xs text-[rgba(15,23,42,0.6)]">Zonder zang, focus op de muziek</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleInstrumental}
+            aria-pressed={makeInstrumental}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition"
+            style={{
+              backgroundColor: makeInstrumental ? "var(--color-primary, #fb7185)" : "rgba(15,23,42,0.2)",
+            }}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                makeInstrumental ? "translate-x-5" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 p-3">
+          {sliderControl("Stijl volgen", Math.round(styleWeightDefault * 100), (next) =>
+            setAdvancedValue({ styleWeight: next / 100 })
+          , "Hoger = dichter bij het template")}
+          {sliderControl("Creativiteit", Math.round(weirdnessDefault * 100), (next) =>
+            setAdvancedValue({ weirdnessConstraint: next / 100 })
+          , "Hoger = meer verrassingen")}
+          {sliderControl("Band vs. verhaal", Math.round(audioWeightDefault * 100), (next) =>
+            setAdvancedValue({ audioWeight: next / 100 })
+          , "Links = zang, rechts = muziek")}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleOpenParameterSheet}
+          disabled={!canGenerateMusic || isGeneratingMusic}
+          className="w-full rounded-full bg-gradient-to-r from-rose-500 to-amber-400 px-4 py-3 text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isGeneratingMusic ? "Bezig met maken…" : "Maak mijn liedje"}
+        </button>
+      </section>
+    );
+  };
+
   // Lyrics Pane Component
   // Task 5.3: Guard with ENABLE_LYRICS_COMPARE feature flag
+  const lyricsPanelContent = (
+    <LyricsPanel
+      conversationId={conversationId}
+      className="h-full"
+      conversationPhase={conversationPhase}
+      extractedContext={extractedContext}
+      roundNumber={roundNumber}
+      readinessScore={readinessScore}
+      conceptLyrics={conceptLyrics}
+      latestLyrics={latestLyrics}
+      onRefineLyrics={canRefine ? handleRefineLyrics : undefined}
+      isRefining={isRefiningLyrics}
+      canRefine={canRefine}
+      onGenerateMusic={handleOpenParameterSheet}
+      isGeneratingMusic={isGeneratingMusic}
+      canGenerateMusic={canGenerateMusic}
+      onManualEditSave={handleManualEditSave}
+      selectedSong={selectedSongForPlayer}
+      generationError={generationError}
+      onRetryGeneration={() => {
+        setGenerationError(null);
+        startMusicGeneration(musicParameters, {
+          titleOverride: parameterSheetExtras.title,
+          makeInstrumental,
+          styleWeight: styleWeightDefault,
+          weirdnessConstraint: weirdnessDefault,
+          audioWeight: audioWeightDefault,
+          templateId: selectedTemplateId,
+        });
+      }}
+      onAdjustLyrics={() => {
+        setGenerationError(null);
+        setConversationPhase('refining');
+      }}
+      preferences={songSettings}
+      onChangePreferences={setSongSettings}
+      enableLiveQueries={!isMobile}
+    />
+  );
+
   const lyricsPane = conversationId ? (
     ENABLE_LYRICS_COMPARE && lyricsOptions.length >= 2 ? (
       <div className="h-full overflow-auto">
@@ -2858,84 +3111,21 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
           isSaving={isSavingLyricSelection}
         />
       </div>
+    ) : isMobile ? (
+      <div className="h-full overflow-auto">
+        <div className="space-y-6 px-4 py-4 pb-24">
+          {lyricsPanelContent}
+          {renderMobileSoundControls()}
+        </div>
+      </div>
     ) : (
-      <LyricsPanel
-        conversationId={conversationId}
-        className="h-full"
-        conversationPhase={conversationPhase}
-        extractedContext={extractedContext}
-        roundNumber={roundNumber}
-        readinessScore={readinessScore}
-        conceptLyrics={conceptLyrics}
-        latestLyrics={latestLyrics}
-        onRefineLyrics={canRefine ? handleRefineLyrics : undefined}
-        isRefining={isRefiningLyrics}
-        canRefine={canRefine}
-        onGenerateMusic={handleOpenParameterSheet}
-        isGeneratingMusic={isGeneratingMusic}
-        canGenerateMusic={canGenerateMusic}
-        onManualEditSave={handleManualEditSave}
-        selectedSong={selectedSongForPlayer}
-        generationError={generationError}
-        onRetryGeneration={() => {
-          setGenerationError(null);
-          startMusicGeneration(musicParameters, {
-            titleOverride: parameterSheetExtras.title,
-            makeInstrumental,
-            styleWeight: styleWeightDefault,
-            weirdnessConstraint: weirdnessDefault,
-            audioWeight: audioWeightDefault,
-            templateId: selectedTemplateId,
-          });
-        }}
-        onAdjustLyrics={() => {
-          setGenerationError(null);
-          setConversationPhase('refining');
-        }}
-        preferences={songSettings}
-        onChangePreferences={setSongSettings}
-        enableLiveQueries={!isMobile}
-      />
+      lyricsPanelContent
     )
   ) : (
     <div className="flex h-full items-center justify-center p-8">
       <p className="text-gray-500">Conversatie wordt geladen...</p>
     </div>
   );
-
-  // Task 4.4: Template selection handler
-  const handleTemplateSelect = (templateId: string) => {
-    const isSurprise = templateId === 'surprise-me';
-    const wasSurprise = selectedTemplateId === 'surprise-me';
-
-    if (isSurprise && !wasSurprise) {
-      setSurpriseModeSelections((prev) => prev + 1);
-    }
-
-    setSelectedTemplateId(templateId);
-    const template = getTemplateById(templateId);
-    if (template) {
-      setTemplateConfig({ ...template.sunoConfig });
-      setAdvancedSettings((prev) => ({
-        ...prev,
-        model: template.sunoConfig.model || prev.model,
-        styleWeight:
-          typeof template.sunoConfig.styleWeight === "number"
-            ? template.sunoConfig.styleWeight
-            : DEFAULT_ADVANCED_SETTINGS.styleWeight,
-        weirdnessConstraint:
-          typeof template.sunoConfig.weirdnessConstraint === "number"
-            ? template.sunoConfig.weirdnessConstraint
-            : DEFAULT_ADVANCED_SETTINGS.weirdnessConstraint,
-        audioWeight:
-          typeof template.sunoConfig.audioWeight === "number"
-            ? template.sunoConfig.audioWeight
-            : DEFAULT_ADVANCED_SETTINGS.audioWeight,
-        negativeTags: template.sunoConfig.negativeTags ?? DEFAULT_ADVANCED_SETTINGS.negativeTags,
-      }));
-      console.log('Template selected:', template.name, template.sunoConfig);
-    }
-  };
 
   // Task 4.3: Template pane with TemplateSelector
   // Task 5.3: Hide template pane when compare UI is active
@@ -2969,18 +3159,31 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
         />
       </div>
 
-      {/* Music generation progress overlay */}
+      {/* Music generation progress overlay (desktop) / bottom bar (mobile) */}
       {isGeneratingMusic && generationStage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-2xl">
-            <MusicGenerationProgress
-              stage={generationStage}
-              estimatedTimeRemaining={
-                generationStage === 1 ? 60 : generationStage === 2 ? 40 : 20
-              }
-            />
+        isMobile ? (
+          <div className="fixed inset-x-0 bottom-[72px] z-40 px-4 pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/95 shadow-lg">
+              <MusicGenerationProgress
+                stage={generationStage}
+                estimatedTimeRemaining={
+                  generationStage === 1 ? 60 : generationStage === 2 ? 40 : 20
+                }
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-2xl">
+              <MusicGenerationProgress
+                stage={generationStage}
+                estimatedTimeRemaining={
+                  generationStage === 1 ? 60 : generationStage === 2 ? 40 : 20
+                }
+              />
+            </div>
+          </div>
+        )
       )}
 
       {/* Variant selector modal */}
