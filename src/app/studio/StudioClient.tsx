@@ -3058,7 +3058,7 @@ export default function StudioClient({ isMobile }: { isMobile: boolean }) {
   // Task 5.3: Guard with ENABLE_LYRICS_COMPARE feature flag
   const lyricsPanelContent = (
     <LyricsPanel
-      conversationId={conversationId}
+      conversationId={conversationId ?? undefined}
       className="h-full"
       conversationPhase={conversationPhase}
       extractedContext={extractedContext}
