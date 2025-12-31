@@ -15,7 +15,7 @@
     "@instantdb/admin": "^0.6.5",
     "@instantdb/react": "^0.20.26",
     "lucide-react": "^0.408.0",
-    "next": "^15.5.4",
+    "next": "15.5.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-swipeable": "^7.0.2",
